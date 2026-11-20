@@ -28,6 +28,7 @@ import {
   listRenders,
   openDb,
 } from '../src/db.mjs';
+import { resolveWeasyprint } from '../src/config.mjs';
 import { createLogger } from '../src/logger.mjs';
 import { sweepRenders } from '../src/retention.mjs';
 import { createApp } from '../src/routes.mjs';
@@ -40,8 +41,7 @@ process.env.RENDER_LIMIT_PER_MIN = '100000';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
-const weasyprintBin =
-  process.env.WEASYPRINT_BIN ?? path.join(rootDir, 'specimen', '.venv', 'bin', 'weasyprint');
+const weasyprintBin = resolveWeasyprint(rootDir);
 const pdftoppmBin = 'pdftoppm';
 
 let tempDir;

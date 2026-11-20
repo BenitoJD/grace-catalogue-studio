@@ -28,8 +28,10 @@ function findOnPath(command) {
 
 // A checkout may keep WeasyPrint in a local virtualenv, and a container or CI
 // installs it on PATH. Try the repository virtualenvs first, then PATH, so the
-// same code works for both without a hard coded path.
-function defaultWeasyprint(root) {
+// same code works for both without a hard coded path. Exported so the test
+// suite resolves it exactly like the server does.
+export function resolveWeasyprint(root = rootDir, env = process.env) {
+  if (env.WEASYPRINT_BIN) return env.WEASYPRINT_BIN;
   const candidates = [
     path.join(root, '.venv', 'bin', 'weasyprint'),
     path.join(root, 'specimen', '.venv', 'bin', 'weasyprint'),
@@ -81,7 +83,7 @@ export function loadConfig(env = process.env) {
     templatesDir,
     dbPath,
     port: Number.isFinite(port) ? port : DEFAULT_PORT,
-    weasyprintBin: env.WEASYPRINT_BIN ?? defaultWeasyprint(rootDir),
+    weasyprintBin: resolveWeasyprint(rootDir, env),
     pdftoppmBin: env.PDFTOPPM_BIN ?? 'pdftoppm',
     logLevel: env.LOG_LEVEL === undefined ? DEFAULT_LOG_LEVEL : parseLogLevel(env.LOG_LEVEL),
     corsOrigins: parseCorsOrigins(env.CORS_ORIGINS),
