@@ -1,32 +1,51 @@
-name: ci
+name: checks
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
-  engine:
-    # the whole rendering engine is platform-neutral — this proves it on both targets
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  app:
+    name: app typecheck and lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-node@v4
         with:
-          dotnet-version: '10.0.x'
-      - run: dotnet build src/Dovetail.Cli -c Release
-      - run: dotnet test tests/Dovetail.Tests -c Release
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
 
-  # The Windows app head is the shipping target. Uncomment once a Windows machine has
-  # been used to validate it at least once — a CI job that has never passed is noise.
-  #
-  # app-windows:
-  #   runs-on: windows-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-dotnet@v4
-  #       with: { dotnet-version: '10.0.x' }
-  #     - run: dotnet workload install maui-windows
-  #     - run: dotnet build src/Dovetail.App -c Release -f net10.0-windows10.0.19041.0
+  server:
+    name: api and rendering tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install rendering dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 \
+            shared-mime-info fonts-liberation poppler-utils
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+      - name: Install server packages
+        working-directory: server
+        run: npm ci
+      - name: Run the test suite
+        run: npm --prefix server test
