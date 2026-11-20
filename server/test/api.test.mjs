@@ -40,7 +40,8 @@ process.env.RENDER_LIMIT_PER_MIN = '100000';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
-const weasyprintBin = path.join(rootDir, 'specimen', '.venv', 'bin', 'weasyprint');
+const weasyprintBin =
+  process.env.WEASYPRINT_BIN ?? path.join(rootDir, 'specimen', '.venv', 'bin', 'weasyprint');
 const pdftoppmBin = 'pdftoppm';
 
 let tempDir;

@@ -17,10 +17,27 @@ export const DEFAULT_RATE_LIMIT_PER_MIN = 120;
 export const DEFAULT_RENDER_LIMIT_PER_MIN = 12;
 export const DEFAULT_RENDER_RETENTION_DAYS = 30;
 
+function findOnPath(command) {
+  const dirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    const candidate = path.join(dir, command);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+// A checkout may keep WeasyPrint in a local virtualenv, and a container or CI
+// installs it on PATH. Try the repository virtualenvs first, then PATH, so the
+// same code works for both without a hard coded path.
 function defaultWeasyprint(root) {
-  const local = path.join(root, '.venv', 'bin', 'weasyprint');
-  if (existsSync(local)) return local;
-  return path.join(root, 'specimen', '.venv', 'bin', 'weasyprint');
+  const candidates = [
+    path.join(root, '.venv', 'bin', 'weasyprint'),
+    path.join(root, 'specimen', '.venv', 'bin', 'weasyprint'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return findOnPath('weasyprint') ?? candidates[0];
 }
 
 // Positive integers only. Anything else falls back to the default so a bad
