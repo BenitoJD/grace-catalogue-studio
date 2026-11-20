@@ -50,6 +50,7 @@ const app = createApp({
   corsOrigins: config.corsOrigins,
   rateLimitPerMin: config.rateLimitPerMin,
   renderLimitPerMin: config.renderLimitPerMin,
+  noteLimitPerMin: config.noteLimitPerMin,
   onReady: ({ previewStore }) => {
     // Warm template thumbnails after boot. Cached previews return immediately;
     // on a fresh data directory this fills the cache in the background while

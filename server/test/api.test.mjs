@@ -11,6 +11,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -20,15 +21,20 @@ import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 
 import {
+  SCHEMA_VERSION,
   createCustomer,
   createMaterial,
   createOrder,
   createRender,
   deleteCustomer,
+  getSetting,
   listRenders,
+  listSettings,
   openDb,
+  setSetting,
 } from '../src/db.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
+import { LlmError, buildNoteMessages, requestChat, resolveLlmConfig } from '../src/llm.mjs';
 import { createLogger } from '../src/logger.mjs';
 import { sweepRenders } from '../src/retention.mjs';
 import { createApp } from '../src/routes.mjs';
@@ -38,6 +44,7 @@ import { createApp } from '../src/routes.mjs';
 // limit tests build their own app with low limits instead.
 process.env.RATE_LIMIT_PER_MIN = '100000';
 process.env.RENDER_LIMIT_PER_MIN = '100000';
+process.env.NOTE_LIMIT_PER_MIN = '100000';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
@@ -77,6 +84,124 @@ async function postJson(url, body) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Local OpenAI compatible mock provider
+// ---------------------------------------------------------------------------
+//
+// The language model tests never touch the real internet. Every provider call
+// lands on this loopback HTTP server, which records what it was sent and can
+// answer with a reply, an OpenAI style error or a plain text error.
+
+const mockProviderState = {
+  mode: 'ok',
+  reply: 'ok',
+  errorStatus: 402,
+  errorBody: null,
+  textError: 'Free usage limit reached',
+  delayMs: 0,
+  requests: [],
+};
+
+let mockProvider;
+let mockProviderUrl;
+
+function startMockProvider() {
+  return new Promise((resolve, reject) => {
+    const server = createServer((request, response) => {
+      let raw = '';
+      request.on('data', (chunk) => {
+        raw += chunk;
+      });
+      request.on('end', () => {
+        let json = null;
+        try {
+          json = raw === '' ? null : JSON.parse(raw);
+        } catch {
+          json = null;
+        }
+        mockProviderState.requests.push({
+          method: request.method,
+          url: request.url,
+          headers: request.headers,
+          body: raw,
+          json,
+        });
+
+        const reply = () => {
+          if (response.destroyed || response.writableEnded) return;
+          if (mockProviderState.mode === 'provider_error') {
+            const body =
+              mockProviderState.errorBody ?? {
+                error: { message: 'Insufficient balance', type: 'insufficient_balance' },
+              };
+            response.writeHead(mockProviderState.errorStatus, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(body));
+            return;
+          }
+          if (mockProviderState.mode === 'text_error') {
+            response.writeHead(500, { 'Content-Type': 'text/plain' });
+            response.end(mockProviderState.textError);
+            return;
+          }
+          response.writeHead(200, { 'Content-Type': 'application/json' });
+          response.end(
+            JSON.stringify({
+              id: 'chatcmpl-mock',
+              object: 'chat.completion',
+              model: json?.model ?? 'mock-model',
+              choices: [
+                {
+                  index: 0,
+                  message: { role: 'assistant', content: mockProviderState.reply },
+                  finish_reason: 'stop',
+                },
+              ],
+            }),
+          );
+        };
+
+        if (mockProviderState.delayMs > 0) setTimeout(reply, mockProviderState.delayMs);
+        else reply();
+      });
+    });
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      resolve({ server, url: `http://127.0.0.1:${server.address().port}` });
+    });
+  });
+}
+
+async function stopMockProvider() {
+  if (!mockProvider) return;
+  await new Promise((resolve) => {
+    mockProvider.server.close(resolve);
+    mockProvider.server.closeAllConnections?.();
+  });
+  mockProvider = null;
+}
+
+function resetMockProvider(overrides = {}) {
+  Object.assign(mockProviderState, {
+    mode: 'ok',
+    reply: 'ok',
+    errorStatus: 402,
+    errorBody: null,
+    textError: 'Free usage limit reached',
+    delayMs: 0,
+    ...overrides,
+  });
+  mockProviderState.requests.length = 0;
+}
+
+function lastProviderRequest() {
+  return mockProviderState.requests[mockProviderState.requests.length - 1];
+}
+
+function resetLlmState() {
+  db.prepare('DELETE FROM settings').run();
+  resetMockProvider();
+}
+
 const DEMO_MATERIALS = [
   { name: 'Dark Walnut', kind: 'laminate', hex: '#3F2A1D', imageUrl: '/media/tex-walnut.jpg' },
   { name: 'Cream', kind: 'laminate', hex: '#E8DCC8', imageUrl: '/media/tex-cream.jpg' },
@@ -113,10 +238,15 @@ before(async () => {
   dataDir = path.join(tempDir, 'data');
   mkdirSync(path.join(dataDir, 'renders'), { recursive: true });
 
+  mockProvider = await startMockProvider();
+  mockProviderUrl = mockProvider.url;
+
   db = openDb(path.join(dataDir, 'catalog.db'));
   for (const material of DEMO_MATERIALS) createMaterial(db, material);
 
-  const app = createApp({ db, dataDir, templatesDir, weasyprintBin, pdftoppmBin });
+  // llmEnv: {} keeps the suite independent from any LLM_* variables in the
+  // environment of whoever runs the tests.
+  const app = createApp({ db, dataDir, templatesDir, weasyprintBin, pdftoppmBin, llmEnv: {} });
   const started = await startApp(app);
   server = started.server;
   baseUrl = `http://127.0.0.1:${started.port}`;
@@ -124,6 +254,7 @@ before(async () => {
 
 after(async () => {
   await stopServer(server ? { server } : null);
+  await stopMockProvider();
   if (db) {
     try {
       db.close();
@@ -1060,7 +1191,13 @@ test('sqlite foreign keys, WAL, pragmas and indices are active', async () => {
   assert.equal(Number(synchronous.synchronous), 1, 'synchronous must be NORMAL');
 
   const userVersion = db.prepare('PRAGMA user_version').get();
-  assert.equal(Number(userVersion.user_version), 1);
+  assert.equal(Number(userVersion.user_version), SCHEMA_VERSION);
+
+  const tables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+    .all()
+    .map((row) => row.name);
+  assert.ok(tables.includes('settings'), 'the current schema has a settings table');
 
   const indices = db
     .prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
@@ -1088,7 +1225,7 @@ test('sqlite foreign keys, WAL, pragmas and indices are active', async () => {
 });
 
 
-test('the migration runner upgrades a pre versioning database to schema 1', () => {
+test('the migration runner upgrades a pre versioning database to the current schema', () => {
   const legacyDir = path.join(tempDir, 'legacy-data');
   mkdirSync(legacyDir, { recursive: true });
   const legacyPath = path.join(legacyDir, 'legacy.db');
@@ -1137,12 +1274,19 @@ test('the migration runner upgrades a pre versioning database to schema 1', () =
 
   const upgraded = openDb(legacyPath);
   try {
-    assert.equal(Number(upgraded.prepare('PRAGMA user_version').get().user_version), 1);
+    assert.equal(Number(upgraded.prepare('PRAGMA user_version').get().user_version), SCHEMA_VERSION);
     const renderColumns = upgraded
       .prepare('PRAGMA table_info(renders)')
       .all()
       .map((column) => column.name);
     assert.ok(renderColumns.includes('templateId'), 'the migration adds renders.templateId');
+    const settingsColumns = upgraded
+      .prepare('PRAGMA table_info(settings)')
+      .all()
+      .map((column) => column.name)
+      .sort();
+    assert.deepEqual(settingsColumns, ['key', 'updated_at', 'value'], 'version 2 adds the settings table');
+    assert.equal(listSettings(upgraded).length, 0, 'a pre versioning database starts with no saved settings');
 
     const indices = upgraded
       .prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
@@ -1157,5 +1301,588 @@ test('the migration runner upgrades a pre versioning database to schema 1', () =
   } finally {
     upgraded.close();
     rmSync(legacyDir, { recursive: true, force: true });
+  }
+});
+// ---------------------------------------------------------------------------
+// Runtime language model: settings, connection test and order note drafting
+// ---------------------------------------------------------------------------
+
+const LLM_KEY = 'sk-test-provider-key-9f2c';
+const LLM_MODEL = 'test-model-1';
+
+async function putLlmSettings(body, base = baseUrl) {
+  return fetch(`${base}/api/llm/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function configureLlm(overrides = {}) {
+  const response = await putLlmSettings({
+    endpoint: `${mockProviderUrl}/`,
+    model: LLM_MODEL,
+    apiKey: LLM_KEY,
+    ...overrides,
+  });
+  assert.equal(response.status, 200, await response.clone().text());
+  return response.json();
+}
+
+test('llm settings are empty and the model routes answer 400 until configured', async () => {
+  resetLlmState();
+
+  const settingsResponse = await fetch(`${baseUrl}/api/llm/settings`);
+  assert.equal(settingsResponse.status, 200);
+  assert.deepEqual(await settingsResponse.json(), {
+    endpoint: '',
+    model: '',
+    hasKey: false,
+    source: 'none',
+    updatedAt: null,
+  });
+
+  const testResponse = await fetch(`${baseUrl}/api/llm/test`, { method: 'POST' });
+  assert.equal(testResponse.status, 400);
+  assert.match((await testResponse.json()).error, /configure/i);
+
+  const noteResponse = await fetch(`${baseUrl}/api/orders/${orderId}/note`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  assert.equal(noteResponse.status, 400);
+  assert.match((await noteResponse.json()).error, /configure/i);
+  assert.equal(mockProviderState.requests.length, 0, 'an unconfigured route may not call a provider');
+});
+
+test('llm settings validation rejects bad input without saving anything', async () => {
+  resetLlmState();
+
+  const ftp = await putLlmSettings({ endpoint: 'ftp://example.com/v1' });
+  assert.equal(ftp.status, 400);
+  assert.match((await ftp.json()).error, /http/i);
+
+  const longEndpoint = await putLlmSettings({ endpoint: `https://example.com/${'a'.repeat(4000)}` });
+  assert.equal(longEndpoint.status, 400);
+  assert.match((await longEndpoint.json()).error, /300/);
+
+  const longModel = await putLlmSettings({ model: 'm'.repeat(121) });
+  assert.equal(longModel.status, 400);
+  assert.match((await longModel.json()).error, /120/);
+
+  const longKey = await putLlmSettings({ apiKey: 'k'.repeat(401) });
+  assert.equal(longKey.status, 400);
+  assert.match((await longKey.json()).error, /400/);
+
+  const unknown = await putLlmSettings({ endpoint: 'https://example.com/v1', extra: 'nope' });
+  assert.equal(unknown.status, 400);
+  assert.match((await unknown.json()).error, /unknown/i);
+
+  const notText = await putLlmSettings({ model: 42 });
+  assert.equal(notText.status, 400);
+
+  // A rejected request must not have written a partial configuration.
+  const unchanged = await (await fetch(`${baseUrl}/api/llm/settings`)).json();
+  assert.equal(unchanged.source, 'none');
+  assert.equal(unchanged.endpoint, '');
+  assert.equal(unchanged.hasKey, false);
+
+  // Both http and https endpoints are accepted; the trailing slash goes away.
+  const httpsOk = await putLlmSettings({ endpoint: 'https://example.com/v1/' });
+  assert.equal(httpsOk.status, 200);
+  assert.equal((await httpsOk.json()).endpoint, 'https://example.com/v1');
+});
+
+test('llm settings roundtrip stores the key server side and never returns it', async () => {
+  resetLlmState();
+
+  const savedResponse = await putLlmSettings({
+    endpoint: `${mockProviderUrl}/`,
+    model: LLM_MODEL,
+    apiKey: LLM_KEY,
+  });
+  assert.equal(savedResponse.status, 200);
+  const savedRaw = await savedResponse.text();
+  assert.equal(savedRaw.includes(LLM_KEY), false, 'the key must never be returned');
+  const saved = JSON.parse(savedRaw);
+  assert.equal(saved.endpoint, mockProviderUrl, 'trailing slashes are trimmed');
+  assert.equal(saved.model, LLM_MODEL);
+  assert.equal(saved.hasKey, true);
+  assert.equal(saved.source, 'settings');
+  assert.ok(!Number.isNaN(Date.parse(saved.updatedAt)));
+  assert.equal(Object.hasOwn(saved, 'apiKey'), false, 'the response shape has no key field');
+
+  // The values, including the key, are persisted in SQLite.
+  assert.equal(getSetting(db, 'llm_api_key').value, LLM_KEY);
+  assert.equal(getSetting(db, 'llm_endpoint').value, mockProviderUrl);
+
+  const fetchedRaw = await (await fetch(`${baseUrl}/api/llm/settings`)).text();
+  assert.equal(fetchedRaw.includes(LLM_KEY), false);
+  assert.deepEqual(JSON.parse(fetchedRaw), saved);
+});
+
+test('the connection test calls the provider with the bearer key and configured model', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: '  ok  ' });
+
+  const response = await fetch(`${baseUrl}/api/llm/test`, { method: 'POST' });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  assert.equal(raw.includes(LLM_KEY), false, 'the key must never be returned');
+  const body = JSON.parse(raw);
+  assert.equal(body.ok, true);
+  assert.equal(body.sample, 'ok', 'the sample is trimmed');
+  assert.equal(body.model, LLM_MODEL);
+  assert.ok(Number.isInteger(body.latencyMs) && body.latencyMs >= 0);
+
+  assert.equal(mockProviderState.requests.length, 1);
+  const request = lastProviderRequest();
+  assert.equal(request.method, 'POST');
+  assert.equal(request.url, '/chat/completions', 'requests go to <endpoint>/chat/completions');
+  assert.equal(request.headers.authorization, `Bearer ${LLM_KEY}`);
+  assert.equal(request.json.model, LLM_MODEL);
+  assert.equal(request.json.max_tokens, 16);
+  assert.equal(request.json.temperature, 0);
+  assert.deepEqual(request.json.messages, [
+    { role: 'system', content: 'You are a connection test.' },
+    { role: 'user', content: 'Reply with the single word ok.' },
+  ]);
+
+  // A long reply is capped instead of being copied whole into the sample.
+  resetMockProvider({ reply: ' ok'.repeat(200) });
+  const capped = await (await fetch(`${baseUrl}/api/llm/test`, { method: 'POST' })).json();
+  assert.equal(capped.ok, true);
+  assert.ok(capped.sample.length <= 200, `the sample must be capped, got ${capped.sample.length}`);
+  assert.ok(capped.sample.startsWith('ok ok'));
+});
+
+test('a failing provider is surfaced through a 502 with the provider message', async () => {
+  resetLlmState();
+  await configureLlm();
+
+  // OpenAI style { error: { message, type } } body.
+  resetMockProvider({ mode: 'provider_error' });
+  const response = await fetch(`${baseUrl}/api/llm/test`, { method: 'POST' });
+  const raw = await response.text();
+  assert.equal(response.status, 502, raw);
+  assert.equal(raw.includes(LLM_KEY), false, 'a failed call must not leak the key');
+  assert.equal(raw.toLowerCase().includes('stack'), false, 'no stack trace may be returned');
+  const body = JSON.parse(raw);
+  assert.equal(body.ok, false);
+  assert.equal(body.error.message, 'Insufficient balance', 'the provider message is surfaced verbatim');
+  assert.equal(body.error.status, 402);
+  assert.equal(body.error.type, 'insufficient_balance');
+
+  // Plain text error body.
+  resetMockProvider({ mode: 'text_error' });
+  const textResponse = await fetch(`${baseUrl}/api/llm/test`, { method: 'POST' });
+  assert.equal(textResponse.status, 502);
+  const textBody = await textResponse.json();
+  assert.equal(textBody.ok, false);
+  assert.equal(textBody.error.message, 'Free usage limit reached');
+  assert.equal(textBody.error.status, 500);
+
+  // A very long provider message is capped, not copied whole.
+  resetMockProvider({
+    mode: 'text_error',
+    textError: `Free usage limit reached ${'x'.repeat(2000)}`,
+  });
+  const longBody = await (await fetch(`${baseUrl}/api/llm/test`, { method: 'POST' })).json();
+  assert.ok(
+    longBody.error.message.length <= 300,
+    `the provider message must be capped, got ${longBody.error.message.length}`,
+  );
+  assert.ok(longBody.error.message.startsWith('Free usage limit reached'));
+});
+
+test('the order note is drafted from the order details over the provider', async () => {
+  resetLlmState();
+  await configureLlm();
+  const noteText =
+    'Hello Test Customer, your Master Bedroom Wardrobe is taking shape in our Nagercoil workshop. We will share the next update on WhatsApp.';
+  resetMockProvider({ reply: ` ${noteText} ` });
+
+  const response = await fetch(`${baseUrl}/api/orders/${orderId}/note`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  assert.equal(raw.includes(LLM_KEY), false, 'the key must never be returned');
+  const body = JSON.parse(raw);
+  assert.equal(body.note, noteText);
+  assert.equal(body.model, LLM_MODEL);
+  assert.ok(Number.isInteger(body.latencyMs) && body.latencyMs >= 0);
+
+  const request = lastProviderRequest();
+  assert.equal(request.url, '/chat/completions');
+  assert.equal(request.headers.authorization, `Bearer ${LLM_KEY}`);
+  const prompt = request.json.messages.map((message) => message.content).join('\n');
+  assert.ok(prompt.includes('Master Bedroom Wardrobe'), 'the prompt carries the order title');
+  assert.ok(prompt.includes('Test Customer'), 'the prompt carries the customer name');
+  assert.ok(prompt.includes('Master bedroom'), 'the prompt carries the room');
+  assert.ok(prompt.includes('2400 mm'), 'the prompt carries the dimensions');
+  assert.ok(prompt.includes('18 mm BWP plywood'), 'the prompt carries the materials');
+  assert.ok(prompt.includes('2 mm PVC'), 'the prompt carries the edge band');
+  assert.ok(prompt.includes('Matte black aluminium'), 'the prompt carries the handles');
+  assert.ok(prompt.includes('Matte outside, white inside'), 'the prompt carries the finish');
+  assert.match(prompt, /under 60 words/i);
+  assert.match(prompt, /British Indian English/i);
+  assert.match(prompt, /no em dashes/i);
+  assert.match(prompt, /WhatsApp/i);
+  assert.match(prompt, /invent/i);
+});
+
+test('order note answers 404 for an unknown order and 502 when the provider fails', async () => {
+  resetLlmState();
+  await configureLlm();
+
+  const missing = await fetch(`${baseUrl}/api/orders/does-not-exist/note`, { method: 'POST' });
+  assert.equal(missing.status, 404);
+
+  resetMockProvider({ mode: 'provider_error' });
+  const failed = await fetch(`${baseUrl}/api/orders/${orderId}/note`, { method: 'POST' });
+  const raw = await failed.text();
+  assert.equal(failed.status, 502);
+  assert.equal(raw.includes(LLM_KEY), false);
+  const body = JSON.parse(raw);
+  assert.equal(body.ok, false);
+  assert.equal(body.error.message, 'Insufficient balance');
+});
+
+test('clearing the api key removes it and disables the model routes', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ mode: 'provider_error' }); // would fail loudly if a call slipped through
+
+  const clearedResponse = await putLlmSettings({ apiKey: '' });
+  const clearedRaw = await clearedResponse.text();
+  assert.equal(clearedResponse.status, 200);
+  assert.equal(clearedRaw.includes(LLM_KEY), false);
+  const cleared = JSON.parse(clearedRaw);
+  assert.equal(cleared.hasKey, false);
+  assert.equal(getSetting(db, 'llm_api_key'), null, 'the stored key row is deleted');
+
+  const testResponse = await fetch(`${baseUrl}/api/llm/test`, { method: 'POST' });
+  assert.equal(testResponse.status, 400);
+  const noteResponse = await fetch(`${baseUrl}/api/orders/${orderId}/note`, { method: 'POST' });
+  assert.equal(noteResponse.status, 400);
+  assert.equal(mockProviderState.requests.length, 0, 'no provider call may happen without a key');
+});
+
+test('the api key never appears in responses or request logs', async () => {
+  resetLlmState();
+  const logLines = [];
+  const auditLogger = createLogger({
+    level: 'debug',
+    write: (record) => logLines.push(JSON.stringify(record)),
+  });
+  const auditApp = createApp({
+    db,
+    dataDir,
+    templatesDir,
+    weasyprintBin,
+    pdftoppmBin,
+    logger: auditLogger,
+    llmEnv: {},
+    rateLimitPerMin: 1000,
+    renderLimitPerMin: 1000,
+    noteLimitPerMin: 1000,
+  });
+  const started = await startApp(auditApp);
+  const auditBase = `http://127.0.0.1:${started.port}`;
+  try {
+    resetMockProvider({ mode: 'provider_error' });
+    const bodies = [];
+    const saved = await putLlmSettings(
+      { endpoint: mockProviderUrl, model: LLM_MODEL, apiKey: LLM_KEY },
+      auditBase,
+    );
+    bodies.push(await saved.text());
+    bodies.push(await (await fetch(`${auditBase}/api/llm/settings`)).text());
+    bodies.push(await (await fetch(`${auditBase}/api/llm/test`, { method: 'POST' })).text());
+    bodies.push(await (await fetch(`${auditBase}/api/orders/${orderId}/note`, { method: 'POST' })).text());
+
+    resetMockProvider();
+    bodies.push(await (await fetch(`${auditBase}/api/llm/test`, { method: 'POST' })).text());
+    bodies.push(await (await fetch(`${auditBase}/api/orders/${orderId}/note`, { method: 'POST' })).text());
+
+    const cleared = await putLlmSettings({ apiKey: '' }, auditBase);
+    bodies.push(await cleared.text());
+
+    for (const body of bodies) {
+      assert.equal(body.includes(LLM_KEY), false, 'no language model response may contain the key');
+    }
+    assert.ok(logLines.length > 0, 'the audit logger saw request records');
+    for (const line of logLines) {
+      assert.equal(line.includes(LLM_KEY), false, 'request logs must never contain the key');
+    }
+    assert.equal(getSetting(db, 'llm_api_key'), null);
+  } finally {
+    await stopServer({ server: started.server });
+  }
+});
+
+test('the environment configures the provider and stored settings override it', async () => {
+  const envDb = openDb(':memory:');
+  const envApp = createApp({
+    db: envDb,
+    dataDir,
+    templatesDir,
+    weasyprintBin,
+    pdftoppmBin,
+    llmEnv: {
+      LLM_ENDPOINT: `${mockProviderUrl}/`,
+      LLM_MODEL: LLM_MODEL,
+      LLM_API_KEY: LLM_KEY,
+    },
+    rateLimitPerMin: 1000,
+    renderLimitPerMin: 1000,
+    noteLimitPerMin: 1000,
+  });
+  const started = await startApp(envApp);
+  const envBase = `http://127.0.0.1:${started.port}`;
+  try {
+    resetMockProvider();
+
+    const settings = await (await fetch(`${envBase}/api/llm/settings`)).json();
+    assert.equal(settings.source, 'env');
+    assert.equal(settings.endpoint, mockProviderUrl, 'the environment endpoint is trimmed');
+    assert.equal(settings.model, LLM_MODEL);
+    assert.equal(settings.hasKey, true);
+    assert.equal(settings.updatedAt, null);
+
+    const tested = await fetch(`${envBase}/api/llm/test`, { method: 'POST' });
+    assert.equal(tested.status, 200);
+    assert.equal(lastProviderRequest().headers.authorization, `Bearer ${LLM_KEY}`);
+    assert.equal(lastProviderRequest().json.model, LLM_MODEL);
+
+    // A stored value wins, while fields that were not stored keep coming from
+    // the environment.
+    const savedResponse = await putLlmSettings({ model: 'stored-model' }, envBase);
+    const saved = await savedResponse.json();
+    assert.equal(saved.source, 'settings');
+    assert.equal(saved.model, 'stored-model');
+    assert.equal(saved.endpoint, mockProviderUrl);
+    assert.equal(saved.hasKey, true);
+
+    mockProviderState.requests.length = 0;
+    await fetch(`${envBase}/api/llm/test`, { method: 'POST' });
+    assert.equal(lastProviderRequest().json.model, 'stored-model');
+  } finally {
+    envDb.close();
+    await stopServer({ server: started.server });
+  }
+});
+
+test('language model helpers are unit testable without the internet', async () => {
+  // Config resolution: settings table first, environment second.
+  const unitDb = openDb(':memory:');
+  try {
+    const none = resolveLlmConfig(unitDb, {});
+    assert.equal(none.source, 'none');
+    assert.equal(none.configured, false);
+    assert.equal(none.updatedAt, null);
+
+    const fromEnv = resolveLlmConfig(unitDb, {
+      LLM_ENDPOINT: `${mockProviderUrl}/`,
+      LLM_MODEL: 'env-model',
+      LLM_API_KEY: LLM_KEY,
+    });
+    assert.equal(fromEnv.source, 'env');
+    assert.equal(fromEnv.endpoint, mockProviderUrl);
+    assert.equal(fromEnv.model, 'env-model');
+    assert.equal(fromEnv.apiKey, LLM_KEY);
+    assert.equal(fromEnv.configured, true);
+
+    setSetting(unitDb, 'llm_endpoint', `${mockProviderUrl}/`);
+    setSetting(unitDb, 'llm_model', 'stored-model');
+    const stored = resolveLlmConfig(unitDb, {
+      LLM_ENDPOINT: 'https://env.example/v1',
+      LLM_MODEL: 'env-model',
+      LLM_API_KEY: LLM_KEY,
+    });
+    assert.equal(stored.source, 'settings');
+    assert.equal(stored.endpoint, mockProviderUrl, 'stored endpoints are trimmed as well');
+    assert.equal(stored.model, 'stored-model');
+    assert.equal(stored.apiKey, LLM_KEY, 'a missing stored key still falls back to the environment');
+  } finally {
+    unitDb.close();
+  }
+
+  // Prompt builder: order facts only, and the drafting rules are explicit.
+  const order = {
+    customerName: 'Ravi Kumar',
+    title: 'Master Bedroom Wardrobe',
+    room: 'Master bedroom',
+    width: '2400 mm',
+    height: '2100 mm',
+    depth: '600 mm',
+    shutters: '3',
+    carcass: '18 mm BWP plywood',
+    backPanel: '',
+    shuttersMat: '18 mm BWP plywood',
+    drawers: '',
+    exterior: '1 mm laminate',
+    interior: '',
+    hinges: '',
+    channels: '',
+    edgeShutter: '2 mm PVC',
+    edgeCarcass: '',
+    edgeNote: '',
+    handle: 'Matte black aluminium',
+    handleNote: '',
+    finishExt: 'Matte outside',
+    finishInt: '',
+  };
+  const messages = buildNoteMessages(order);
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0].role, 'system');
+  assert.match(messages[0].content, /under 60 words/i);
+  assert.match(messages[0].content, /British Indian English/i);
+  assert.match(messages[0].content, /no em dashes/i);
+  assert.match(messages[0].content, /WhatsApp/i);
+  assert.equal(messages[1].role, 'user');
+  const prompt = messages[1].content;
+  for (const expected of [
+    'Ravi Kumar',
+    'Master Bedroom Wardrobe',
+    'Master bedroom',
+    '2400 mm',
+    '18 mm BWP plywood',
+    '2 mm PVC',
+    'Matte black aluminium',
+    'Matte outside',
+  ]) {
+    assert.ok(prompt.includes(expected), `the prompt should include ${expected}`);
+  }
+  assert.equal(prompt.includes('undefined'), false);
+  assert.equal(prompt.includes('null'), false);
+  assert.equal(prompt.toLowerCase().includes('back panel'), false, 'empty facts are omitted');
+
+  // The request function can be called directly against the loopback mock.
+  resetMockProvider({ reply: ' ok ' });
+  const success = await requestChat({
+    endpoint: `${mockProviderUrl}/`,
+    model: 'unit-model',
+    apiKey: LLM_KEY,
+    messages: [{ role: 'user', content: 'hi' }],
+    maxTokens: 5,
+    temperature: 0,
+  });
+  assert.equal(success.content, 'ok');
+  assert.equal(success.model, 'unit-model');
+  assert.ok(Number.isFinite(success.latencyMs) && success.latencyMs >= 0);
+
+  resetMockProvider({ mode: 'text_error' });
+  await assert.rejects(
+    () =>
+      requestChat({
+        endpoint: mockProviderUrl,
+        model: 'unit-model',
+        apiKey: LLM_KEY,
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    (error) => {
+      assert.ok(error instanceof LlmError);
+      assert.equal(error.message, 'Free usage limit reached');
+      assert.equal(error.status, 500);
+      return true;
+    },
+  );
+
+  // A slow provider aborts on the timeout budget and reports a timeout type.
+  resetMockProvider({ delayMs: 300 });
+  await assert.rejects(
+    () =>
+      requestChat({
+        endpoint: mockProviderUrl,
+        model: 'unit-model',
+        apiKey: LLM_KEY,
+        messages: [{ role: 'user', content: 'hi' }],
+        timeoutMs: 50,
+      }),
+    (error) => {
+      assert.ok(error instanceof LlmError);
+      assert.equal(error.type, 'timeout');
+      assert.match(error.message, /timeout/i);
+      assert.equal(error.message.includes(LLM_KEY), false);
+      return true;
+    },
+  );
+  resetMockProvider();
+});
+
+test('the note route has its own per minute rate limit', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: 'ok' });
+
+  const noteLimitedApp = createApp({
+    db,
+    dataDir,
+    templatesDir,
+    weasyprintBin,
+    pdftoppmBin,
+    llmEnv: {},
+    rateLimitPerMin: 1000,
+    renderLimitPerMin: 1000,
+    noteLimitPerMin: 1,
+  });
+  const started = await startApp(noteLimitedApp);
+  try {
+    const url = `http://127.0.0.1:${started.port}/api/orders/${orderId}/note`;
+    const responses = await Promise.all([
+      fetch(url, { method: 'POST' }),
+      fetch(url, { method: 'POST' }),
+    ]);
+    const statuses = responses.map((response) => response.status).sort();
+    assert.deepEqual(statuses, [200, 429]);
+    const limited = responses.find((response) => response.status === 429);
+    assert.match(limited.headers.get('retry-after') ?? '', /^\d+$/);
+    assert.match((await limited.json()).error, /too many note requests/i);
+  } finally {
+    await stopServer({ server: started.server });
+  }
+});
+
+test('a version 1 database upgrades in place to the settings schema', () => {
+  const upgradeDir = path.join(tempDir, 'upgrade-data');
+  mkdirSync(upgradeDir, { recursive: true });
+  const upgradePath = path.join(upgradeDir, 'upgrade.db');
+
+  // A fresh database starts on the current version with both migrations.
+  const fresh = openDb(upgradePath);
+  try {
+    assert.equal(Number(fresh.prepare('PRAGMA user_version').get().user_version), SCHEMA_VERSION);
+    createCustomer(fresh, { name: 'Upgrade Customer' });
+    // Simulate a database written by the version 1 release, before settings.
+    fresh.exec('DROP TABLE settings');
+    fresh.exec('PRAGMA user_version = 1');
+  } finally {
+    fresh.close();
+  }
+
+  const upgraded = openDb(upgradePath);
+  try {
+    assert.equal(Number(upgraded.prepare('PRAGMA user_version').get().user_version), SCHEMA_VERSION);
+    const settingsColumns = upgraded
+      .prepare('PRAGMA table_info(settings)')
+      .all()
+      .map((column) => column.name)
+      .sort();
+    assert.deepEqual(settingsColumns, ['key', 'updated_at', 'value']);
+    assert.equal(listSettings(upgraded).length, 0, 'the upgraded database starts with no saved settings');
+    assert.equal(
+      upgraded.prepare('SELECT COUNT(*) AS count FROM customers').get().count,
+      1,
+      'existing rows survive the upgrade',
+    );
+  } finally {
+    upgraded.close();
+    rmSync(upgradeDir, { recursive: true, force: true });
   }
 });

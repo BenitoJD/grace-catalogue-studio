@@ -1,0 +1,66 @@
+appId: com.gracewoodindustry.studio
+productName: Grace Studio
+copyright: Copyright © 2026 Grace Wood Industry
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the wrapper itself goes into the asar; the SPA is copied next to it as
+# a normal resource so the embedded server can read it with fs.
+files:
+  - main.js
+  - package.json
+
+# The exported Expo web build ends up in Contents/Resources/app/dist on macOS
+# and resources/app/dist on Windows. main.js resolves `process.resourcesPath`.
+extraResources:
+  - from: ../app/dist
+    to: app/dist
+
+asar: true
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  # There is no signing identity in this repo or in CI, so ship unsigned
+  # builds. Identity null stops electron-builder from looking for one.
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  # Never try to notarize an unsigned build.
+  notarize: false
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  title: ${productName} ${version}
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  artifactName: ${productName}-${version}-setup-${arch}.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: ${productName}
+
+portable:
+  artifactName: ${productName}-${version}-portable-${arch}.${ext}

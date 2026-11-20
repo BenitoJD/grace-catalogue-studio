@@ -1,0 +1,79 @@
+name: desktop
+
+# Build the Electron installers for macOS and Windows. CI is the only place
+# Windows builds are produced (and the only place a clean machine builds the
+# SPA), so run this manually from the Actions tab or push a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-latest
+            build-script: "build:mac"
+            artifact-name: grace-studio-macos
+            artifact-paths: |
+              desktop/release/*.dmg
+              desktop/release/*.zip
+          - name: Windows
+            runner: windows-latest
+            build-script: "build:win"
+            artifact-name: grace-studio-windows
+            artifact-paths: |
+              desktop/release/*.exe
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            desktop/package-lock.json
+
+      - name: Install the web app dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Export the Expo web build
+        working-directory: app
+        run: npx expo export --platform web --output-dir dist
+        env:
+          CI: "1"
+          EXPO_NO_TELEMETRY: "1"
+
+      - name: Install the desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build the desktop installers
+        working-directory: desktop
+        run: npm run ${{ matrix.build-script }}
+        env:
+          # No signing identity exists in CI; build unsigned artefacts.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ""
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-paths }}
+          if-no-files-found: error
+          retention-days: 30

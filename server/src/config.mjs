@@ -15,6 +15,7 @@ export const DEFAULT_CORS_ORIGINS = Object.freeze([
 ]);
 export const DEFAULT_RATE_LIMIT_PER_MIN = 120;
 export const DEFAULT_RENDER_LIMIT_PER_MIN = 12;
+export const DEFAULT_NOTE_LIMIT_PER_MIN = 30;
 export const DEFAULT_RENDER_RETENTION_DAYS = 30;
 
 function findOnPath(command) {
@@ -92,6 +93,7 @@ export function loadConfig(env = process.env) {
       env.RENDER_LIMIT_PER_MIN,
       DEFAULT_RENDER_LIMIT_PER_MIN,
     ),
+    noteLimitPerMin: parsePositiveInt(env.NOTE_LIMIT_PER_MIN, DEFAULT_NOTE_LIMIT_PER_MIN),
     retentionDays: parseRetentionDays(env.RENDER_RETENTION_DAYS),
   };
 }

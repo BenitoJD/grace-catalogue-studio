@@ -116,6 +116,7 @@ const api = startProcess("node", ["server/src/index.mjs"], {
   CATALOG_DB: dbFile
 });
 const web = startProcess("node", ["scripts/serve-web.mjs", "8081"]);
+const mock = startProcess("node", ["scripts/mock-llm.mjs", "8793"]);
 let browser;
 
 try {
@@ -266,6 +267,49 @@ try {
   check("order count updated", await hasText(page, "3 orders"));
   await page.screenshot({ path: `${shots}/06-orders-with-data.png` });
 
+  // 4b. language model settings and a drafted customer note
+  const providerUp = await waitFor("http://127.0.0.1:8793/v1/models", 40);
+  check("mock model provider is up", providerUp);
+  const saved = await fetch(`${API}/api/llm/settings`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ endpoint: "http://127.0.0.1:8793/v1", model: "mock-flash", apiKey: "test-key" })
+  }).then((response) => response.json());
+  check("model settings save", saved.hasKey === true && saved.endpoint.includes("8793"));
+  check("api never returns the key", !JSON.stringify(saved).includes("test-key"));
+
+  await page.goto(`${WEB}/settings`, { waitUntil: "networkidle2" });
+  await sleep(2000);
+  const endpointValue = await page.evaluate(
+    () => document.querySelector('input[placeholder="https://provider.example.com/v1"]')?.value ?? ""
+  );
+  check("settings shows the endpoint", endpointValue.includes("8793"), endpointValue.slice(0, 40));
+  check("test connection button present", await clickText(page, "Test connection"));
+  const connected = await page
+    .waitForFunction(() => document.body.innerText.includes("Connected to"), { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  check("test connection reports success", connected);
+  await page.screenshot({ path: `${shots}/06b-model-settings.png` });
+
+  const noteOrders = await (await fetch(`${API}/api/orders`)).json();
+  const noteOrderId = noteOrders[0].id;
+  await page.goto(`${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
+  await sleep(2500);
+  check("draft note button present", await clickText(page, "Draft customer note"));
+  const noteShown = await page
+    .waitForFunction(() => document.body.innerText.includes("three shutters in warm oak"), { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  check("drafted note appears", noteShown);
+  check("copy note button present", await clickText(page, "Copy note"));
+  await sleep(600);
+  const copied = await page.evaluate(() =>
+    document.body.innerText.includes("copied") || document.body.innerText.includes("Could not copy")
+  );
+  check("copy gives feedback", copied);
+  await page.screenshot({ path: `${shots}/06c-customer-note.png` });
+
   // 5. materials tab
   await page.goto(`${WEB}/materials`, { waitUntil: "networkidle2" });
   check("materials screen opens", await hasText(page, "Materials"));
@@ -321,7 +365,7 @@ try {
   console.error("web log:", web.dump().slice(-600));
 } finally {
   if (browser) await browser.close().catch(() => {});
-  for (const proc of [api, web]) {
+  for (const proc of [api, web, mock]) {
     try {
       process.kill(proc.child.pid, "SIGTERM");
     } catch {}

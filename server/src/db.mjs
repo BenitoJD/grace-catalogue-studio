@@ -30,9 +30,10 @@ export const ORDER_TEXT_FIELDS = [
 ];
 
 // The schema is versioned with PRAGMA user_version. Version 1 is the original
-// catalogue schema; every future change is appended as a new migration so an
-// existing data directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 1;
+// catalogue schema and version 2 adds the runtime settings table; every future
+// change is appended as a new migration so an existing data directory upgrades
+// in place. Never edit an applied migration.
+export const SCHEMA_VERSION = 2;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -103,6 +104,17 @@ CREATE INDEX IF NOT EXISTS renders_order_created_idx ON renders (orderId, create
 CREATE INDEX IF NOT EXISTS renders_created_idx ON renders (createdAt);
 `;
 
+// Version 2: runtime configuration the office can change from the app instead
+// of redeploying. A tiny key/value table keeps the values together and leaves
+// room for future settings without another migration.
+const SETTINGS_SCHEMA = `
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`;
+
 function tableColumns(db, table) {
   return db
     .prepare(`PRAGMA table_info(${table})`)
@@ -128,6 +140,16 @@ export const MIGRATIONS = Object.freeze([
       // Older data directories predate selectable brochure templates.
       addColumnIfMissing(db, 'renders', 'templateId', 'TEXT');
       db.exec(INITIAL_INDEXES);
+    },
+  },
+  {
+    version: 2,
+    name: 'runtime settings',
+    up(db) {
+      // Only the table is created: a version 1 database deliberately starts
+      // with no settings so the environment variables keep working until an
+      // administrator saves values from the app.
+      db.exec(SETTINGS_SCHEMA);
     },
   },
 ]);
@@ -402,6 +424,52 @@ export function listRendersForOrder(db, orderId) {
 
 export function getRender(db, id) {
   return renderFromRow(db.prepare('SELECT * FROM renders WHERE id = ?').get(id));
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+// The runtime configuration keys this build knows about. Keeping the list here
+// means a typo can not quietly create a setting nothing ever reads.
+export const SETTING_KEYS = Object.freeze(['llm_endpoint', 'llm_model', 'llm_api_key']);
+const SETTING_KEY_SET = new Set(SETTING_KEYS);
+
+function settingFromRow(row) {
+  if (!row) return null;
+  return { key: row.key, value: row.value, updatedAt: row.updated_at };
+}
+
+export function listSettings(db) {
+  return db
+    .prepare('SELECT key, value, updated_at FROM settings ORDER BY key ASC')
+    .all()
+    .map(settingFromRow);
+}
+
+export function getSetting(db, key) {
+  return settingFromRow(
+    db.prepare('SELECT key, value, updated_at FROM settings WHERE key = ?').get(key),
+  );
+}
+
+/**
+ * Insert or replace one setting. The caller passes only validated values; the
+ * database layer just persists them with the current timestamp.
+ */
+export function setSetting(db, key, value) {
+  if (!SETTING_KEY_SET.has(key)) throw new Error(`Unknown setting "${key}".`);
+  db.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+  ).run(key, String(value), now());
+  return getSetting(db, key);
+}
+
+/** Remove a setting so it falls back to the environment. Returns true if a row was deleted. */
+export function deleteSetting(db, key) {
+  const result = db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+  return Number(result.changes) > 0;
 }
 
 // The retention sweep lives in its own module; re-exported here so the data

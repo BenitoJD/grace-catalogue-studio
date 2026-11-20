@@ -16,6 +16,7 @@ interface FieldProps {
   maxLength?: number;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   autoCorrect?: boolean;
+  secure?: boolean;
   accessibilityHint?: string;
 }
 
@@ -28,6 +29,7 @@ export function Field({
   maxLength,
   autoCapitalize = 'sentences',
   autoCorrect = false,
+  secure = false,
   accessibilityHint,
 }: FieldProps) {
   const [focused, setFocused] = useState(false);
@@ -36,6 +38,7 @@ export function Field({
     <View style={styles.wrap}>
       <Text style={[text.sectionLabel, styles.label]}>{label}</Text>
       <TextInput
+        secureTextEntry={secure}
         accessibilityLabel={label}
         accessibilityHint={accessibilityHint}
         value={value}

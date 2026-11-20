@@ -17,6 +17,9 @@ import { RenderError } from './render.mjs';
 export const BODY_LIMIT_BYTES = 64 * 1024;
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 export const RENDER_ROUTE_PATTERN = /^\/api\/orders\/[^/]+\/render\/?$/;
+// Note drafting calls a paid model, so it gets its own generous limit instead
+// of eating the much smaller render budget.
+export const NOTE_ROUTE_PATTERN = /^\/api\/orders\/[^/]+\/note\/?$/;
 
 export const SECURITY_HEADERS = Object.freeze({
   'X-Content-Type-Options': 'nosniff',
@@ -234,6 +237,7 @@ export function errorResponse(c, error, logger) {
  * - corsOrigins: array of allowed origins, or ["*"]
  * - rateLimitPerMin: general requests per minute per IP
  * - renderLimitPerMin: render requests per minute per IP
+ * - noteLimitPerMin: note drafting requests per minute per IP
  * - isShuttingDown(): while true, new work gets a 503
  */
 export function installHttpHardening(app, options = {}) {
@@ -244,6 +248,8 @@ export function installHttpHardening(app, options = {}) {
       : ['*'];
   const generalLimiter = createFixedWindowLimiter({ limit: options.rateLimitPerMin ?? 120 });
   const renderLimiter = createFixedWindowLimiter({ limit: options.renderLimitPerMin ?? 12 });
+  // Mirrors the default in config.mjs; callers normally pass the parsed value.
+  const noteLimiter = createFixedWindowLimiter({ limit: options.noteLimitPerMin ?? 30 });
   const isShuttingDown =
     typeof options.isShuttingDown === 'function' ? options.isShuttingDown : () => false;
 
@@ -315,6 +321,19 @@ export function installHttpHardening(app, options = {}) {
         );
       }
     }
+    if (c.req.method === 'POST' && NOTE_ROUTE_PATTERN.test(c.req.path)) {
+      const note = noteLimiter.hit(ip);
+      if (!note.allowed) {
+        return c.json(
+          {
+            error: `Too many note requests. Try again in ${note.retryAfterSeconds} seconds.`,
+            requestId: c.get('requestId'),
+          },
+          429,
+          { 'Retry-After': String(note.retryAfterSeconds) },
+        );
+      }
+    }
     return next();
   });
 
@@ -337,5 +356,5 @@ export function installHttpHardening(app, options = {}) {
 
   app.onError((error, c) => errorResponse(c, error, logger));
 
-  return { logger, generalLimiter, renderLimiter };
+  return { logger, generalLimiter, renderLimiter, noteLimiter };
 }

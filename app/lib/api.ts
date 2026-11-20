@@ -105,6 +105,28 @@ export interface Template {
   pageCount: number;
 }
 
+export interface LlmSettings {
+  endpoint: string;
+  model: string;
+  hasKey: boolean;
+  source: 'settings' | 'env' | 'none';
+  updatedAt: string | null;
+}
+
+export interface LlmTestResult {
+  ok: boolean;
+  latencyMs?: number;
+  model?: string;
+  sample?: string;
+  error?: { message?: string; status?: number; type?: string };
+}
+
+export interface OrderNote {
+  note: string;
+  model: string;
+  latencyMs: number;
+}
+
 export interface Bootstrap {
   customers: Customer[];
   orders: Order[];
@@ -163,7 +185,7 @@ export class ApiError extends Error {
 const DEFAULT_TIMEOUT_MS = 20000;
 const RENDER_TIMEOUT_MS = 120000;
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 interface RequestOptions {
   method?: Method;
@@ -275,6 +297,19 @@ export const api = {
       timeoutMs: RENDER_TIMEOUT_MS,
     });
   },
+  getLlmSettings(): Promise<LlmSettings> {
+    return request<LlmSettings>('/api/llm/settings');
+  },
+  saveLlmSettings(input: { endpoint?: string; model?: string; apiKey?: string }): Promise<LlmSettings> {
+    return request<LlmSettings>('/api/llm/settings', { method: 'PUT', body: input });
+  },
+  draftOrderNote(orderId: string): Promise<OrderNote> {
+    return request<OrderNote>(`/api/orders/${encodeId(orderId)}/note`, {
+      method: 'POST',
+      body: {},
+      timeoutMs: 45000,
+    });
+  },
   listTemplates(): Promise<Template[]> {
     return request<Template[]>('/api/templates');
   },
@@ -282,6 +317,31 @@ export const api = {
     return request<Render[]>('/api/renders');
   },
 };
+
+/**
+ * Calls the configured model and always resolves with the parsed body, because a
+ * failing test returns the provider's own message and that is the useful part.
+ */
+export async function testLlmConnection(): Promise<LlmTestResult> {
+  const url = `${API_BASE_URL}/api/llm/test`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, { method: 'POST', signal: controller.signal });
+    const body = (await response.json().catch(() => null)) as LlmTestResult | null;
+    if (body && typeof body.ok === 'boolean') {
+      return body;
+    }
+    return { ok: false, error: { message: `The server replied ${response.status}.` } };
+  } catch (error) {
+    return {
+      ok: false,
+      error: { message: error instanceof Error ? error.message : 'The test could not reach the server.' },
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** Turn a server relative path such as /files/x.pdf into an absolute URL. */
 export function fileUrl(pathOrUrl: string): string {

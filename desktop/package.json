@@ -1,0 +1,20 @@
+{
+  "name": "grace-studio-desktop",
+  "productName": "Grace Studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Grace Studio desktop wrapper (Electron) around the Expo web build",
+  "author": "Grace Wood Industry",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0"
+  }
+}

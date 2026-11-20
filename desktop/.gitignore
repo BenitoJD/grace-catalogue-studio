@@ -1,0 +1,10 @@
+# Dependencies and build output are generated per machine.
+node_modules/
+release/
+dist/
+
+# macOS
+.DS_Store
+
+# Logs from local smoke tests
+*.log

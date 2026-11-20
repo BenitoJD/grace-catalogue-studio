@@ -242,6 +242,43 @@ Thirty covers are built from six compositions and five palettes:
 
 `GET /api/templates` lists them with preview images. A render accepts `templateId`. The app shows the gallery from the order screen under Design.
 
+## Desktop app for Windows and Mac
+
+![Desktop](docs/screenshots/desktop.png)
+
+`desktop/` wraps the web build in Electron and packages it for both platforms. The wrapper starts an embedded server on loopback that serves the app and reverse proxies `/api`, `/files`, `/pages`, `/previews`, `/media`, `/health` and `/ready` to the API, so the window sees one origin and no rebuild or CORS setup is needed.
+
+```bash
+npm run setup
+npm run desktop                      # run the wrapper in development
+npm run build:mac                    # dmg and zip in desktop/release
+npm run build:win                    # nsis and portable exe, best run on Windows
+```
+
+Point it at a deployed API with `CATALOG_API_URL`, or with `desktop-config.json` in the app data directory (the menu item Open server settings reveals it). Defaults to `http://localhost:8787`.
+
+`.github/workflows/desktop.yml` builds both platforms on a tag `v*` or on demand: mac on a macOS runner, Windows on a Windows runner, with the artifacts uploaded. The mac build has been produced and launched on this machine and the packaged app was verified against a live API. Windows is built only by CI.
+
+Builds are unsigned. Gatekeeper will warn on first open on a Mac, and SmartScreen will warn on Windows. Signing needs an Apple Developer ID and a Windows code signing certificate; both are deliberately out of scope for now.
+
+## Language model
+
+The studio can point itself at any OpenAI compatible model. Open Settings, Language model, and set the endpoint, the model id and the key. Save, then Test connection. The key is stored on the server and never sent back to the app, and the test shows the provider's own error text when a call fails.
+
+![Model settings](docs/screenshots/e2e/06b-model-settings.png)
+
+Once configured, an order screen can draft a short customer note from the order data. Nothing is invented: the prompt is built from the order fields, and the note is shown for review before anyone copies it.
+
+![Customer note](docs/screenshots/e2e/06c-customer-note.png)
+
+Verified against `https://opencode.ai/zen/v1` with `deepseek-v4.1-flash`: the endpoint authenticates and lists models, and this account currently returns `402 Insufficient balance` for paid models and `429 Free usage limit reached` for free ones. The studio surfaces those messages unchanged, which is exactly what the test button is for. The success path is proven end to end against the bundled mock provider:
+
+```bash
+node scripts/mock-llm.mjs 8793   # then point Settings at http://127.0.0.1:8793/v1
+```
+
+Environment fallbacks are `LLM_ENDPOINT`, `LLM_MODEL` and `LLM_API_KEY`; settings saved in the studio win.
+
 ## Production
 
 The API ships as a container. Full runbook in [docs/DEPLOY.md](docs/DEPLOY.md), the config template in [.env.example](.env.example).

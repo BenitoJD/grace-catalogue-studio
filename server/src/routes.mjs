@@ -11,6 +11,7 @@ import {
   createOrder,
   createRender,
   deleteOrder,
+  deleteSetting,
   getCustomer,
   getOrder,
   getRender,
@@ -19,15 +20,35 @@ import {
   listOrders,
   listRenders,
   listRendersForOrder,
+  setSetting,
   updateOrder,
 } from './db.mjs';
 import {
+  DEFAULT_NOTE_LIMIT_PER_MIN,
   DEFAULT_RATE_LIMIT_PER_MIN,
   DEFAULT_RENDER_LIMIT_PER_MIN,
   parseCorsOrigins,
   parsePositiveInt,
 } from './config.mjs';
 import { installHttpHardening, isExecutable } from './http.mjs';
+import {
+  CONNECTION_TEST_MESSAGES,
+  LLM_SETTING_KEYS,
+  NOT_CONFIGURED_MESSAGE,
+  NOTE_MAX_TOKENS,
+  NOTE_TEMPERATURE,
+  SAMPLE_MAX_CHARS,
+  TEST_MAX_TOKENS,
+  buildNoteMessages,
+  capText,
+  llmFailureBody,
+  publicLlmSettings,
+  requestChat,
+  resolveLlmConfig,
+  validateApiKey,
+  validateEndpoint,
+  validateModel,
+} from './llm.mjs';
 import { createLogger, parseLogLevel } from './logger.mjs';
 import { buildKitValues, createRenderer, newRenderId } from './render.mjs';
 import { createPreviewStore } from './previews.mjs';
@@ -167,6 +188,12 @@ export function createApp(options) {
   const renderLimitPerMin =
     options.renderLimitPerMin ??
     parsePositiveInt(process.env.RENDER_LIMIT_PER_MIN, DEFAULT_RENDER_LIMIT_PER_MIN);
+  const noteLimitPerMin =
+    options.noteLimitPerMin ??
+    parsePositiveInt(process.env.NOTE_LIMIT_PER_MIN, DEFAULT_NOTE_LIMIT_PER_MIN);
+  // Read the provider environment here, once per created app, so tests can
+  // isolate themselves and the runtime keeps the normal process environment.
+  const llmEnv = options.llmEnv ?? process.env;
 
   const variants = loadVariants(templatesDir);
   const renderer =
@@ -193,6 +220,7 @@ export function createApp(options) {
     corsOrigins,
     rateLimitPerMin,
     renderLimitPerMin,
+    noteLimitPerMin,
     isShuttingDown: () => lifecycle.shuttingDown,
   });
 
@@ -416,6 +444,128 @@ export function createApp(options) {
       imageUrl: imageUrl.value,
     });
     return c.json(material, 201);
+  });
+
+  // -------------------------------------------------------------------------
+  // Language model: runtime settings, connection test and note drafting
+  // -------------------------------------------------------------------------
+
+  function llmFailureResponse(c, error) {
+    // Provider status and type help operations, but the key stays out of every
+    // log line and response.
+    logger.warn('Language model request failed.', {
+      requestId: c.get('requestId') ?? null,
+      type: typeof error?.type === 'string' ? error.type : 'unknown',
+      providerStatus: Number.isInteger(error?.status) ? error.status : undefined,
+    });
+    return c.json(llmFailureBody(error), 502);
+  }
+
+  // No key is ever returned: hasKey only says whether one is available.
+  app.get('/api/llm/settings', (c) =>
+    c.json(publicLlmSettings(resolveLlmConfig(db, llmEnv))),
+  );
+
+  app.put('/api/llm/settings', async (c) => {
+    const parsed = await readJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const body = parsed.body;
+
+    // Reject unknown fields instead of silently ignoring a typo that would
+    // leave the operator looking at unchanged settings.
+    const allowedFields = new Set(['endpoint', 'model', 'apiKey']);
+    for (const key of Object.keys(body)) {
+      if (!allowedFields.has(key)) {
+        return fail(
+          c,
+          400,
+          `Unknown field "${key}". Allowed fields are endpoint, model and apiKey.`,
+        );
+      }
+    }
+
+    // Validate everything before writing anything, so a rejected request can
+    // not leave a half applied configuration behind.
+    let endpoint;
+    if ('endpoint' in body) {
+      const result = validateEndpoint(body.endpoint);
+      if (result.error) return fail(c, 400, result.error);
+      endpoint = result.value;
+    }
+    let model;
+    if ('model' in body) {
+      const result = validateModel(body.model);
+      if (result.error) return fail(c, 400, result.error);
+      model = result.value;
+    }
+    let apiKey;
+    if ('apiKey' in body) {
+      const result = validateApiKey(body.apiKey);
+      if (result.error) return fail(c, 400, result.error);
+      apiKey = result.value;
+    }
+
+    if (endpoint !== undefined) setSetting(db, LLM_SETTING_KEYS.endpoint, endpoint);
+    if (model !== undefined) setSetting(db, LLM_SETTING_KEYS.model, model);
+    if (apiKey !== undefined) {
+      // An empty string means "forget the stored key" so resolution falls back
+      // to the environment.
+      if (apiKey === '') deleteSetting(db, LLM_SETTING_KEYS.apiKey);
+      else setSetting(db, LLM_SETTING_KEYS.apiKey, apiKey);
+    }
+
+    return c.json(publicLlmSettings(resolveLlmConfig(db, llmEnv)));
+  });
+
+  // A real provider call with a short budget. The response never carries the
+  // key, only the outcome and a trimmed sample of the reply.
+  app.post('/api/llm/test', async (c) => {
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+    try {
+      const result = await requestChat({
+        endpoint: config.endpoint,
+        model: config.model,
+        apiKey: config.apiKey,
+        messages: CONNECTION_TEST_MESSAGES,
+        maxTokens: TEST_MAX_TOKENS,
+        temperature: 0,
+      });
+      return c.json({
+        ok: true,
+        latencyMs: result.latencyMs,
+        model: result.model,
+        sample: capText(result.content, SAMPLE_MAX_CHARS),
+      });
+    } catch (error) {
+      return llmFailureResponse(c, error);
+    }
+  });
+
+  // Draft a short WhatsApp note for one order. The prompt carries every filled
+  // in order field and forbids inventing the rest.
+  app.post('/api/orders/:id/note', async (c) => {
+    const order = getOrder(db, c.req.param('id'));
+    if (!order) return fail(c, 404, 'Order not found.');
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+    try {
+      const result = await requestChat({
+        endpoint: config.endpoint,
+        model: config.model,
+        apiKey: config.apiKey,
+        messages: buildNoteMessages(order),
+        maxTokens: NOTE_MAX_TOKENS,
+        temperature: NOTE_TEMPERATURE,
+      });
+      return c.json({
+        note: result.content,
+        model: result.model,
+        latencyMs: result.latencyMs,
+      });
+    } catch (error) {
+      return llmFailureResponse(c, error);
+    }
   });
 
   // -------------------------------------------------------------------------

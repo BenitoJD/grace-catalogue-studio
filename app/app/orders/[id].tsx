@@ -11,6 +11,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -18,7 +19,7 @@ import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ErrorState, LoadingState } from '@/components/StateViews';
 import { openUrl, shareLink } from '@/lib/actions';
-import { api, errorMessage, fileUrl, type Order, type Render, type Template } from '@/lib/api';
+import { api, errorMessage, fileUrl, type Order, type OrderNote, type Render, type Template } from '@/lib/api';
 import { displayValue, formatDate, pageCountLabel, statusLabel } from '@/lib/format';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
@@ -96,6 +97,10 @@ export default function OrderDetailScreen() {
   const [renderError, setRenderError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [note, setNote] = useState<OrderNote | null>(null);
+  const [noteLoading, setNoteLoading] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteStatus, setNoteStatus] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const chosenTemplate = routeTemplateId;
 
@@ -206,6 +211,35 @@ export default function OrderDetailScreen() {
       setRendering(false);
     }
   }, [chosenTemplate, currentTemplate, orderId, rendering]);
+
+  const draftNote = useCallback(async () => {
+    if (!orderId || noteLoading) {
+      return;
+    }
+    setNoteLoading(true);
+    setNoteError(null);
+    setNoteStatus(null);
+    try {
+      const next = await api.draftOrderNote(orderId);
+      setNote(next);
+    } catch (error) {
+      setNoteError(errorMessage(error, 'The note could not be drafted. Check the model settings.'));
+    } finally {
+      setNoteLoading(false);
+    }
+  }, [noteLoading, orderId]);
+
+  const copyNote = useCallback(async () => {
+    if (!note) {
+      return;
+    }
+    try {
+      await Clipboard.setStringAsync(note.note);
+      setNoteStatus('Note copied to the clipboard.');
+    } catch {
+      setNoteStatus('Could not copy. Select the text and copy it by hand.');
+    }
+  }, [note]);
 
   const pdfUrl = render ? fileUrl(render.pdfUrl) : null;
 
@@ -410,6 +444,42 @@ export default function OrderDetailScreen() {
                 ) : null}
               </View>
 
+              <View style={styles.voucherSection}>
+                <View style={shared.rowBetween}>
+                  <Text style={text.sectionLabel}>Customer note</Text>
+                  {note ? <Text style={text.caption}>{note.model}</Text> : null}
+                </View>
+                {note ? (
+                  <View style={styles.noteBox}>
+                    <Text style={[text.body, styles.noteText]} selectable>
+                      {note.note}
+                    </Text>
+                    <Button label="Copy note" variant="secondary" onPress={() => void copyNote()} />
+                  </View>
+                ) : (
+                  <Text style={[text.muted, styles.voucherIntro]}>
+                    A short message for the customer, drafted from this order and the materials.
+                  </Text>
+                )}
+                {noteStatus ? (
+                  <Text style={[text.caption, styles.noteStatus]} accessibilityLiveRegion="polite">
+                    {noteStatus}
+                  </Text>
+                ) : null}
+                {noteError ? (
+                  <Text style={[text.muted, styles.noteError]}>{noteError}</Text>
+                ) : null}
+                <View style={styles.generateAction}>
+                  <Button
+                    label={note ? 'Draft another' : 'Draft customer note'}
+                    variant={note ? 'secondary' : 'primary'}
+                    loading={noteLoading}
+                    loadingLabel="Drafting"
+                    onPress={() => void draftNote()}
+                  />
+                </View>
+              </View>
+
               <View style={[shared.hairline, styles.footerRule]} />
               <Text style={[text.caption, styles.footerNote]}>
                 Grace Wood Industry · Catalogue Studio
@@ -524,6 +594,26 @@ function PageImage({ uri, label }: { uri: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  noteBox: {
+    marginTop: space.md,
+    gap: space.md,
+    padding: space.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    backgroundColor: colors.paperDeep,
+    maxWidth: 640,
+  },
+  noteText: {
+    lineHeight: 24,
+  },
+  noteStatus: {
+    marginTop: space.sm,
+    color: colors.muted,
+  },
+  noteError: {
+    marginTop: space.sm,
+    color: '#8C2F24',
+  },
   designRow: {
     flexDirection: 'row',
     gap: space.md,
