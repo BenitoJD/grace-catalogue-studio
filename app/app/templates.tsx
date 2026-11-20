@@ -65,7 +65,7 @@ export default function TemplatesScreen() {
       <View style={styles.header}>
         <ScreenHeader
           title="Designs"
-          subtitle="Pick the cover. The specification and finish pages stay the same."
+          subtitle="Ten document styles in three tones. Every design carries the same information in its own layout."
           onBack={() => {
             if (orderId) {
               router.replace({ pathname: '/orders/[id]', params: { id: orderId } });
@@ -76,7 +76,7 @@ export default function TemplatesScreen() {
         />
         <View style={[shared.hairline, styles.rule]} />
         <View style={styles.gridHeading}>
-          <Text style={text.sectionLabel}>Cover designs</Text>
+          <Text style={text.sectionLabel}>Designs</Text>
           {templates.length > 0 ? <Text style={text.caption}>{templates.length} designs</Text> : null}
         </View>
         {loading && templates.length === 0 ? <LoadingState label="Loading designs." /> : null}

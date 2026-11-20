@@ -311,8 +311,8 @@ export default function OrderDetailScreen() {
                   <View style={styles.designText}>
                     <Text style={text.muted}>
                       {templates.length > 0
-                        ? `${templates.length} cover designs. The specification and finish pages stay the same.`
-                        : 'The specification and finish pages stay the same for every design.'}
+                        ? `${templates.length} designs across ten document styles. Every design carries the same information.`
+                        : 'Every design carries the same information in its own layout.'}
                     </Text>
                     <Button
                       label="Change design"
