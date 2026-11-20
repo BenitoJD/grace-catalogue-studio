@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "pageCount": 4,
+  "palettes": [
+    {
+      "id": "copper",
+      "name": "Copper",
+      "accent": "#A65E22",
+      "coverPaper": "#FBF7F1",
+      "coverInk": "#14100C",
+      "coverMuted": "#6E6259",
+      "onPhoto": "#FFFFFF",
+      "gradientTop": "rgba(18,13,9,0.20)",
+      "gradientBottom": "rgba(18,13,9,0.80)",
+      "bandScrim": "rgba(18,13,9,0.55)"
+    },
+    {
+      "id": "ink",
+      "name": "Ink",
+      "accent": "#1C1A17",
+      "coverPaper": "#F4F2EF",
+      "coverInk": "#14100C",
+      "coverMuted": "#5F5B56",
+      "onPhoto": "#FFFFFF",
+      "gradientTop": "rgba(14,13,12,0.28)",
+      "gradientBottom": "rgba(14,13,12,0.86)",
+      "bandScrim": "rgba(14,13,12,0.62)"
+    },
+    {
+      "id": "olive",
+      "name": "Olive",
+      "accent": "#5C6B3C",
+      "coverPaper": "#F7F7F0",
+      "coverInk": "#14100C",
+      "coverMuted": "#5F6651",
+      "onPhoto": "#FFFFFF",
+      "gradientTop": "rgba(24,29,17,0.24)",
+      "gradientBottom": "rgba(24,29,17,0.82)",
+      "bandScrim": "rgba(24,29,17,0.58)"
+    },
+    {
+      "id": "indigo",
+      "name": "Indigo",
+      "accent": "#2F3E6B",
+      "coverPaper": "#F5F6FA",
+      "coverInk": "#101322",
+      "coverMuted": "#565D70",
+      "onPhoto": "#FFFFFF",
+      "gradientTop": "rgba(14,19,36,0.28)",
+      "gradientBottom": "rgba(14,19,36,0.84)",
+      "bandScrim": "rgba(14,19,36,0.60)"
+    },
+    {
+      "id": "sand",
+      "name": "Sand",
+      "accent": "#B08A63",
+      "coverPaper": "#FAF6F0",
+      "coverInk": "#14100C",
+      "coverMuted": "#76644F",
+      "onPhoto": "#FFFFFF",
+      "gradientTop": "rgba(51,37,24,0.22)",
+      "gradientBottom": "rgba(51,37,24,0.80)",
+      "bandScrim": "rgba(51,37,24,0.56)"
+    }
+  ],
+  "covers": [
+    {
+      "id": "fullBleed",
+      "name": "Full Bleed",
+      "typeScale": { "titleMaxPt": 58, "titleLineHeight": 0.98, "kickerPt": 5.1 }
+    },
+    {
+      "id": "splitRight",
+      "name": "Split Right",
+      "typeScale": { "titleMaxPt": 42, "titleLineHeight": 1.0, "kickerPt": 5.0 }
+    },
+    {
+      "id": "splitLeft",
+      "name": "Split Left",
+      "typeScale": { "titleMaxPt": 42, "titleLineHeight": 1.0, "kickerPt": 5.0 }
+    },
+    {
+      "id": "bandTop",
+      "name": "Band Top",
+      "typeScale": { "titleMaxPt": 50, "titleLineHeight": 1.0, "kickerPt": 5.0 }
+    },
+    {
+      "id": "typeOnly",
+      "name": "Type Only",
+      "typeScale": { "titleMaxPt": 76, "titleLineHeight": 0.94, "kickerPt": 5.4 }
+    },
+    {
+      "id": "centred",
+      "name": "Centred",
+      "typeScale": { "titleMaxPt": 46, "titleLineHeight": 1.02, "kickerPt": 5.0 }
+    }
+  ],
+  "variants": [
+    { "id": "copper-full-bleed", "name": "Copper Full Bleed", "palette": "copper", "cover": "fullBleed" },
+    { "id": "ink-full-bleed", "name": "Ink Full Bleed", "palette": "ink", "cover": "fullBleed" },
+    { "id": "olive-full-bleed", "name": "Olive Full Bleed", "palette": "olive", "cover": "fullBleed" },
+    { "id": "indigo-full-bleed", "name": "Indigo Full Bleed", "palette": "indigo", "cover": "fullBleed" },
+    { "id": "sand-full-bleed", "name": "Sand Full Bleed", "palette": "sand", "cover": "fullBleed" },
+
+    { "id": "copper-split-right", "name": "Copper Split Right", "palette": "copper", "cover": "splitRight" },
+    { "id": "ink-split-right", "name": "Ink Split Right", "palette": "ink", "cover": "splitRight" },
+    { "id": "olive-split-right", "name": "Olive Split Right", "palette": "olive", "cover": "splitRight" },
+    { "id": "indigo-split-right", "name": "Indigo Split Right", "palette": "indigo", "cover": "splitRight" },
+    { "id": "sand-split-right", "name": "Sand Split Right", "palette": "sand", "cover": "splitRight" },
+
+    { "id": "copper-split-left", "name": "Copper Split Left", "palette": "copper", "cover": "splitLeft" },
+    { "id": "ink-split-left", "name": "Ink Split Left", "palette": "ink", "cover": "splitLeft" },
+    { "id": "olive-split-left", "name": "Olive Split Left", "palette": "olive", "cover": "splitLeft" },
+    { "id": "indigo-split-left", "name": "Indigo Split Left", "palette": "indigo", "cover": "splitLeft" },
+    { "id": "sand-split-left", "name": "Sand Split Left", "palette": "sand", "cover": "splitLeft" },
+
+    { "id": "copper-band-top", "name": "Copper Band Top", "palette": "copper", "cover": "bandTop" },
+    { "id": "ink-band-top", "name": "Ink Band Top", "palette": "ink", "cover": "bandTop" },
+    { "id": "olive-band-top", "name": "Olive Band Top", "palette": "olive", "cover": "bandTop" },
+    { "id": "indigo-band-top", "name": "Indigo Band Top", "palette": "indigo", "cover": "bandTop" },
+    { "id": "sand-band-top", "name": "Sand Band Top", "palette": "sand", "cover": "bandTop" },
+
+    { "id": "copper-type-only", "name": "Copper Type Only", "palette": "copper", "cover": "typeOnly" },
+    { "id": "ink-type-only", "name": "Ink Type Only", "palette": "ink", "cover": "typeOnly" },
+    { "id": "olive-type-only", "name": "Olive Type Only", "palette": "olive", "cover": "typeOnly" },
+    { "id": "indigo-type-only", "name": "Indigo Type Only", "palette": "indigo", "cover": "typeOnly" },
+    { "id": "sand-type-only", "name": "Sand Type Only", "palette": "sand", "cover": "typeOnly" },
+
+    { "id": "copper-centred", "name": "Copper Centred", "palette": "copper", "cover": "centred" },
+    { "id": "ink-centred", "name": "Ink Centred", "palette": "ink", "cover": "centred" },
+    { "id": "olive-centred", "name": "Olive Centred", "palette": "olive", "cover": "centred" },
+    { "id": "indigo-centred", "name": "Indigo Centred", "palette": "indigo", "cover": "centred" },
+    { "id": "sand-centred", "name": "Sand Centred", "palette": "sand", "cover": "centred" }
+  ]
+}

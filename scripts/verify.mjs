@@ -1,0 +1,109 @@
+// End to end check: boot the API, create an order, render a voucher, verify the PDF.
+// Run with: node scripts/verify.mjs
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { setTimeout as sleep } from "node:timers/promises";
+
+const PORT = 8799;
+const BASE = `http://127.0.0.1:${PORT}`;
+const root = new URL("..", import.meta.url).pathname;
+const dbFile = `${root}data/verify.db`;
+
+let failed = 0;
+const check = (label, ok, detail = "") => {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `  ${detail}` : ""}`);
+  if (!ok) failed += 1;
+};
+
+if (existsSync(dbFile)) rmSync(dbFile);
+mkdirSync(`${root}data`, { recursive: true });
+
+const server = spawn("node", ["server/src/index.mjs"], {
+  cwd: root,
+  env: { ...process.env, PORT: String(PORT), CATALOG_DB: dbFile },
+  stdio: ["ignore", "pipe", "pipe"]
+});
+let log = "";
+server.stdout.on("data", (c) => (log += c));
+server.stderr.on("data", (c) => (log += c));
+
+async function waitForServer() {
+  for (let i = 0; i < 60; i += 1) {
+    try {
+      const res = await fetch(`${BASE}/health`);
+      if (res.ok) return true;
+    } catch {}
+    await sleep(250);
+  }
+  return false;
+}
+
+try {
+  const up = await waitForServer();
+  check("api boots", up, up ? "" : log.slice(-400));
+  if (!up) throw new Error("server did not start");
+
+  const health = await (await fetch(`${BASE}/health`)).json();
+  check("health responds", health.ok === true);
+
+  const customer = await (
+    await fetch(`${BASE}/api/customers`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Verify Customer", phone: "+91 90000 00000" })
+    })
+  ).json();
+  check("customer created", Boolean(customer.id), customer.name ?? JSON.stringify(customer));
+
+  const order = await (
+    await fetch(`${BASE}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        customerId: customer.id,
+        title: "Master Bedroom Wardrobe",
+        room: "Master bedroom",
+        width: "2400 mm",
+        height: "2100 mm",
+        depth: "600 mm",
+        shutters: "3, 800 mm"
+      })
+    })
+  ).json();
+  check("order created", Boolean(order.id), order.orderNo ?? JSON.stringify(order));
+  check("order number generated", /^GWI-\d{4}-\d{3}$/.test(order.orderNo ?? ""), order.orderNo);
+
+  const render = await (
+    await fetch(`${BASE}/api/orders/${order.id}/render`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "voucher" })
+    })
+  ).json();
+  check("render returned", Boolean(render.id), `${render.pageCount} pages`);
+  check("voucher is four pages", render.pageCount === 4);
+  check("page urls present", Array.isArray(render.pageUrls) && render.pageUrls.length === 4);
+
+  const pdfPath = `${root}data/renders/${render.id}.pdf`;
+  check("pdf file exists", existsSync(pdfPath));
+  if (existsSync(pdfPath)) {
+    const info = spawnSync("pdfinfo", [pdfPath], { encoding: "utf8" });
+    const pages = (info.stdout.match(/Pages:\s+(\d+)/) ?? [])[1];
+    check("pdf reports four pages", pages === "4", `pdfinfo says ${pages}`);
+  }
+
+  const pageRes = await fetch(`${BASE}${render.pageUrls[0]}`);
+  check("page image served", pageRes.ok, String(pageRes.status));
+
+  const firstPage = await fetch(`${BASE}${render.pageUrls[0]}`);
+  const bytes = (await firstPage.arrayBuffer()).byteLength;
+  check("page image is a real image", bytes > 5000, `${bytes} bytes`);
+} catch (error) {
+  console.error(error);
+  failed += 1;
+} finally {
+  server.kill("SIGTERM");
+  await sleep(300);
+  console.log(failed === 0 ? "\nAll checks passed." : `\n${failed} check(s) failed.`);
+  process.exit(failed === 0 ? 0 : 1);
+}

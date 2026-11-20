@@ -1,0 +1,20 @@
+{
+  "name": "grace-catalogue-studio",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Internal catalogue tool for Grace Wood Industry. One React Native codebase, native and web, plus a PDF render service.",
+  "type": "module",
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix app install",
+    "seed": "npm --prefix server run seed",
+    "server": "npm --prefix server start",
+    "app": "npm --prefix app run web",
+    "dev": "node scripts/dev.mjs",
+    "test": "npm --prefix server test",
+    "build:web": "npm --prefix app run build:web",
+    "verify": "node scripts/verify.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "typecheck": "npm --prefix app run typecheck",
+    "lint": "npm --prefix app run lint"
+  }
+}

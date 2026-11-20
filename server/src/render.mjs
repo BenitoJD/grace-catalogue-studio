@@ -1,0 +1,404 @@
+import { execFile } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import path from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
+const COMMAND_TIMEOUT_MS = 120_000;
+const COMMAND_BUFFER = 16 * 1024 * 1024;
+
+// Grace Wood Industry details used by the kit template and the voucher footer.
+const COMPANY = {
+  addressLine1: '26J, Rajjakamangalam Road',
+  addressLine2: 'Chettikulam, Nagercoil',
+  cityLine: 'Nagercoil',
+  phone: '+91 63740 43346',
+  email: 'info.gracewoodindustry@gmail.com',
+  shopLine: 'Chettikulam · Nagercoil · +91 63740 43346',
+};
+
+// Image paths are relative to the template directory, see CONTRACT.md.
+const VOUCHER_IMAGES = {
+  coverImage: '../assets/company/bedroom-wardrobe.jpg',
+  detailImage: '../assets/company/grey-detail.jpg',
+  insideImage: '../assets/company/walk-in.jpg',
+  insideImage2: '../assets/company/beige-wardrobe.jpg',
+};
+
+const LAYOUT_LINES = [
+  'Left · hanging',
+  'Middle · shelves, two drawers',
+  'Right · long hanging, low shelf',
+];
+
+const FALLBACK_MATERIALS = [
+  { name: 'Dark Walnut', image: '../assets/company/tex-walnut.jpg' },
+  { name: 'Cream', image: '../assets/company/tex-cream.jpg' },
+  { name: 'Ash Grey', image: '../assets/company/tex-grey.jpg' },
+  { name: 'Edge band', image: '../assets/company/tex-band.jpg' },
+];
+
+const TEMPLATE_FILE = 'index.html';
+
+export class RenderError extends Error {
+  constructor(message, status = 500) {
+    super(message);
+    this.name = 'RenderError';
+    this.status = status;
+  }
+}
+
+export function newRenderId() {
+  return `r-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
+}
+
+export function formatOrderDate(date = new Date()) {
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
+export function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      default:
+        return '&#39;';
+    }
+  });
+}
+
+// Material images are stored as app paths such as /media/tex-walnut.jpg. The
+// template needs a path relative to its own directory.
+function materialImagePath(imageUrl, templatesDir) {
+  if (typeof imageUrl !== 'string' || imageUrl === '') return null;
+  if (imageUrl.startsWith('../assets/')) return imageUrl;
+  if (!imageUrl.startsWith('/media/')) return null;
+
+  const name = path.basename(imageUrl.slice('/media/'.length));
+  if (!name || name.includes('..')) return null;
+  const source = path.join(templatesDir, 'assets', 'company', name);
+  return existsSync(source) ? `../assets/company/${name}` : null;
+}
+
+export function buildVoucherValues({ order, materials = [], templatesDir }) {
+  const materialSlots = FALLBACK_MATERIALS.map((fallback, index) => {
+    const material = materials[index];
+    const image = materialImagePath(material?.imageUrl, templatesDir);
+    return {
+      name: material?.name?.trim() || fallback.name,
+      image: image ?? fallback.image,
+    };
+  });
+
+  return {
+    orderNo: order.orderNo,
+    title: order.title,
+    date: formatOrderDate(),
+    customerName: order.customerName,
+    width: order.width,
+    height: order.height,
+    depth: order.depth,
+    shutters: order.shutters,
+    room: order.room,
+    carcass: order.carcass,
+    backPanel: order.backPanel,
+    shuttersMat: order.shuttersMat,
+    drawers: order.drawers,
+    exterior: order.exterior,
+    interior: order.interior,
+    hinges: order.hinges,
+    channels: order.channels,
+    layoutLeft: LAYOUT_LINES[0],
+    layoutMiddle: LAYOUT_LINES[1],
+    layoutRight: LAYOUT_LINES[2],
+    edgeShutter: order.edgeShutter,
+    edgeCarcass: order.edgeCarcass,
+    edgeNote: order.edgeNote,
+    handle: order.handle,
+    handleNote: order.handleNote,
+    finishExt: order.finishExt,
+    finishInt: order.finishInt,
+    shopLine: COMPANY.shopLine,
+    ...VOUCHER_IMAGES,
+    mat1Name: materialSlots[0].name,
+    mat2Name: materialSlots[1].name,
+    mat3Name: materialSlots[2].name,
+    mat4Name: materialSlots[3].name,
+    mat1Image: materialSlots[0].image,
+    mat2Image: materialSlots[1].image,
+    mat3Image: materialSlots[2].image,
+    mat4Image: materialSlots[3].image,
+  };
+}
+
+export function buildKitValues() {
+  return {
+    addressLine1: COMPANY.addressLine1,
+    addressLine2: COMPANY.addressLine2,
+    cityLine: COMPANY.cityLine,
+    phone: COMPANY.phone,
+    email: COMPANY.email,
+  };
+}
+
+// Replace {{key}} tokens and fail loudly if any token is left over. A value of
+// the shape { raw: "..." } is inserted as markup or CSS without escaping; this
+// is how the server passes the palette variables and the generated cover block
+// into the base template.
+export function fillTemplate(template, values, kind) {
+  const filled = template.replace(/\{\{([A-Za-z0-9_]+)\}\}/g, (token, key) => {
+    const value = values[key];
+    if (value === undefined || value === null) return token;
+    if (typeof value === 'object' && typeof value.raw === 'string') return value.raw;
+    return escapeHtml(value);
+  });
+
+  const leftover = [
+    ...new Set([...filled.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map((match) => match[1].trim())),
+  ];
+  if (leftover.length > 0) {
+    throw new RenderError(
+      `Unfilled placeholder in the ${kind} template: ${leftover.join(', ')}. A value must be provided for every placeholder.`,
+      500,
+    );
+  }
+  return filled;
+}
+
+function errorTail(error, fallback) {
+  if (!error) return fallback;
+  if (error.code === 'ENOENT') return '';
+  const stderr = typeof error.stderr === 'string' ? error.stderr.trim() : '';
+  const raw = stderr || error.message || fallback;
+  return raw.replace(/\s+/g, ' ').trim().slice(0, 400);
+}
+
+function pageImageFiles(rendersDir, renderId) {
+  const prefix = `${renderId}-`;
+  return readdirSync(rendersDir).filter(
+    (name) => name.startsWith(prefix) && name.endsWith('.png'),
+  );
+}
+
+function pageImageNumber(name, renderId) {
+  const match = new RegExp(`^${renderId}-(\\d+)\\.png$`).exec(name);
+  return match ? Number.parseInt(match[1], 10) : null;
+}
+
+function removePageImages(rendersDir, renderId) {
+  for (const name of pageImageFiles(rendersDir, renderId)) {
+    rmSync(path.join(rendersDir, name), { force: true });
+  }
+}
+
+async function runWeasyPrint(weasyprintBin, builtFile, pdfPath) {
+  try {
+    await execFileAsync(weasyprintBin, [builtFile, pdfPath], {
+      timeout: COMMAND_TIMEOUT_MS,
+      maxBuffer: COMMAND_BUFFER,
+    });
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      throw new RenderError(`WeasyPrint was not found at ${weasyprintBin}. Install it before rendering.`, 500);
+    }
+    const tail = errorTail(error, 'Unknown error.');
+    throw new RenderError(`WeasyPrint could not build the PDF. ${tail}`, 500);
+  }
+
+  if (!existsSync(pdfPath)) {
+    throw new RenderError('WeasyPrint finished but no PDF file was written.', 500);
+  }
+}
+
+async function runPdftoppm(pdftoppmBin, args) {
+  try {
+    await execFileAsync(pdftoppmBin, args, {
+      timeout: COMMAND_TIMEOUT_MS,
+      maxBuffer: COMMAND_BUFFER,
+    });
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      throw new RenderError('pdftoppm was not found. Install poppler before rendering.', 500);
+    }
+    const tail = errorTail(error, 'Unknown error.');
+    throw new RenderError(`pdftoppm could not build the page images. ${tail}`, 500);
+  }
+}
+
+async function rasterisePdf(pdftoppmBin, pdfPath, outputPrefix, rendersDir, renderId) {
+  await runPdftoppm(pdftoppmBin, ['-png', '-r', '96', pdfPath, outputPrefix]);
+
+  const files = pageImageFiles(rendersDir, renderId)
+    .map((name) => ({ name, page: pageImageNumber(name, renderId) }))
+    .filter((file) => Number.isInteger(file.page))
+    .sort((left, right) => left.page - right.page);
+
+  if (files.length === 0) {
+    throw new RenderError('The PDF was built but no page images were produced.', 500);
+  }
+
+  // Canonical names are <renderId>-<n>.png with no padding, so /pages/<id>/<n>.png
+  // keeps working even when pdftoppm zero pads a longer document.
+  for (let index = 0; index < files.length; index += 1) {
+    const source = path.join(rendersDir, files[index].name);
+    const target = path.join(rendersDir, `${renderId}-${index + 1}.png`);
+    if (source !== target) renameSync(source, target);
+  }
+  return files.length;
+}
+
+export function createRenderer({
+  templatesDir,
+  dataDir,
+  weasyprintBin = 'weasyprint',
+  pdftoppmBin = 'pdftoppm',
+}) {
+  const rendersDir = path.join(dataDir, 'renders');
+  const previewsDir = path.join(dataDir, 'previews');
+
+  // One in process queue: builds never share the template directory at once.
+  let tail = Promise.resolve();
+  function enqueue(task) {
+    const result = tail.then(task);
+    tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  function voucherTemplateHtml(values) {
+    const templateDir = path.join(templatesDir, 'voucher');
+    const templateFile = path.join(templateDir, TEMPLATE_FILE);
+    let template;
+    try {
+      template = readFileSync(templateFile, 'utf8');
+    } catch {
+      throw new RenderError(`The voucher template was not found at ${templateFile}.`, 500);
+    }
+    return { templateDir, html: fillTemplate(template, values, 'voucher') };
+  }
+
+  async function renderOnce({ kind, values, renderId }) {
+    if (kind !== 'voucher' && kind !== 'kit') {
+      throw new RenderError(`Unknown template kind "${kind}".`, 400);
+    }
+
+    const templateDir = path.join(templatesDir, kind);
+    const templateFile = path.join(templateDir, TEMPLATE_FILE);
+    let template;
+    try {
+      template = readFileSync(templateFile, 'utf8');
+    } catch {
+      throw new RenderError(`The ${kind} template was not found at ${templateFile}.`, 500);
+    }
+
+    const html = fillTemplate(template, values, kind);
+
+    mkdirSync(rendersDir, { recursive: true });
+    // The built file sits inside the template directory so ../assets and
+    // ../fonts resolve, then it is removed once the render is done.
+    const builtFile = path.join(templateDir, `built-${renderId}.html`);
+    const pdfPath = path.join(rendersDir, `${renderId}.pdf`);
+    const pagePrefix = path.join(rendersDir, renderId);
+
+    writeFileSync(builtFile, html, 'utf8');
+    let succeeded = false;
+    try {
+      await runWeasyPrint(weasyprintBin, builtFile, pdfPath);
+      const pageCount = await rasterisePdf(
+        pdftoppmBin,
+        pdfPath,
+        pagePrefix,
+        rendersDir,
+        renderId,
+      );
+      succeeded = true;
+      return {
+        pageCount,
+        pdfUrl: `/files/${renderId}.pdf`,
+        pageUrls: Array.from({ length: pageCount }, (_, index) => `/pages/${renderId}/${index + 1}.png`),
+      };
+    } finally {
+      rmSync(builtFile, { force: true });
+      if (!succeeded) {
+        rmSync(pdfPath, { force: true });
+        removePageImages(rendersDir, renderId);
+      }
+    }
+  }
+
+  // Build page one of a voucher as a PNG thumbnail. Runs on the same queue as
+  // full renders so a preview and a voucher never share the template directory.
+  async function renderPreviewOnce({ templateId, values }) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(templateId ?? ''))) {
+      throw new RenderError(`Invalid template id "${templateId}".`, 400);
+    }
+
+    const { templateDir, html } = voucherTemplateHtml(values);
+    mkdirSync(previewsDir, { recursive: true });
+
+    const nonce = randomBytes(4).toString('hex');
+    const builtFile = path.join(templateDir, `built-preview-${templateId}-${nonce}.html`);
+    const pdfPath = path.join(previewsDir, `.tmp-${templateId}-${nonce}.pdf`);
+    const outputPrefix = path.join(previewsDir, `.tmp-${templateId}-${nonce}`);
+    const outputPng = `${outputPrefix}.png`;
+    const target = path.join(previewsDir, `${templateId}.png`);
+
+    writeFileSync(builtFile, html, 'utf8');
+    try {
+      await runWeasyPrint(weasyprintBin, builtFile, pdfPath);
+      await runPdftoppm(pdftoppmBin, [
+        '-png',
+        '-r',
+        '96',
+        '-f',
+        '1',
+        '-l',
+        '1',
+        '-singlefile',
+        pdfPath,
+        outputPrefix,
+      ]);
+      if (!existsSync(outputPng)) {
+        throw new RenderError('The preview PDF was built but no preview image was written.', 500);
+      }
+      // Rename last so a partly written preview is never served.
+      renameSync(outputPng, target);
+      return target;
+    } finally {
+      rmSync(builtFile, { force: true });
+      rmSync(pdfPath, { force: true });
+      rmSync(outputPng, { force: true });
+    }
+  }
+
+  return {
+    render(input) {
+      return enqueue(() => renderOnce(input));
+    },
+    renderPreview(input) {
+      return enqueue(() => renderPreviewOnce(input));
+    },
+  };
+}

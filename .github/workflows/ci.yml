@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  engine:
+    # the whole rendering engine is platform-neutral — this proves it on both targets
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build src/Dovetail.Cli -c Release
+      - run: dotnet test tests/Dovetail.Tests -c Release
+
+  # The Windows app head is the shipping target. Uncomment once a Windows machine has
+  # been used to validate it at least once — a CI job that has never passed is noise.
+  #
+  # app-windows:
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-dotnet@v4
+  #       with: { dotnet-version: '10.0.x' }
+  #     - run: dotnet workload install maui-windows
+  #     - run: dotnet build src/Dovetail.App -c Release -f net10.0-windows10.0.19041.0
