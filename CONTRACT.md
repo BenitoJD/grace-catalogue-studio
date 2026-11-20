@@ -67,14 +67,17 @@ Order {
 Material { id: string; name: string; kind: string; hex: string; imageUrl: string | null; createdAt: string }
 
 Template {
-  id: string;               // copper-full-bleed
-  name: string;             // Copper Full Bleed
+  id: string;               // atelier-copper
+  name: string;             // Copper Atelier
   palette: "copper" | "ink" | "olive" | "indigo" | "sand";
-  cover: "fullBleed" | "splitRight" | "splitLeft" | "bandTop" | "typeOnly" | "centred";
+  family: "atelier" | "swiss" | "gallery" | "index" | "dark"
+        | "blueprint" | "lookbook" | "poster" | "card" | "folio";
+  cover: string;            // cover treatment: editorial, grid, void, contents,
+                            // reversed, technical, photoFirst, display, card, centred
   paletteName: string;      // Copper
-  coverName: string;        // Full Bleed
+  familyName: string;       // Atelier
   accent: string;           // #A65E22
-  previewUrl: string;       // /previews/copper-full-bleed.png
+  previewUrl: string;       // /previews/atelier-copper.png
   pageCount: 4;
 }
 
@@ -124,12 +127,16 @@ unknown id returns `400` and must not create a render. The field is ignored for
 
 ## Template placeholders
 
-Server fills `templates/voucher/index.html` and `templates/kit/index.html` with `{{key}}` replacement. Every placeholder in the file must be provided; an unfilled placeholder is a bug and the render must fail with a 500 and a clear message.
+Server fills one of the family documents in `templates/voucher/families/` and `templates/kit/index.html` with `{{key}}` replacement. Every placeholder in the file must be provided; an unfilled placeholder is a bug and the render must fail with a 500 and a clear message.
 
 Voucher keys: `orderNo, title, date, customerName, width, height, depth, shutters, room, carcass, backPanel, shuttersMat, drawers, exterior, interior, hinges, channels, layoutLeft, layoutMiddle, layoutRight, edgeShutter, edgeCarcass, edgeNote, handle, handleNote, finishExt, finishInt, shopLine, coverImage, detailImage, insideImage, insideImage2, mat1Name, mat2Name, mat3Name, mat4Name, mat1Image, mat2Image, mat3Image, mat4Image`.
 
-Variant tokens `paletteCss`, `coverBlock` and `typeScaleCss` are supplied
-automatically by the server for every voucher render. They are not order data.
+Two tokens are supplied automatically by the server for every voucher render and
+are not order data: `{{paletteCss}}` (the palette CSS variables for the family
+document) and `{{title}}` (the cover title, already split into at most three
+fitted lines). The blueprint family also receives `widthValue`, `widthUnit`,
+`heightValue`, `heightUnit`, `depthValue` and `depthUnit`: the dimension strings
+split into a number and a unit for its specification table.
 
 Kit keys: `addressLine1, addressLine2, cityLine, phone, email`.
 
@@ -137,20 +144,35 @@ Image paths are relative to the template directory, i.e. `../assets/company/tex-
 
 ## Brochure templates
 
-The voucher has 30 selectable designs: six cover layouts crossed with five
-palettes. They are data, not files. `templates/variants.json` lists the
-palettes, the cover layouts and the 30 variants; the single base template
-`templates/voucher/index.html` renders all of them from CSS variables and a
-generated cover block (`{{paletteCss}}`, `{{typeScaleCss}}`, `{{coverBlock}}`).
+The voucher has 30 selectable designs: ten complete document families, each with
+its own cover, specification, finishes and inside pages, crossed with three
+palettes per family. Families are not permutations of one layout: each one has
+its own page structure, typography treatment and page furniture.
 
-Cover layouts: `fullBleed`, `splitRight`, `splitLeft`, `bandTop`, `typeOnly`,
-`centred`.
+- `atelier`: editorial paper cover, labelled specification tables, four up finish grid, large inside photograph.
+- `swiss`: grotesque grid with numbered sections 01 02 03, hairline key value lists, a full width swatch band, full bleed inside page.
+- `gallery`: near empty pages with huge margins, small centred text, one photograph per page, a single centred specification column and no rules.
+- `index`: dense trade catalogue, small type, a three column specification, a coded finishes grid, cover with a photo band and a printed contents list.
+- `dark`: ink black cover and black section dividers, a reversed white on black specification page, light hairlines.
+- `blueprint`: technical drawing furniture, grid paper, tick marks, dimension lines, a specification table with a units column, annotated finish strips.
+- `lookbook`: full bleed photography on every page, text in corners over the images, a compressed overlay specification.
+- `poster`: one enormous title with almost nothing else, a six line specification, finishes as plain strips.
+- `card`: modular bordered cards, specification split into labelled boxes, finishes as bordered chips, cover built as one card on paper.
+- `folio`: classical folio with wide margins, centred title, small caps, thin double rules, one elegant specification list, numbered swatches.
+
 Palettes: `copper` (`#A65E22`), `ink` (`#1C1A17`), `olive` (`#5C6B3C`),
 `indigo` (`#2F3E6B`), `sand` (`#B08A63`).
 
-Every variant is a real four page voucher: cover, specification, finishes,
-inside. Only page one changes with the cover layout, palette and type scale;
-pages two to four are the same document with the palette accent colour.
+Canonical assignment: atelier copper, ink, sand; swiss ink, indigo, olive;
+gallery copper, olive, indigo; index copper, olive, sand; dark ink, indigo,
+sand; blueprint ink, indigo, olive; lookbook copper, sand, indigo; poster ink,
+sand, olive; card copper, indigo, olive; folio copper, ink, sand. The first
+catalogue entry, `atelier-copper`, is the default when no `templateId` is sent.
+
+The catalogue is data, not files: `templates/variants.json` lists the palettes,
+the families and the 30 variants. One HTML file per family lives in
+`templates/voucher/families/<family>.html` and contains all four pages. The
+palette arrives through CSS variables; it is never a duplicated document.
 
 The cover title is the order `title`, split at word boundaries into at most
 three lines and sized to fit, so long titles shrink instead of clipping. The
@@ -164,7 +186,11 @@ missing preview is requested, or eagerly with
 
 ## Rendering
 
-Generated HTML is written directly into the template directory (for example `templates/voucher/built-<renderId>.html`) so the `../assets/` and `../fonts/` paths in the template resolve. Do not write it into a sub directory, the relative paths would break. Then:
+The family documents live in `templates/voucher/families/`, but the generated
+HTML is written into `templates/voucher/` (for example
+`templates/voucher/built-<renderId>.html`) so the `../assets/` and `../fonts/`
+paths resolve. Do not write the built file next to the family document, the
+relative paths would break. Then:
 
 ```
 specimen/.venv/bin/weasyprint <html> data/renders/<renderId>.pdf

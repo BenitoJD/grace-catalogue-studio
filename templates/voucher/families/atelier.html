@@ -11,74 +11,60 @@
 
   :root{
     --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
     --ink:#14100C;
     --muted:#6E6259;
     --faint:#A2938A;
     --hair:#E6DED2;
-    --cover-paper:#FFFFFF;
-    --cover-ink:#14100C;
-    --cover-muted:#6E6259;
-    --cover-title-size:46pt;
-    --cover-title-line:1;
-    --cover-kicker-size:5pt;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
     {{paletteCss}}
-    {{typeScaleCss}}
   }
 
-  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:#fff; }
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
   .page:last-child{ page-break-after:auto; }
-  .page.cover{ background:var(--cover-paper,#fff); }
+  .page.cover{ background:var(--cover-paper); }
   .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
   .abs{ position:absolute; }
-
-  .sans { font-family:"Barlow", Helvetica, Arial, sans-serif; }
+  .sans{ font-family:"Barlow", Helvetica, Arial, sans-serif; }
   .serif{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; }
-
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
   .micro{ font-size:5pt; letter-spacing:.26em; text-transform:uppercase; font-weight:600; color:var(--faint); }
   .hair{ height:0.16mm; background:var(--hair); }
   .sec{ font-size:4.9pt; letter-spacing:.24em; text-transform:uppercase; color:var(--accent); font-weight:600; margin-bottom:3mm; }
-
-  .h1{ font-size:34pt; line-height:1.04; color:var(--ink); letter-spacing:-.012em; }
-  .htitle{ font-size:46pt; line-height:1.0; color:var(--ink); letter-spacing:-.014em; }
-
+  .h1{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; font-size:34pt; line-height:1.04; color:var(--ink); letter-spacing:-.012em; }
+  .cover-title{ position:absolute; font-family:"Instrument Serif", Georgia, serif; font-weight:400; letter-spacing:-.015em; color:var(--ink); }
+  .cap{ font-size:4.9pt; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
+  .item{ font-family:"Barlow", sans-serif; font-size:7pt; line-height:1.7; color:var(--ink); margin-bottom:2mm; }
+  .signline{ height:0.2mm; background:var(--ink); }
+  .signl{ font-size:5.8pt; color:var(--faint); margin-top:2.2mm; }
   table{ width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-  td{ font-family:"Barlow",sans-serif; padding:2.7mm 0 2.5mm 0; border-bottom:0.12mm solid #F0EBE3; vertical-align:top; }
+  td{ font-family:"Barlow", sans-serif; padding:2.7mm 0 2.5mm 0; border-bottom:0.12mm solid #F0EBE3; vertical-align:top; }
   tr:last-child td{ border-bottom:none; }
   td.k{ font-size:6.4pt; color:var(--muted); width:37mm; line-height:1.45; }
   td.v{ font-size:7.2pt; color:var(--ink); line-height:1.45; }
-
-  .item{ font-size:7pt; line-height:1.7; color:var(--ink); margin-bottom:2mm; }
-
-  .signline{ height:0.2mm; background:var(--ink); }
-  .signl{ font-size:5.8pt; color:var(--faint); margin-top:2.2mm; }
-
-  /* Customer names are names, not labels: never uppercase and never track the
-     letters out. The Tamil fallback keeps Tamil names rendering as entered. */
-  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
-
-  .cap{ font-size:4.9pt; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
-  .foot{ font-size:5pt; color:var(--faint); letter-spacing:.06em; }
-  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
-
-  /* Cover composition. The server picks one of six layouts per variant and
-     passes the rendered block in; palette and type scale arrive as variables. */
-  .cover-photo{ position:absolute; background-size:cover; background-position:center; background-repeat:no-repeat; }
-  .cover-title{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; font-size:var(--cover-title-size,46pt); line-height:var(--cover-title-line,1); letter-spacing:-.015em; color:var(--cover-ink,#14100C); }
-  .cover-title.on-photo{ color:#fff; }
-  .cover-kicker{ font-family:"Barlow", Helvetica, Arial, sans-serif; font-size:var(--cover-kicker-size,5pt); letter-spacing:.26em; text-transform:uppercase; font-weight:600; color:var(--cover-ink,#14100C); }
-  .cover-kicker.cover-muted{ color:var(--cover-muted,#6E6259); }
-  .cover-kicker.on-photo{ color:#fff; opacity:.88; }
-  .cover-label{ color:var(--accent); }
-  .cover-rule{ background:var(--accent); }
-  .cover-name{ color:var(--cover-muted,#6E6259); }
-  .cover-name.on-photo{ color:#fff; opacity:.92; }
 </style>
 </head>
 <body>
 
 <!-- 01 COVER -->
 <div class="page cover">
-  {{coverBlock}}
+  <div class="sheet">
+    <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:18mm; width:17mm;">
+    <div class="abs sans micro" style="right:18mm; top:22mm; text-align:right;">{{orderNo}}<br>{{date}}</div>
+
+    <div class="cover-title" style="left:18mm; top:44mm; width:174mm;">{{title}}</div>
+
+    <div class="abs ph" style="left:18mm; top:100mm; width:174mm; height:146mm; background-image:url({{coverImage}});"></div>
+
+    <div class="abs name" style="left:18mm; top:256mm; font-size:6.6pt; color:var(--muted);">{{customerName}}</div>
+    <div class="abs sans micro" style="left:18mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
+    <div class="abs sans micro" style="right:18mm; top:284mm; text-align:right;">01 / 04</div>
+  </div>
 </div>
 
 <!-- 02 SPECIFICATION -->
@@ -88,7 +74,7 @@
     <div class="abs sans micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
     <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
 
-    <div class="abs serif h1" style="left:18mm; top:42mm; width:120mm;">Specification</div>
+    <div class="abs h1" style="left:18mm; top:42mm; width:120mm;">Specification</div>
 
     <div class="abs" style="left:18mm; top:76mm; width:86mm;">
       <div class="sans sec">Dimensions</div>
@@ -150,17 +136,17 @@
     <div class="abs sans micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
     <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
 
-    <div class="abs serif h1" style="left:18mm; top:42mm; width:120mm;">The finish.</div>
+    <div class="abs h1" style="left:18mm; top:42mm; width:120mm;">The finish.</div>
 
     <div class="abs ph" style="left:18mm; top:96mm; width:40mm; height:40mm; background-image:url({{mat1Image}});"></div>
     <div class="abs ph" style="left:62.7mm; top:96mm; width:40mm; height:40mm; background-image:url({{mat2Image}});"></div>
     <div class="abs ph" style="left:107.4mm; top:96mm; width:40mm; height:40mm; background-image:url({{mat3Image}});"></div>
     <div class="abs ph" style="left:152.1mm; top:96mm; width:40mm; height:40mm; background-image:url({{mat4Image}});"></div>
 
-    <div class="abs sans" style="left:18mm; top:140mm; width:40mm; font-size:6.8pt; color:#14100C;">{{mat1Name}}</div>
-    <div class="abs sans" style="left:62.7mm; top:140mm; width:40mm; font-size:6.8pt; color:#14100C;">{{mat2Name}}</div>
-    <div class="abs sans" style="left:107.4mm; top:140mm; width:40mm; font-size:6.8pt; color:#14100C;">{{mat3Name}}</div>
-    <div class="abs sans" style="left:152.1mm; top:140mm; width:40mm; font-size:6.8pt; color:#14100C;">{{mat4Name}}</div>
+    <div class="abs sans" style="left:18mm; top:140mm; width:40mm; font-size:6.8pt; color:var(--ink);">{{mat1Name}}</div>
+    <div class="abs sans" style="left:62.7mm; top:140mm; width:40mm; font-size:6.8pt; color:var(--ink);">{{mat2Name}}</div>
+    <div class="abs sans" style="left:107.4mm; top:140mm; width:40mm; font-size:6.8pt; color:var(--ink);">{{mat3Name}}</div>
+    <div class="abs sans" style="left:152.1mm; top:140mm; width:40mm; font-size:6.8pt; color:var(--ink);">{{mat4Name}}</div>
 
     <div class="abs hair" style="left:18mm; top:162mm; width:174mm;"></div>
 
@@ -183,7 +169,7 @@
     <div class="abs sans micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
     <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
 
-    <div class="abs serif h1" style="left:18mm; top:42mm; width:130mm;">Every centimetre<br>accounted for.</div>
+    <div class="abs h1" style="left:18mm; top:42mm; width:130mm;">Every centimetre<br>accounted for.</div>
 
     <div class="abs ph" style="left:18mm; top:92mm; width:174mm; height:124mm; background-image:url({{insideImage}});"></div>
     <div class="abs sans cap" style="left:18mm; top:219mm;">Walk-in wardrobe · Nagercoil</div>

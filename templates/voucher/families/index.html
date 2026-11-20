@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:"Barlow", Helvetica, Arial, sans-serif; }
+  .serif{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.24em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.ink{ color:var(--ink); }
+  .micro.white{ color:var(--on-dark); opacity:.88; }
+  .hair{ height:0.14mm; background:var(--hair); }
+  .label{ font-family:"Barlow", sans-serif; font-size:4.4pt; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  .cover-title{ position:absolute; font-family:"Instrument Serif", Georgia, serif; font-weight:400; letter-spacing:-.015em; color:var(--ink); }
+  .sec-title{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; font-size:25pt; line-height:1.04; color:var(--ink); letter-spacing:-.01em; }
+  .catalog .k{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
+  .catalog .v{ font-family:"Barlow", sans-serif; font-size:6.2pt; line-height:1.3; color:var(--ink); margin-top:.5mm; }
+  .catalog .row{ border-bottom:0.14mm solid var(--hair); padding:1.4mm 0 1.3mm 0; }
+  .toc-row{ font-family:"Barlow", sans-serif; font-size:5.6pt; color:var(--ink); border-bottom:0.14mm solid var(--hair); padding:1.8mm 0; }
+  .toc-row .n{ float:right; color:var(--accent); font-weight:600; }
+</style>
+</head>
+<body>
+
+<!-- 01 COVER -->
+<div class="page cover">
+  <div class="abs ph" style="left:0; top:0; width:216mm; height:118mm; background-image:url({{coverImage}});"></div>
+  <div class="abs" style="left:0; top:0; width:216mm; height:118mm; background-image:linear-gradient(180deg, rgba(0,0,0,0.34) 0%, rgba(0,0,0,0) 55%);"></div>
+  <img class="abs" src="../assets/derived/logo-white.png" style="left:21mm; top:19mm; width:13mm;">
+  <div class="abs micro white" style="left:36mm; top:21mm;">Grace Wood Industry</div>
+  <div class="abs micro white" style="right:21mm; top:21mm; text-align:right;">{{orderNo}}<br>{{date}}</div>
+
+  <div class="abs label" style="left:21mm; top:132mm;">Trade catalogue · Wardrobes</div>
+  <div class="cover-title" style="left:21mm; top:140mm; width:112mm;">{{title}}</div>
+
+  <div class="abs" style="left:146mm; top:132mm; width:49mm;">
+    <div class="label" style="margin-bottom:2mm;">Contents</div>
+    <div class="toc-row">Specification<span class="n">02</span></div>
+    <div class="toc-row">Finishes<span class="n">03</span></div>
+    <div class="toc-row">Inside<span class="n">04</span></div>
+    <div class="micro" style="margin-top:3mm; line-height:1.7;">Catalogue GWI 2026<br>Four pages · print ready</div>
+  </div>
+
+  <div class="abs hair" style="left:21mm; top:226mm; width:174mm;"></div>
+  <div class="abs" style="left:21mm; top:233mm; width:52mm;">
+    <div class="label">Room</div>
+    <div class="catalog"><div class="v">{{room}}</div></div>
+  </div>
+  <div class="abs" style="left:79mm; top:233mm; width:58mm;">
+    <div class="label">Dimensions</div>
+    <div class="catalog"><div class="v">{{width}} · {{height}} · {{depth}}</div></div>
+  </div>
+  <div class="abs" style="left:143mm; top:233mm; width:52mm;">
+    <div class="label">Shutters</div>
+    <div class="catalog"><div class="v">{{shutters}}</div></div>
+  </div>
+
+  <div class="abs name" style="left:21mm; top:262mm; font-size:7pt; color:var(--ink);">{{customerName}}</div>
+  <div class="abs micro" style="left:21mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
+  <div class="abs micro" style="right:21mm; top:284mm; text-align:right;">01 / 04</div>
+</div>
+
+<!-- 02 SPECIFICATION -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:18mm;">02 Specification</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:28mm; width:174mm;"></div>
+    <div class="abs sec-title" style="left:18mm; top:34mm;">Specification</div>
+
+    <div class="abs catalog" style="left:18mm; top:62mm; width:56mm;">
+      <div class="label" style="margin-bottom:2mm;">Dimensions</div>
+      <div class="row"><div class="k">Width</div><div class="v">{{width}}</div></div>
+      <div class="row"><div class="k">Height</div><div class="v">{{height}}</div></div>
+      <div class="row"><div class="k">Depth</div><div class="v">{{depth}}</div></div>
+      <div class="row"><div class="k">Shutters</div><div class="v">{{shutters}}</div></div>
+      <div class="row"><div class="k">Room</div><div class="v">{{room}}</div></div>
+    </div>
+
+    <div class="abs catalog" style="left:78mm; top:62mm; width:56mm;">
+      <div class="label" style="margin-bottom:2mm;">Materials</div>
+      <div class="row"><div class="k">Carcass</div><div class="v">{{carcass}}</div></div>
+      <div class="row"><div class="k">Back panel</div><div class="v">{{backPanel}}</div></div>
+      <div class="row"><div class="k">Shutters</div><div class="v">{{shuttersMat}}</div></div>
+      <div class="row"><div class="k">Drawers</div><div class="v">{{drawers}}</div></div>
+      <div class="row"><div class="k">Exterior</div><div class="v">{{exterior}}</div></div>
+      <div class="row"><div class="k">Interior</div><div class="v">{{interior}}</div></div>
+      <div class="row"><div class="k">Hinges</div><div class="v">{{hinges}}</div></div>
+      <div class="row"><div class="k">Channels</div><div class="v">{{channels}}</div></div>
+    </div>
+
+    <div class="abs catalog" style="left:138mm; top:62mm; width:54mm;">
+      <div class="label" style="margin-bottom:2mm;">Layout</div>
+      <div class="row"><div class="v" style="margin-top:0;">{{layoutLeft}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{layoutMiddle}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{layoutRight}}</div></div>
+      <div class="label" style="margin-top:4mm; margin-bottom:2mm;">{{mat4Name}}</div>
+      <div class="row"><div class="v" style="margin-top:0;">{{edgeShutter}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{edgeCarcass}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{edgeNote}}</div></div>
+      <div class="label" style="margin-top:4mm; margin-bottom:2mm;">Handles</div>
+      <div class="row"><div class="v" style="margin-top:0;">{{handle}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{handleNote}}</div></div>
+      <div class="label" style="margin-top:4mm; margin-bottom:2mm;">Finish</div>
+      <div class="row"><div class="v" style="margin-top:0;">{{finishExt}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{finishInt}}</div></div>
+    </div>
+
+    <div class="abs hair" style="left:18mm; top:204mm; width:174mm;"></div>
+    <div class="abs" style="left:18mm; top:212mm; width:56mm;">
+      <div class="label">Catalogue note</div>
+      <div class="sans" style="font-size:6pt; line-height:1.6; color:var(--muted); margin-top:1.5mm;">Every wardrobe is built to order from the house specification. Shades confirmed against physical samples.</div>
+    </div>
+    <div class="abs" style="left:78mm; top:212mm; width:56mm;">
+      <div class="label">Confirmed</div>
+      <div class="name" style="font-size:6.8pt; color:var(--ink); margin-top:1.5mm;">{{customerName}}</div>
+    </div>
+    <div class="abs" style="left:138mm; top:212mm; width:54mm;">
+      <div class="label">Reference</div>
+      <div class="sans" style="font-size:6.2pt; line-height:1.6; color:var(--ink); margin-top:1.5mm;">{{orderNo}}<br>{{date}}</div>
+    </div>
+    <div class="abs hair" style="left:18mm; top:256mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:261mm;">Grace Wood Industry</div>
+    <div class="abs name" style="right:18mm; top:260mm; text-align:right; font-size:6.8pt; color:var(--ink);">{{customerName}}</div>
+    <div class="abs micro" style="left:18mm; top:284mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:18mm;">03 Finishes</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:28mm; width:174mm;"></div>
+    <div class="abs sec-title" style="left:18mm; top:34mm;">The finish library</div>
+
+    <div class="abs ph" style="left:18mm; top:64mm; width:40.5mm; height:42mm; background-image:url({{mat1Image}});"></div>
+    <div class="abs ph" style="left:62.7mm; top:64mm; width:40.5mm; height:42mm; background-image:url({{mat2Image}});"></div>
+    <div class="abs ph" style="left:107.4mm; top:64mm; width:40.5mm; height:42mm; background-image:url({{mat3Image}});"></div>
+    <div class="abs ph" style="left:152.1mm; top:64mm; width:39.9mm; height:42mm; background-image:url({{mat4Image}});"></div>
+
+    <div class="abs label" style="left:18mm; top:109mm;">M1</div>
+    <div class="abs label" style="left:62.7mm; top:109mm;">M2</div>
+    <div class="abs label" style="left:107.4mm; top:109mm;">M3</div>
+    <div class="abs label" style="left:152.1mm; top:109mm;">M4</div>
+    <div class="abs sans" style="left:18mm; top:113.5mm; width:40.5mm; font-size:6.4pt; color:var(--ink);">{{mat1Name}}</div>
+    <div class="abs sans" style="left:62.7mm; top:113.5mm; width:40.5mm; font-size:6.4pt; color:var(--ink);">{{mat2Name}}</div>
+    <div class="abs sans" style="left:107.4mm; top:113.5mm; width:40.5mm; font-size:6.4pt; color:var(--ink);">{{mat3Name}}</div>
+    <div class="abs sans" style="left:152.1mm; top:113.5mm; width:39.9mm; font-size:6.4pt; color:var(--ink);">{{mat4Name}}</div>
+
+    <div class="abs hair" style="left:18mm; top:126mm; width:174mm;"></div>
+
+    <div class="abs ph" style="left:18mm; top:136mm; width:98mm; height:64mm; background-image:url({{detailImage}});"></div>
+    <div class="abs micro" style="left:18mm; top:203mm;">Handle detail · matte black profile</div>
+
+    <div class="abs" style="left:124mm; top:136mm; width:68mm;">
+      <div class="label">Exterior finish</div>
+      <div class="sans" style="font-size:7pt; line-height:1.5; color:var(--ink); margin-top:1.5mm;">{{finishExt}}</div>
+      <div class="label" style="margin-top:8mm;">Interior finish</div>
+      <div class="sans" style="font-size:7pt; line-height:1.5; color:var(--ink); margin-top:1.5mm;">{{finishInt}}</div>
+      <div class="label" style="margin-top:8mm;">Daily care</div>
+      <div class="sans" style="font-size:6.2pt; line-height:1.55; color:var(--muted); margin-top:1.5mm;">Dry cloth only. Avoid solvent cleaners. Shades matched against the physical swatch book.</div>
+    </div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">Shades confirmed against physical samples</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:18mm;">04 Inside</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:28mm; width:174mm;"></div>
+
+    <div class="abs ph" style="left:18mm; top:40mm; width:108mm; height:138mm; background-image:url({{insideImage}});"></div>
+    <div class="abs micro" style="left:18mm; top:181mm;">Walk-in wardrobe · Nagercoil</div>
+
+    <div class="abs ph" style="left:132mm; top:40mm; width:60mm; height:46mm; background-image:url({{insideImage2}});"></div>
+    <div class="abs micro" style="left:132mm; top:89mm;">Shutter detail</div>
+
+    <div class="abs serif" style="left:132mm; top:104mm; width:60mm; font-size:17pt; line-height:1.15; color:var(--ink);">Every centimetre accounted for.</div>
+    <div class="abs sans" style="left:132mm; top:140mm; width:60mm; font-size:6.4pt; line-height:1.7; color:var(--muted);">
+      Interior planning, shutter detail and finish samples are confirmed on site before the cutting list is issued.
+    </div>
+
+    <div class="abs hair" style="left:18mm; top:222mm; width:174mm;"></div>
+
+    <div class="abs catalog" style="left:18mm; top:230mm; width:56mm;">
+      <div class="label">Carcass</div>
+      <div class="v">{{carcass}}</div>
+    </div>
+    <div class="abs catalog" style="left:78mm; top:230mm; width:56mm;">
+      <div class="label">Interior</div>
+      <div class="v">{{interior}}</div>
+    </div>
+    <div class="abs catalog" style="left:138mm; top:230mm; width:54mm;">
+      <div class="label">Hinges · Channels</div>
+      <div class="v">{{hinges}} · {{channels}}</div>
+    </div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:"Barlow", Helvetica, Arial, sans-serif; }
+  .serif{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:5pt; letter-spacing:.26em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.ink{ color:var(--ink); }
+  .hair{ height:0.16mm; background:var(--hair); }
+  .label{ font-family:"Barlow", sans-serif; font-size:4.8pt; letter-spacing:.24em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  .bignum{ font-family:"Barlow", sans-serif; font-weight:600; font-size:36pt; line-height:1; color:var(--accent-soft); letter-spacing:-.03em; }
+  .cover-title{ position:absolute; font-family:"Barlow", Helvetica, Arial, sans-serif; font-weight:600; letter-spacing:-.012em; color:var(--ink); }
+  .headline{ font-family:"Barlow", sans-serif; font-weight:600; font-size:32pt; line-height:1.02; color:var(--ink); letter-spacing:-.015em; }
+  .row{ border-bottom:0.16mm solid var(--hair); padding:1.7mm 0 1.5mm 0; }
+  .row .k{ font-family:"Barlow", sans-serif; font-size:5.2pt; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
+  .row .v{ font-family:"Barlow", sans-serif; font-size:7.2pt; line-height:1.35; color:var(--ink); margin-top:.8mm; }
+  .big{ font-family:"Barlow", sans-serif; font-size:9pt; font-weight:500; color:var(--ink); }
+</style>
+</head>
+<body>
+
+<!-- 01 COVER -->
+<div class="page cover">
+  <div class="abs" style="left:0; top:0; width:216mm; height:2.4mm; background:var(--accent);"></div>
+  <div class="sheet">
+    <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:15mm; width:13mm;">
+    <div class="abs micro" style="left:36mm; top:16mm;">Grace Wood Industry</div>
+    <div class="abs micro" style="right:18mm; top:16mm; text-align:right;">{{orderNo}}<br>{{date}}</div>
+    <div class="abs hair" style="left:18mm; top:32mm; width:174mm;"></div>
+
+    <div class="abs label" style="left:18mm; top:42mm;">01 Cover</div>
+    <div class="cover-title" style="left:18mm; top:50mm; width:112mm;">{{title}}</div>
+
+    <div class="abs ph" style="left:140mm; top:44mm; width:52mm; height:52mm; background-image:url({{coverImage}});"></div>
+    <div class="abs micro" style="left:140mm; top:99mm;">{{room}}</div>
+
+    <div class="abs hair" style="left:18mm; top:132mm; width:174mm;"></div>
+
+    <div class="abs" style="left:18mm; top:140mm; width:52mm;">
+      <div class="label">Room</div>
+      <div class="big" style="margin-top:2mm;">{{room}}</div>
+    </div>
+    <div class="abs" style="left:78mm; top:140mm; width:52mm;">
+      <div class="label">Dimensions</div>
+      <div class="big" style="margin-top:2mm;">{{width}} · {{height}}<br>{{depth}}</div>
+    </div>
+    <div class="abs" style="left:138mm; top:140mm; width:54mm;">
+      <div class="label">Shutters</div>
+      <div class="big" style="margin-top:2mm;">{{shutters}}</div>
+    </div>
+
+    <div class="abs hair" style="left:18mm; top:188mm; width:174mm;"></div>
+
+    <div class="abs micro" style="left:18mm; top:196mm;">Prepared for</div>
+    <div class="abs name" style="left:18mm; top:202mm; font-size:17pt; color:var(--ink);">{{customerName}}</div>
+
+    <div class="abs hair" style="left:18mm; top:274mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:281mm;">01 Cover · 02 Specification · 03 Finishes · 04 Inside</div>
+    <div class="abs micro" style="right:18mm; top:281mm; text-align:right;">01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:18mm;">02 Specification</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs bignum" style="left:0; top:2mm; width:18mm; text-align:left;">02</div>
+    <div class="abs hair" style="left:18mm; top:32mm; width:174mm;"></div>
+
+    <div class="abs" style="left:18mm; top:42mm; width:80mm;">
+      <div class="label" style="margin-bottom:4mm;">Dimensions</div>
+      <div class="row"><div class="k">Width</div><div class="v">{{width}}</div></div>
+      <div class="row"><div class="k">Height</div><div class="v">{{height}}</div></div>
+      <div class="row"><div class="k">Depth</div><div class="v">{{depth}}</div></div>
+      <div class="row"><div class="k">Shutters</div><div class="v">{{shutters}}</div></div>
+      <div class="row"><div class="k">Room</div><div class="v">{{room}}</div></div>
+
+      <div class="label" style="margin-top:10mm; margin-bottom:4mm;">Materials</div>
+      <div class="row"><div class="k">Carcass</div><div class="v">{{carcass}}</div></div>
+      <div class="row"><div class="k">Back panel</div><div class="v">{{backPanel}}</div></div>
+      <div class="row"><div class="k">Shutters</div><div class="v">{{shuttersMat}}</div></div>
+      <div class="row"><div class="k">Drawers</div><div class="v">{{drawers}}</div></div>
+    </div>
+
+    <div class="abs" style="left:112mm; top:42mm; width:80mm;">
+      <div class="label" style="margin-bottom:4mm;">Materials, continued</div>
+      <div class="row"><div class="k">Exterior</div><div class="v">{{exterior}}</div></div>
+      <div class="row"><div class="k">Interior</div><div class="v">{{interior}}</div></div>
+      <div class="row"><div class="k">Hinges</div><div class="v">{{hinges}}</div></div>
+      <div class="row"><div class="k">Channels</div><div class="v">{{channels}}</div></div>
+
+      <div class="label" style="margin-top:10mm; margin-bottom:4mm;">Layout</div>
+      <div class="row"><div class="v" style="margin-top:0;">{{layoutLeft}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{layoutMiddle}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{layoutRight}}</div></div>
+
+      <div class="label" style="margin-top:10mm; margin-bottom:4mm;">{{mat4Name}}</div>
+      <div class="row"><div class="v" style="margin-top:0;">{{edgeShutter}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{edgeCarcass}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{edgeNote}}</div></div>
+    </div>
+
+    <div class="abs" style="left:18mm; top:208mm; width:80mm;">
+      <div class="label" style="margin-bottom:4mm;">Handles</div>
+      <div class="row"><div class="v" style="margin-top:0;">{{handle}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{handleNote}}</div></div>
+    </div>
+
+    <div class="abs" style="left:112mm; top:208mm; width:80mm;">
+      <div class="label" style="margin-bottom:4mm;">Finish</div>
+      <div class="row"><div class="v" style="margin-top:0;">{{finishExt}}</div></div>
+      <div class="row"><div class="v" style="margin-top:0;">{{finishInt}}</div></div>
+    </div>
+
+    <div class="abs hair" style="left:18mm; top:258mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:263mm;">Grace Wood Industry</div>
+    <div class="abs name" style="right:18mm; top:262mm; text-align:right; font-size:7pt; color:var(--ink);">{{customerName}}</div>
+    <div class="abs micro" style="left:18mm; top:284mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:18mm;">03 Finishes</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs bignum" style="left:0; top:2mm; width:18mm;">03</div>
+    <div class="abs hair" style="left:18mm; top:32mm; width:174mm;"></div>
+
+    <div class="abs ph" style="left:18mm; top:42mm; width:40.5mm; height:82mm; background-image:url({{mat1Image}});"></div>
+    <div class="abs ph" style="left:62.7mm; top:42mm; width:40.5mm; height:82mm; background-image:url({{mat2Image}});"></div>
+    <div class="abs ph" style="left:107.4mm; top:42mm; width:40.5mm; height:82mm; background-image:url({{mat3Image}});"></div>
+    <div class="abs ph" style="left:152.1mm; top:42mm; width:40mm; height:82mm; background-image:url({{mat4Image}});"></div>
+
+    <div class="abs label" style="left:18mm; top:127mm;">M1</div>
+    <div class="abs label" style="left:62.7mm; top:127mm;">M2</div>
+    <div class="abs label" style="left:107.4mm; top:127mm;">M3</div>
+    <div class="abs label" style="left:152.1mm; top:127mm;">M4</div>
+    <div class="abs sans" style="left:18mm; top:132mm; width:40.5mm; font-size:7pt; color:var(--ink);">{{mat1Name}}</div>
+    <div class="abs sans" style="left:62.7mm; top:132mm; width:40.5mm; font-size:7pt; color:var(--ink);">{{mat2Name}}</div>
+    <div class="abs sans" style="left:107.4mm; top:132mm; width:40.5mm; font-size:7pt; color:var(--ink);">{{mat3Name}}</div>
+    <div class="abs sans" style="left:152.1mm; top:132mm; width:40mm; font-size:7pt; color:var(--ink);">{{mat4Name}}</div>
+
+    <div class="abs hair" style="left:18mm; top:146mm; width:174mm;"></div>
+
+    <div class="abs ph" style="left:18mm; top:156mm; width:174mm; height:56mm; background-image:url({{detailImage}});"></div>
+    <div class="abs micro" style="left:18mm; top:215mm;">Handle detail · matte black profile</div>
+
+    <div class="abs label" style="left:18mm; top:228mm;">Exterior finish</div>
+    <div class="abs sans" style="left:18mm; top:234mm; width:80mm; font-size:8pt; color:var(--ink);">{{finishExt}}</div>
+    <div class="abs label" style="left:112mm; top:228mm;">Interior finish</div>
+    <div class="abs sans" style="left:112mm; top:234mm; width:80mm; font-size:8pt; color:var(--ink);">{{finishInt}}</div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">Shades confirmed against physical samples</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE -->
+<div class="page">
+  <div class="abs ph" style="left:0; top:0; width:216mm; height:303mm; background-image:url({{insideImage}});"></div>
+  <div class="abs" style="left:0; top:0; width:216mm; height:2.4mm; background:var(--accent);"></div>
+  <div class="abs" style="left:0; top:0; width:216mm; height:303mm; background-image:linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.66) 100%);"></div>
+
+  <div class="abs micro" style="left:21mm; top:21mm; color:var(--on-dark); opacity:.85;">Grace Wood Industry</div>
+  <div class="abs micro" style="right:21mm; top:21mm; text-align:right; color:var(--accent-on-dark); opacity:1;">04 Inside<br>{{orderNo}}</div>
+
+  <div class="abs serif" style="left:21mm; top:204mm; width:150mm; font-size:31pt; line-height:1.02; color:var(--on-dark); letter-spacing:-.012em;">
+    Every centimetre<br>accounted for.
+  </div>
+
+  <div class="abs micro" style="left:21mm; top:254mm; color:var(--on-dark); opacity:.85;">Walk-in wardrobe · Nagercoil</div>
+
+  <div class="abs ph" style="left:165mm; top:238mm; width:30mm; height:30mm; background-image:url({{insideImage2}}); border:0.3mm solid var(--on-dark);"></div>
+  <div class="abs micro" style="right:21mm; top:271mm; text-align:right; color:var(--on-dark); opacity:.85;">Shutter detail</div>
+
+  <div class="abs micro" style="left:21mm; top:287mm; color:var(--on-dark); opacity:.85;">{{shopLine}}</div>
+  <div class="abs micro" style="right:21mm; top:287mm; text-align:right; color:var(--on-dark); opacity:.85;">04 / 04</div>
+</div>
+
+</body>
+</html>

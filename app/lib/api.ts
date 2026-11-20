@@ -82,6 +82,7 @@ export interface Template {
   name: string;
   palette: string;
   cover: string;
+  family?: string;
   previewUrl: string;
   pageCount: number;
 }

@@ -1,135 +1,395 @@
 {
-  "version": 1,
+  "version": 2,
   "pageCount": 4,
   "palettes": [
     {
       "id": "copper",
       "name": "Copper",
       "accent": "#A65E22",
+      "accentOnDark": "#D08A4E",
+      "accentSoft": "#F0E2D3",
+      "paper": "#FFFFFF",
       "coverPaper": "#FBF7F1",
-      "coverInk": "#14100C",
-      "coverMuted": "#6E6259",
-      "onPhoto": "#FFFFFF",
-      "gradientTop": "rgba(18,13,9,0.20)",
-      "gradientBottom": "rgba(18,13,9,0.80)",
-      "bandScrim": "rgba(18,13,9,0.55)"
+      "ink": "#14100C",
+      "muted": "#6E6259",
+      "faint": "#A2938A",
+      "hair": "#E6DED2",
+      "onDark": "#FFFFFF",
+      "dark": "#14100C"
     },
     {
       "id": "ink",
       "name": "Ink",
       "accent": "#1C1A17",
+      "accentOnDark": "#C3BDB4",
+      "accentSoft": "#E7E4E0",
+      "paper": "#FFFFFF",
       "coverPaper": "#F4F2EF",
-      "coverInk": "#14100C",
-      "coverMuted": "#5F5B56",
-      "onPhoto": "#FFFFFF",
-      "gradientTop": "rgba(14,13,12,0.28)",
-      "gradientBottom": "rgba(14,13,12,0.86)",
-      "bandScrim": "rgba(14,13,12,0.62)"
+      "ink": "#14100C",
+      "muted": "#5F5B56",
+      "faint": "#9A948D",
+      "hair": "#DCD8D2",
+      "onDark": "#FFFFFF",
+      "dark": "#121110"
     },
     {
       "id": "olive",
       "name": "Olive",
       "accent": "#5C6B3C",
+      "accentOnDark": "#A9B87F",
+      "accentSoft": "#E8EBDD",
+      "paper": "#FFFFFF",
       "coverPaper": "#F7F7F0",
-      "coverInk": "#14100C",
-      "coverMuted": "#5F6651",
-      "onPhoto": "#FFFFFF",
-      "gradientTop": "rgba(24,29,17,0.24)",
-      "gradientBottom": "rgba(24,29,17,0.82)",
-      "bandScrim": "rgba(24,29,17,0.58)"
+      "ink": "#14100C",
+      "muted": "#5F6651",
+      "faint": "#969C8B",
+      "hair": "#DEE2D4",
+      "onDark": "#FFFFFF",
+      "dark": "#171A12"
     },
     {
       "id": "indigo",
       "name": "Indigo",
       "accent": "#2F3E6B",
+      "accentOnDark": "#97A6D4",
+      "accentSoft": "#E3E6F0",
+      "paper": "#FFFFFF",
       "coverPaper": "#F5F6FA",
-      "coverInk": "#101322",
-      "coverMuted": "#565D70",
-      "onPhoto": "#FFFFFF",
-      "gradientTop": "rgba(14,19,36,0.28)",
-      "gradientBottom": "rgba(14,19,36,0.84)",
-      "bandScrim": "rgba(14,19,36,0.60)"
+      "ink": "#101322",
+      "muted": "#565D70",
+      "faint": "#8F96A8",
+      "hair": "#DADEE8",
+      "onDark": "#FFFFFF",
+      "dark": "#101322"
     },
     {
       "id": "sand",
       "name": "Sand",
       "accent": "#B08A63",
+      "accentOnDark": "#D6B58F",
+      "accentSoft": "#F2E8DC",
+      "paper": "#FFFFFF",
       "coverPaper": "#FAF6F0",
-      "coverInk": "#14100C",
-      "coverMuted": "#76644F",
-      "onPhoto": "#FFFFFF",
-      "gradientTop": "rgba(51,37,24,0.22)",
-      "gradientBottom": "rgba(51,37,24,0.80)",
-      "bandScrim": "rgba(51,37,24,0.56)"
+      "ink": "#14100C",
+      "muted": "#76644F",
+      "faint": "#A99A87",
+      "hair": "#E7DED1",
+      "onDark": "#FFFFFF",
+      "dark": "#1B150F"
     }
   ],
-  "covers": [
+  "families": [
     {
-      "id": "fullBleed",
-      "name": "Full Bleed",
-      "typeScale": { "titleMaxPt": 58, "titleLineHeight": 0.98, "kickerPt": 5.1 }
+      "id": "atelier",
+      "name": "Atelier",
+      "cover": "editorial",
+      "file": "voucher/families/atelier.html",
+      "summary": "Editorial paper cover, labelled specification tables, four up finish grid and a large inside photograph",
+      "title": {
+        "widthMm": 174,
+        "availableHeightMm": 46,
+        "maxSizePt": 46,
+        "lineHeight": 0.98
+      }
     },
     {
-      "id": "splitRight",
-      "name": "Split Right",
-      "typeScale": { "titleMaxPt": 42, "titleLineHeight": 1.0, "kickerPt": 5.0 }
+      "id": "swiss",
+      "name": "Swiss",
+      "cover": "grid",
+      "file": "voucher/families/swiss.html",
+      "summary": "Grotesque grid with numbered sections, hairline key value lists and a full width swatch band",
+      "title": {
+        "widthMm": 112,
+        "availableHeightMm": 88,
+        "maxSizePt": 44,
+        "lineHeight": 0.98
+      }
     },
     {
-      "id": "splitLeft",
-      "name": "Split Left",
-      "typeScale": { "titleMaxPt": 42, "titleLineHeight": 1.0, "kickerPt": 5.0 }
+      "id": "gallery",
+      "name": "Gallery",
+      "cover": "void",
+      "file": "voucher/families/gallery.html",
+      "summary": "Huge margins and small centred text, one photograph per page, a single centred specification column",
+      "title": {
+        "widthMm": 130,
+        "availableHeightMm": 46,
+        "maxSizePt": 30,
+        "lineHeight": 1.06
+      }
     },
     {
-      "id": "bandTop",
-      "name": "Band Top",
-      "typeScale": { "titleMaxPt": 50, "titleLineHeight": 1.0, "kickerPt": 5.0 }
+      "id": "index",
+      "name": "Index",
+      "cover": "contents",
+      "file": "voucher/families/index.html",
+      "summary": "Dense trade catalogue with small type, a three column specification and a coded finishes grid",
+      "title": {
+        "widthMm": 120,
+        "availableHeightMm": 74,
+        "maxSizePt": 40,
+        "lineHeight": 1.0
+      }
     },
     {
-      "id": "typeOnly",
-      "name": "Type Only",
-      "typeScale": { "titleMaxPt": 76, "titleLineHeight": 0.94, "kickerPt": 5.4 }
+      "id": "dark",
+      "name": "Dark",
+      "cover": "reversed",
+      "file": "voucher/families/dark.html",
+      "summary": "Ink black cover and section dividers, a reversed white on black specification and light hairlines",
+      "title": {
+        "widthMm": 174,
+        "availableHeightMm": 82,
+        "maxSizePt": 54,
+        "lineHeight": 0.98
+      }
     },
     {
-      "id": "centred",
-      "name": "Centred",
-      "typeScale": { "titleMaxPt": 46, "titleLineHeight": 1.02, "kickerPt": 5.0 }
+      "id": "blueprint",
+      "name": "Blueprint",
+      "cover": "technical",
+      "file": "voucher/families/blueprint.html",
+      "summary": "Technical drawing furniture, a specification table with a units column and annotated finish strips",
+      "title": {
+        "widthMm": 138,
+        "availableHeightMm": 66,
+        "maxSizePt": 42,
+        "lineHeight": 1.0
+      }
+    },
+    {
+      "id": "lookbook",
+      "name": "Lookbook",
+      "cover": "photoFirst",
+      "file": "voucher/families/lookbook.html",
+      "summary": "Full bleed photography on every page, text in corners over photographs, a compressed overlay specification",
+      "title": {
+        "widthMm": 168,
+        "availableHeightMm": 88,
+        "maxSizePt": 54,
+        "lineHeight": 0.98
+      }
+    },
+    {
+      "id": "poster",
+      "name": "Poster",
+      "cover": "display",
+      "file": "voucher/families/poster.html",
+      "summary": "One enormous title with almost nothing else, a six line specification and plain finish strips",
+      "title": {
+        "widthMm": 180,
+        "availableHeightMm": 116,
+        "maxSizePt": 112,
+        "lineHeight": 0.92
+      }
+    },
+    {
+      "id": "card",
+      "name": "Card",
+      "cover": "card",
+      "file": "voucher/families/card.html",
+      "summary": "Modular bordered cards, a specification split into labelled boxes and a cover built as one card",
+      "title": {
+        "widthMm": 150,
+        "availableHeightMm": 66,
+        "maxSizePt": 46,
+        "lineHeight": 1.0
+      }
+    },
+    {
+      "id": "folio",
+      "name": "Folio",
+      "cover": "centred",
+      "file": "voucher/families/folio.html",
+      "summary": "Classical centred folio with small caps, thin double rules, one elegant specification list and numbered swatches",
+      "title": {
+        "widthMm": 140,
+        "availableHeightMm": 58,
+        "maxSizePt": 44,
+        "lineHeight": 1.02
+      }
     }
   ],
   "variants": [
-    { "id": "copper-full-bleed", "name": "Copper Full Bleed", "palette": "copper", "cover": "fullBleed" },
-    { "id": "ink-full-bleed", "name": "Ink Full Bleed", "palette": "ink", "cover": "fullBleed" },
-    { "id": "olive-full-bleed", "name": "Olive Full Bleed", "palette": "olive", "cover": "fullBleed" },
-    { "id": "indigo-full-bleed", "name": "Indigo Full Bleed", "palette": "indigo", "cover": "fullBleed" },
-    { "id": "sand-full-bleed", "name": "Sand Full Bleed", "palette": "sand", "cover": "fullBleed" },
-
-    { "id": "copper-split-right", "name": "Copper Split Right", "palette": "copper", "cover": "splitRight" },
-    { "id": "ink-split-right", "name": "Ink Split Right", "palette": "ink", "cover": "splitRight" },
-    { "id": "olive-split-right", "name": "Olive Split Right", "palette": "olive", "cover": "splitRight" },
-    { "id": "indigo-split-right", "name": "Indigo Split Right", "palette": "indigo", "cover": "splitRight" },
-    { "id": "sand-split-right", "name": "Sand Split Right", "palette": "sand", "cover": "splitRight" },
-
-    { "id": "copper-split-left", "name": "Copper Split Left", "palette": "copper", "cover": "splitLeft" },
-    { "id": "ink-split-left", "name": "Ink Split Left", "palette": "ink", "cover": "splitLeft" },
-    { "id": "olive-split-left", "name": "Olive Split Left", "palette": "olive", "cover": "splitLeft" },
-    { "id": "indigo-split-left", "name": "Indigo Split Left", "palette": "indigo", "cover": "splitLeft" },
-    { "id": "sand-split-left", "name": "Sand Split Left", "palette": "sand", "cover": "splitLeft" },
-
-    { "id": "copper-band-top", "name": "Copper Band Top", "palette": "copper", "cover": "bandTop" },
-    { "id": "ink-band-top", "name": "Ink Band Top", "palette": "ink", "cover": "bandTop" },
-    { "id": "olive-band-top", "name": "Olive Band Top", "palette": "olive", "cover": "bandTop" },
-    { "id": "indigo-band-top", "name": "Indigo Band Top", "palette": "indigo", "cover": "bandTop" },
-    { "id": "sand-band-top", "name": "Sand Band Top", "palette": "sand", "cover": "bandTop" },
-
-    { "id": "copper-type-only", "name": "Copper Type Only", "palette": "copper", "cover": "typeOnly" },
-    { "id": "ink-type-only", "name": "Ink Type Only", "palette": "ink", "cover": "typeOnly" },
-    { "id": "olive-type-only", "name": "Olive Type Only", "palette": "olive", "cover": "typeOnly" },
-    { "id": "indigo-type-only", "name": "Indigo Type Only", "palette": "indigo", "cover": "typeOnly" },
-    { "id": "sand-type-only", "name": "Sand Type Only", "palette": "sand", "cover": "typeOnly" },
-
-    { "id": "copper-centred", "name": "Copper Centred", "palette": "copper", "cover": "centred" },
-    { "id": "ink-centred", "name": "Ink Centred", "palette": "ink", "cover": "centred" },
-    { "id": "olive-centred", "name": "Olive Centred", "palette": "olive", "cover": "centred" },
-    { "id": "indigo-centred", "name": "Indigo Centred", "palette": "indigo", "cover": "centred" },
-    { "id": "sand-centred", "name": "Sand Centred", "palette": "sand", "cover": "centred" }
+    {
+      "id": "atelier-copper",
+      "name": "Copper Atelier",
+      "family": "atelier",
+      "palette": "copper"
+    },
+    {
+      "id": "atelier-ink",
+      "name": "Ink Atelier",
+      "family": "atelier",
+      "palette": "ink"
+    },
+    {
+      "id": "atelier-sand",
+      "name": "Sand Atelier",
+      "family": "atelier",
+      "palette": "sand"
+    },
+    {
+      "id": "swiss-ink",
+      "name": "Ink Swiss",
+      "family": "swiss",
+      "palette": "ink"
+    },
+    {
+      "id": "swiss-indigo",
+      "name": "Indigo Swiss",
+      "family": "swiss",
+      "palette": "indigo"
+    },
+    {
+      "id": "swiss-olive",
+      "name": "Olive Swiss",
+      "family": "swiss",
+      "palette": "olive"
+    },
+    {
+      "id": "gallery-copper",
+      "name": "Copper Gallery",
+      "family": "gallery",
+      "palette": "copper"
+    },
+    {
+      "id": "gallery-olive",
+      "name": "Olive Gallery",
+      "family": "gallery",
+      "palette": "olive"
+    },
+    {
+      "id": "gallery-indigo",
+      "name": "Indigo Gallery",
+      "family": "gallery",
+      "palette": "indigo"
+    },
+    {
+      "id": "index-copper",
+      "name": "Copper Index",
+      "family": "index",
+      "palette": "copper"
+    },
+    {
+      "id": "index-olive",
+      "name": "Olive Index",
+      "family": "index",
+      "palette": "olive"
+    },
+    {
+      "id": "index-sand",
+      "name": "Sand Index",
+      "family": "index",
+      "palette": "sand"
+    },
+    {
+      "id": "dark-ink",
+      "name": "Ink Dark",
+      "family": "dark",
+      "palette": "ink"
+    },
+    {
+      "id": "dark-indigo",
+      "name": "Indigo Dark",
+      "family": "dark",
+      "palette": "indigo"
+    },
+    {
+      "id": "dark-sand",
+      "name": "Sand Dark",
+      "family": "dark",
+      "palette": "sand"
+    },
+    {
+      "id": "blueprint-ink",
+      "name": "Ink Blueprint",
+      "family": "blueprint",
+      "palette": "ink"
+    },
+    {
+      "id": "blueprint-indigo",
+      "name": "Indigo Blueprint",
+      "family": "blueprint",
+      "palette": "indigo"
+    },
+    {
+      "id": "blueprint-olive",
+      "name": "Olive Blueprint",
+      "family": "blueprint",
+      "palette": "olive"
+    },
+    {
+      "id": "lookbook-copper",
+      "name": "Copper Lookbook",
+      "family": "lookbook",
+      "palette": "copper"
+    },
+    {
+      "id": "lookbook-sand",
+      "name": "Sand Lookbook",
+      "family": "lookbook",
+      "palette": "sand"
+    },
+    {
+      "id": "lookbook-indigo",
+      "name": "Indigo Lookbook",
+      "family": "lookbook",
+      "palette": "indigo"
+    },
+    {
+      "id": "poster-ink",
+      "name": "Ink Poster",
+      "family": "poster",
+      "palette": "ink"
+    },
+    {
+      "id": "poster-sand",
+      "name": "Sand Poster",
+      "family": "poster",
+      "palette": "sand"
+    },
+    {
+      "id": "poster-olive",
+      "name": "Olive Poster",
+      "family": "poster",
+      "palette": "olive"
+    },
+    {
+      "id": "card-copper",
+      "name": "Copper Card",
+      "family": "card",
+      "palette": "copper"
+    },
+    {
+      "id": "card-indigo",
+      "name": "Indigo Card",
+      "family": "card",
+      "palette": "indigo"
+    },
+    {
+      "id": "card-olive",
+      "name": "Olive Card",
+      "family": "card",
+      "palette": "olive"
+    },
+    {
+      "id": "folio-copper",
+      "name": "Copper Folio",
+      "family": "folio",
+      "palette": "copper"
+    },
+    {
+      "id": "folio-ink",
+      "name": "Ink Folio",
+      "family": "folio",
+      "palette": "ink"
+    },
+    {
+      "id": "folio-sand",
+      "name": "Sand Folio",
+      "family": "folio",
+      "palette": "sand"
+    }
   ]
 }

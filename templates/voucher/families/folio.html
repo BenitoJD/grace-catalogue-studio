@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:"Barlow", Helvetica, Arial, sans-serif; }
+  .serif{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; }
+  .serif.italic{ font-style:italic; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.7pt; letter-spacing:.3em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .smallcaps{ font-family:"Barlow", sans-serif; font-size:5.6pt; letter-spacing:.24em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .rule{ position:absolute; height:0.14mm; background:var(--ink); }
+  .rule.acc{ height:0.3mm; background:var(--accent); }
+  .cover-title{ position:absolute; font-family:"Instrument Serif", Georgia, serif; font-weight:400; letter-spacing:-.012em; color:var(--ink); text-align:center; }
+  .head{ font-family:"Instrument Serif", Georgia, serif; font-style:italic; font-weight:400; font-size:24pt; line-height:1; color:var(--ink); text-align:center; letter-spacing:-.01em; }
+  .folio-row{ position:absolute; left:28mm; width:152mm; height:7.2mm; border-bottom:0.12mm solid var(--hair); }
+  .folio-row .k{ position:absolute; left:0; top:1.8mm; font-family:"Barlow", sans-serif; font-size:4.8pt; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+  .folio-row .v{ position:absolute; right:0; top:1.3mm; width:90mm; text-align:right; font-family:"Barlow", sans-serif; font-size:6.2pt; line-height:1.3; color:var(--ink); }
+  .num{ font-family:"Instrument Serif", Georgia, serif; font-style:italic; font-size:13pt; color:var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- 01 COVER -->
+<div class="page cover">
+  <div class="sheet">
+    <div class="rule" style="left:18mm; top:24mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:25.8mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:269mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:270.8mm; width:174mm;"></div>
+
+    <img class="abs" src="../assets/grace-logo.png" style="left:98mm; top:36mm; width:14mm;">
+    <div class="abs micro" style="left:0; top:57mm; width:210mm; text-align:center;">Grace Wood Industry</div>
+
+    <div class="cover-title" style="left:35mm; top:76mm; width:140mm;">{{title}}</div>
+
+    <div class="abs rule acc" style="left:99mm; top:146mm; width:12mm;"></div>
+    <div class="abs micro" style="left:0; top:154mm; width:210mm; text-align:center;">{{orderNo}} · {{date}}</div>
+
+    <div class="abs ph" style="left:40mm; top:172mm; width:130mm; height:70mm; border:0.2mm solid var(--ink); background-image:url({{coverImage}});"></div>
+
+    <div class="abs micro" style="left:0; top:248mm; width:210mm; text-align:center;">{{room}}</div>
+    <div class="abs name" style="left:0; top:256mm; width:210mm; text-align:center; font-size:8pt; color:var(--ink);">{{customerName}}</div>
+    <div class="abs micro" style="left:0; top:282mm; width:210mm; text-align:center;">Grace Wood Industry · Nagercoil · 01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION -->
+<div class="page">
+  <div class="sheet">
+    <div class="rule" style="left:18mm; top:24mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:25.8mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:269mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:270.8mm; width:174mm;"></div>
+
+    <div class="abs head" style="left:0; top:36mm; width:210mm;">Specification</div>
+    <div class="abs rule acc" style="left:75mm; top:52mm; width:60mm;"></div>
+    <div class="abs rule" style="left:75mm; top:53.6mm; width:60mm;"></div>
+
+    <div class="folio-row" style="top:60mm;"><div class="k">Room</div><div class="v">{{room}}</div></div>
+    <div class="folio-row" style="top:67.2mm;"><div class="k">Width</div><div class="v">{{width}}</div></div>
+    <div class="folio-row" style="top:74.4mm;"><div class="k">Height</div><div class="v">{{height}}</div></div>
+    <div class="folio-row" style="top:81.6mm;"><div class="k">Depth</div><div class="v">{{depth}}</div></div>
+    <div class="folio-row" style="top:88.8mm;"><div class="k">Shutters</div><div class="v">{{shutters}}</div></div>
+    <div class="folio-row" style="top:96mm;"><div class="k">Carcass</div><div class="v">{{carcass}}</div></div>
+    <div class="folio-row" style="top:103.2mm;"><div class="k">Back panel</div><div class="v">{{backPanel}}</div></div>
+    <div class="folio-row" style="top:110.4mm;"><div class="k">Shutter material</div><div class="v">{{shuttersMat}}</div></div>
+    <div class="folio-row" style="top:117.6mm;"><div class="k">Drawers</div><div class="v">{{drawers}}</div></div>
+    <div class="folio-row" style="top:124.8mm;"><div class="k">Exterior</div><div class="v">{{exterior}}</div></div>
+    <div class="folio-row" style="top:132mm;"><div class="k">Interior</div><div class="v">{{interior}}</div></div>
+    <div class="folio-row" style="top:139.2mm;"><div class="k">Hinges</div><div class="v">{{hinges}}</div></div>
+    <div class="folio-row" style="top:146.4mm;"><div class="k">Channels</div><div class="v">{{channels}}</div></div>
+    <div class="folio-row" style="top:153.6mm;"><div class="k">Layout left</div><div class="v">{{layoutLeft}}</div></div>
+    <div class="folio-row" style="top:160.8mm;"><div class="k">Layout middle</div><div class="v">{{layoutMiddle}}</div></div>
+    <div class="folio-row" style="top:168mm;"><div class="k">Layout right</div><div class="v">{{layoutRight}}</div></div>
+    <div class="folio-row" style="top:175.2mm;"><div class="k">{{mat4Name}}</div><div class="v">{{edgeShutter}}</div></div>
+    <div class="folio-row" style="top:182.4mm;"><div class="k">Edge carcass</div><div class="v">{{edgeCarcass}}</div></div>
+    <div class="folio-row" style="top:189.6mm;"><div class="k">Edge note</div><div class="v">{{edgeNote}}</div></div>
+    <div class="folio-row" style="top:196.8mm;"><div class="k">Handle</div><div class="v">{{handle}}</div></div>
+    <div class="folio-row" style="top:204mm;"><div class="k">Handle note</div><div class="v">{{handleNote}}</div></div>
+    <div class="folio-row" style="top:211.2mm;"><div class="k">Finish exterior</div><div class="v">{{finishExt}}</div></div>
+    <div class="folio-row" style="top:218.4mm;"><div class="k">Finish interior</div><div class="v">{{finishInt}}</div></div>
+
+    <div class="abs rule" style="left:90mm; top:238mm; width:30mm;"></div>
+    <div class="abs name" style="left:0; top:242mm; width:210mm; text-align:center; font-size:8pt; color:var(--ink);">{{customerName}}</div>
+    <div class="abs micro" style="left:0; top:252mm; width:210mm; text-align:center;">Prepared by Grace Wood Industry</div>
+
+    <div class="abs micro" style="left:0; top:282mm; width:210mm; text-align:center;">{{shopLine}} · 02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES -->
+<div class="page">
+  <div class="sheet">
+    <div class="rule" style="left:18mm; top:24mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:25.8mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:269mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:270.8mm; width:174mm;"></div>
+
+    <div class="abs head" style="left:0; top:36mm; width:210mm;">Finishes</div>
+    <div class="abs rule" style="left:75mm; top:52mm; width:60mm;"></div>
+    <div class="abs rule" style="left:75mm; top:53.6mm; width:60mm;"></div>
+
+    <div class="abs" style="left:28mm; top:64mm; width:152mm;">
+      <div style="position:relative; height:22mm; border-bottom:0.12mm solid var(--hair);">
+        <div class="num" style="position:absolute; left:0; top:2mm;">01</div>
+        <div class="abs ph" style="left:14mm; top:2mm; width:16mm; height:16mm; background-image:url({{mat1Image}});"></div>
+        <div class="smallcaps" style="position:absolute; left:36mm; top:4mm;">{{mat1Name}}</div>
+        <div class="micro" style="position:absolute; left:36mm; top:11mm;">Laminate · M1</div>
+        <div class="micro" style="position:absolute; right:0; top:4mm;">01</div>
+      </div>
+      <div style="position:relative; height:22mm; border-bottom:0.12mm solid var(--hair);">
+        <div class="num" style="position:absolute; left:0; top:2mm;">02</div>
+        <div class="abs ph" style="left:14mm; top:2mm; width:16mm; height:16mm; background-image:url({{mat2Image}});"></div>
+        <div class="smallcaps" style="position:absolute; left:36mm; top:4mm;">{{mat2Name}}</div>
+        <div class="micro" style="position:absolute; left:36mm; top:11mm;">Laminate · M2</div>
+        <div class="micro" style="position:absolute; right:0; top:4mm;">02</div>
+      </div>
+      <div style="position:relative; height:22mm; border-bottom:0.12mm solid var(--hair);">
+        <div class="num" style="position:absolute; left:0; top:2mm;">03</div>
+        <div class="abs ph" style="left:14mm; top:2mm; width:16mm; height:16mm; background-image:url({{mat3Image}});"></div>
+        <div class="smallcaps" style="position:absolute; left:36mm; top:4mm;">{{mat3Name}}</div>
+        <div class="micro" style="position:absolute; left:36mm; top:11mm;">Laminate · M3</div>
+        <div class="micro" style="position:absolute; right:0; top:4mm;">03</div>
+      </div>
+      <div style="position:relative; height:22mm; border-bottom:0.12mm solid var(--hair);">
+        <div class="num" style="position:absolute; left:0; top:2mm;">04</div>
+        <div class="abs ph" style="left:14mm; top:2mm; width:16mm; height:16mm; background-image:url({{mat4Image}});"></div>
+        <div class="smallcaps" style="position:absolute; left:36mm; top:4mm;">{{mat4Name}}</div>
+        <div class="micro" style="position:absolute; left:36mm; top:11mm;">Edge band · M4</div>
+        <div class="micro" style="position:absolute; right:0; top:4mm;">04</div>
+      </div>
+    </div>
+
+    <div class="abs ph" style="left:40mm; top:158mm; width:130mm; height:50mm; border:0.2mm solid var(--ink); background-image:url({{detailImage}});"></div>
+    <div class="abs micro" style="left:0; top:214mm; width:210mm; text-align:center;">Handle detail · matte black profile</div>
+
+    <div class="abs micro" style="left:0; top:228mm; width:210mm; text-align:center;">Exterior · {{finishExt}}</div>
+    <div class="abs micro" style="left:0; top:236mm; width:210mm; text-align:center;">Interior · {{finishInt}}</div>
+
+    <div class="abs micro" style="left:0; top:282mm; width:210mm; text-align:center;">Shades confirmed against physical samples · 03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE -->
+<div class="page">
+  <div class="sheet">
+    <div class="rule" style="left:18mm; top:24mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:25.8mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:269mm; width:174mm;"></div>
+    <div class="rule" style="left:18mm; top:270.8mm; width:174mm;"></div>
+
+    <div class="abs head" style="left:0; top:36mm; width:210mm;">Inside</div>
+    <div class="abs rule" style="left:75mm; top:52mm; width:60mm;"></div>
+    <div class="abs rule" style="left:75mm; top:53.6mm; width:60mm;"></div>
+
+    <div class="abs ph" style="left:40mm; top:64mm; width:130mm; height:92mm; border:0.2mm solid var(--ink); background-image:url({{insideImage}});"></div>
+    <div class="abs micro" style="left:0; top:162mm; width:210mm; text-align:center;">Walk-in wardrobe · Nagercoil · {{orderNo}}</div>
+
+    <div class="abs ph" style="left:65mm; top:176mm; width:80mm; height:44mm; border:0.2mm solid var(--ink); background-image:url({{insideImage2}});"></div>
+    <div class="abs micro" style="left:0; top:224mm; width:210mm; text-align:center;">Shutter detail</div>
+
+    <div class="abs serif italic" style="left:30mm; top:238mm; width:150mm; text-align:center; font-size:19pt; line-height:1.2; color:var(--ink);">Every centimetre accounted for.</div>
+
+    <div class="abs micro" style="left:0; top:282mm; width:210mm; text-align:center;">{{shopLine}} · 04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

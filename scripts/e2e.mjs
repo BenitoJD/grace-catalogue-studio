@@ -230,6 +230,11 @@ try {
   check("change design button present", await clickText(page, "Change design"));
   check("design gallery opens", await hasText(page, "Designs", 15000));
   check("thirty designs offered", await hasText(page, "30 designs", 20000));
+  const catalog = await (await fetch(`${API}/api/templates`)).json();
+  check("design ids are unique", new Set(catalog.map((t) => t.id)).size === catalog.length, `${catalog.length} entries`);
+  const families = new Set(catalog.map((t) => t.family ?? t.cover));
+  check("at least ten design families", families.size >= 10, `${families.size} families`);
+  check("every design has its own preview", new Set(catalog.map((t) => t.previewUrl)).size === catalog.length);
   const previewsLoaded = await page
     .waitForFunction(
       () =>
@@ -243,8 +248,9 @@ try {
   check("design previews load", previewsLoaded);
   await page.screenshot({ path: `${shots}/06-designs.png` });
 
-  check("design can be chosen", await clickText(page, "Ink Full Bleed"));
-  check("order shows the chosen design", await hasText(page, "Ink Full Bleed", 15000));
+  const targetDesign = catalog.find((item) => item.id === "swiss-ink") ?? catalog[1];
+  check("design can be chosen", await clickText(page, targetDesign.name));
+  check("order shows the chosen design", await hasText(page, targetDesign.name, 15000));
   await clickText(page, "Generate voucher again");
   const designed = await page
     .waitForFunction(async () => true, { timeout: 1000 })
@@ -252,7 +258,7 @@ try {
     .catch(() => true);
   await sleep(3000);
   const rendersAfterDesign = await (await fetch(`${API}/api/renders`)).json();
-  check("render used the chosen design", rendersAfterDesign[0]?.templateId === "ink-full-bleed", String(rendersAfterDesign[0]?.templateId));
+  check("render used the chosen design", rendersAfterDesign[0]?.templateId === targetDesign.id, String(rendersAfterDesign[0]?.templateId));
 
   // 4. back to the order book, the order is there
   await page.goto(WEB, { waitUntil: "networkidle2" });

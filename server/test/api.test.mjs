@@ -303,11 +303,15 @@ test('lists and gets renders', async () => {
 test('fails a render when a placeholder is unfilled', async () => {
   const brokenRoot = path.join(tempDir, 'broken-templates');
   const brokenVoucherDir = path.join(brokenRoot, 'voucher');
-  mkdirSync(brokenVoucherDir, { recursive: true });
+  const brokenFamilyDir = path.join(brokenVoucherDir, 'families');
+  mkdirSync(brokenFamilyDir, { recursive: true });
 
-  const template = readFileSync(path.join(templatesDir, 'voucher', 'index.html'), 'utf8');
+  const template = readFileSync(
+    path.join(templatesDir, 'voucher', 'families', 'atelier.html'),
+    'utf8',
+  );
   writeFileSync(
-    path.join(brokenVoucherDir, 'index.html'),
+    path.join(brokenFamilyDir, 'atelier.html'),
     `${template}\n<div>{{neverProvided}}</div>\n`,
     'utf8',
   );
@@ -364,13 +368,37 @@ test('deletes an order and its renders', async () => {
   assert.equal(missingAgain.status, 404);
 });
 
+
 // ---------------------------------------------------------------------------
-// Selectable brochure templates
+// Ten complete document families, three palettes each
 // ---------------------------------------------------------------------------
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PALETTE_IDS = ['copper', 'ink', 'olive', 'indigo', 'sand'];
-const COVER_IDS = ['fullBleed', 'splitRight', 'splitLeft', 'bandTop', 'typeOnly', 'centred'];
+const FAMILY_IDS = [
+  'atelier',
+  'swiss',
+  'gallery',
+  'index',
+  'dark',
+  'blueprint',
+  'lookbook',
+  'poster',
+  'card',
+  'folio',
+];
+const COVER_IDS = [
+  'editorial',
+  'grid',
+  'void',
+  'contents',
+  'reversed',
+  'technical',
+  'photoFirst',
+  'display',
+  'card',
+  'centred',
+];
 
 async function fetchTemplates() {
   const response = await fetch(`${baseUrl}/api/templates`);
@@ -401,7 +429,15 @@ async function renderVoucher(templateId) {
   return { status: response.status, body: text === '' ? null : JSON.parse(text) };
 }
 
-test('lists 30 templates, every palette crossed with every cover', { timeout: 120_000 }, async () => {
+async function pageHash(render, pageNumber) {
+  const response = await fetch(`${baseUrl}${render.pageUrls[pageNumber - 1]}`);
+  assert.equal(response.status, 200);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  assert.ok(bytes.subarray(0, 8).equals(PNG_SIGNATURE));
+  return hashBytes(bytes);
+}
+
+test('lists 30 templates from ten complete families, three palettes each', { timeout: 120_000 }, async () => {
   const templates = await fetchTemplates();
   assert.equal(templates.length, 30);
   assert.equal(new Set(templates.map((template) => template.id)).size, 30);
@@ -410,18 +446,26 @@ test('lists 30 templates, every palette crossed with every cover', { timeout: 12
     assert.equal(typeof template.id, 'string');
     assert.ok(template.name && template.name.trim().length > 0, 'every template needs a human name');
     assert.ok(PALETTE_IDS.includes(template.palette), `unknown palette ${template.palette}`);
+    assert.ok(FAMILY_IDS.includes(template.family), `unknown family ${template.family}`);
     assert.ok(COVER_IDS.includes(template.cover), `unknown cover ${template.cover}`);
     assert.equal(template.pageCount, 4);
     assert.equal(template.previewUrl, `/previews/${template.id}.png`);
+    assert.equal(template.id, `${template.family}-${template.palette}`);
   }
 
-  const combinations = new Set(templates.map((template) => `${template.palette}/${template.cover}`));
-  assert.equal(combinations.size, 30, 'all five palettes by six covers are present exactly once');
+  const combinations = new Set(templates.map((template) => `${template.family}/${template.palette}`));
+  assert.equal(combinations.size, 30, 'every family and palette pair appears exactly once');
 
-  assert.equal(templates[0].id, 'copper-full-bleed', 'the first template is the default');
-  assert.ok(templates.some((template) => template.name === 'Ink Split Right'));
-  assert.ok(templates.some((template) => template.name === 'Sand Type Only'));
-  assert.ok(templates.some((template) => template.name === 'Olive Centred'));
+  for (const family of FAMILY_IDS) {
+    const entries = templates.filter((template) => template.family === family);
+    assert.equal(entries.length, 3, `family ${family} needs three palettes`);
+    assert.equal(new Set(entries.map((entry) => entry.palette)).size, 3);
+  }
+
+  assert.equal(templates[0].id, 'atelier-copper', 'the first template is the default');
+  assert.ok(templates.some((template) => template.name === 'Ink Swiss'));
+  assert.ok(templates.some((template) => template.name === 'Sand Poster'));
+  assert.ok(templates.some((template) => template.name === 'Olive Card'));
 });
 
 test('serves valid cached preview PNGs for at least five templates', { timeout: 240_000 }, async () => {
@@ -444,9 +488,9 @@ test('serves valid cached preview PNGs for at least five templates', { timeout: 
   assert.equal(unknown.status, 404);
 });
 
-test('every template renders a real four page voucher without unfilled placeholders', { timeout: 900_000 }, async () => {
+test('every template renders four pages and no two share any page image', { timeout: 900_000 }, async () => {
   const templates = await fetchTemplates();
-  const firstPageHashes = new Set();
+  const pageHashes = [new Set(), new Set(), new Set(), new Set()];
 
   for (const template of templates) {
     const { status, body: render } = await renderVoucher(template.id);
@@ -461,14 +505,18 @@ test('every template renders a real four page voucher without unfilled placehold
     assert.ok(statSync(pdfPath).size > 10 * 1024, `${template.id} PDF should not be empty`);
     assert.ok(!pdfText(pdfPath).includes('{{'), `${template.id} left an unfilled placeholder in the PDF`);
 
-    const pageOne = await fetch(`${baseUrl}${render.pageUrls[0]}`);
-    assert.equal(pageOne.status, 200);
-    const pageOneBytes = Buffer.from(await pageOne.arrayBuffer());
-    assert.ok(pageOneBytes.subarray(0, 8).equals(PNG_SIGNATURE));
-    firstPageHashes.add(hashBytes(pageOneBytes));
+    for (let page = 1; page <= 4; page += 1) {
+      pageHashes[page - 1].add(await pageHash(render, page));
+    }
   }
 
-  assert.equal(firstPageHashes.size, 30, 'every template should have a distinguishable cover');
+  for (let page = 1; page <= 4; page += 1) {
+    assert.equal(
+      pageHashes[page - 1].size,
+      30,
+      `no two templates may share a page ${page} image`,
+    );
+  }
 });
 
 test('rejects an unknown templateId with 400 without recording a render', { timeout: 120_000 }, async () => {
@@ -486,7 +534,7 @@ test('rejects an unknown templateId with 400 without recording a render', { time
 });
 
 test('three templateIds produce visibly different PDFs', { timeout: 240_000 }, async () => {
-  const ids = ['copper-full-bleed', 'ink-split-right', 'sand-type-only'];
+  const ids = ['atelier-copper', 'swiss-ink', 'lookbook-sand'];
   const runs = [];
 
   for (const id of ids) {
@@ -518,15 +566,12 @@ test('cover title is the order title and the whole title is in the PDF text laye
   assert.equal(response.status, 201, raw);
   const render = JSON.parse(raw);
   assert.equal(render.pageCount, 4);
-  assert.equal(render.templateId, 'copper-full-bleed', 'the default template is the first one');
+  assert.equal(render.templateId, 'atelier-copper', 'the default template is the first one');
 
   const text = pdfText(path.join(dataDir, 'renders', `${render.id}.pdf`));
   const pages = text.split('\f');
   const cover = normaliseText(pages[0]);
-  assert.ok(
-    cover.includes(longTitle),
-    `the full title must appear on the cover, got: ${cover}`,
-  );
+  assert.ok(cover.includes(longTitle), `the full title must appear on the cover, got: ${cover}`);
   assert.ok(!cover.includes('{{'), 'no unfilled placeholder may reach the cover');
   assert.equal(normaliseText(pages[1]).includes('Specification'), true, 'the voucher keeps its four pages');
 });
@@ -568,4 +613,32 @@ test('customer names stay in sentence case on the cover and the signature line',
     normaliseText(tamilPages[0]).includes('அருண் குமார்'),
     'a Tamil customer name should appear as entered in the cover text layer',
   );
+});
+
+test('all 30 template previews exist, open and differ', { timeout: 600_000 }, async () => {
+  const templates = await fetchTemplates();
+  const previewHashes = new Set();
+
+  for (const template of templates) {
+    const response = await fetch(`${baseUrl}${template.previewUrl}`);
+    assert.equal(response.status, 200, `${template.id} preview should open`);
+    assert.match(response.headers.get('content-type') ?? '', /image\/png/);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.ok(bytes.length > 10_000, `${template.id} preview should not be empty`);
+    assert.ok(bytes.subarray(0, 8).equals(PNG_SIGNATURE), `${template.id} preview should be a PNG`);
+    previewHashes.add(hashBytes(bytes));
+  }
+
+  assert.equal(previewHashes.size, 30, 'every template needs its own preview image');
+});
+
+test('kit renders keep working and carry no templateId', { timeout: 120_000 }, async () => {
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/render`, { kind: 'kit' });
+  const raw = await response.text();
+  assert.equal(response.status, 201, raw);
+  const render = JSON.parse(raw);
+  assert.equal(render.kind, 'kit');
+  assert.equal(render.templateId, null);
+  assert.ok(render.pageCount >= 1);
+  assert.ok(existsSync(path.join(dataDir, 'renders', `${render.id}.pdf`)));
 });

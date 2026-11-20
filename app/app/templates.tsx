@@ -137,6 +137,12 @@ export default function TemplatesScreen() {
   );
 }
 
+function describeTemplate(template: Template): string {
+  const family = template.family ?? template.cover.replace(/([a-z])([A-Z])/g, '$1 $2');
+  const cleaned = family.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return `${cleaned} · ${template.palette}`;
+}
+
 function TemplateTile({
   template,
   width,
@@ -168,7 +174,9 @@ function TemplateTile({
         <Text style={[text.value, styles.tileName]} numberOfLines={1}>
           {template.name}
         </Text>
-        <Text style={text.caption}>{selected ? 'Selected' : template.cover.replace(/([a-z])([A-Z])/g, '$1 $2')}</Text>
+        <Text style={text.caption}>
+          {selected ? 'Selected' : describeTemplate(template)}
+        </Text>
       </View>
     </Pressable>
   );

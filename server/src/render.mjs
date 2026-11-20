@@ -100,6 +100,15 @@ function materialImagePath(imageUrl, templatesDir) {
   return existsSync(source) ? `../assets/company/${name}` : null;
 }
 
+// Dimensions arrive as strings such as "2400 mm". The blueprint family prints a
+// value and a unit column, so expose the split as extra template values.
+function splitMeasure(value) {
+  const raw = String(value ?? '').trim();
+  const match = /^([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-z]+)$/.exec(raw);
+  if (!match) return { value: raw, unit: '' };
+  return { value: match[1], unit: match[2].toLowerCase() };
+}
+
 export function buildVoucherValues({ order, materials = [], templatesDir }) {
   const materialSlots = FALLBACK_MATERIALS.map((fallback, index) => {
     const material = materials[index];
@@ -110,6 +119,10 @@ export function buildVoucherValues({ order, materials = [], templatesDir }) {
     };
   });
 
+  const widthMeasure = splitMeasure(order.width);
+  const heightMeasure = splitMeasure(order.height);
+  const depthMeasure = splitMeasure(order.depth);
+
   return {
     orderNo: order.orderNo,
     title: order.title,
@@ -118,6 +131,12 @@ export function buildVoucherValues({ order, materials = [], templatesDir }) {
     width: order.width,
     height: order.height,
     depth: order.depth,
+    widthValue: widthMeasure.value,
+    widthUnit: widthMeasure.unit,
+    heightValue: heightMeasure.value,
+    heightUnit: heightMeasure.unit,
+    depthValue: depthMeasure.value,
+    depthUnit: depthMeasure.unit,
     shutters: order.shutters,
     room: order.room,
     carcass: order.carcass,
@@ -163,8 +182,8 @@ export function buildKitValues() {
 
 // Replace {{key}} tokens and fail loudly if any token is left over. A value of
 // the shape { raw: "..." } is inserted as markup or CSS without escaping; this
-// is how the server passes the palette variables and the generated cover block
-// into the base template.
+// is how the server passes the palette variables and the fitted title markup
+// into a family template.
 export function fillTemplate(template, values, kind) {
   const filled = template.replace(/\{\{([A-Za-z0-9_]+)\}\}/g, (token, key) => {
     const value = values[key];
@@ -287,38 +306,43 @@ export function createRenderer({
     return result;
   }
 
-  function voucherTemplateHtml(values) {
-    const templateDir = path.join(templatesDir, 'voucher');
-    const templateFile = path.join(templateDir, TEMPLATE_FILE);
-    let template;
-    try {
-      template = readFileSync(templateFile, 'utf8');
-    } catch {
-      throw new RenderError(`The voucher template was not found at ${templateFile}.`, 500);
+  // Voucher documents can live in sub directories (templates/voucher/families),
+  // so a render may pass its template file and the directory the built HTML
+  // must be written into. The built file always sits inside templates/voucher
+  // or templates/kit so the ../assets and ../fonts paths resolve.
+  function templatePathFor(kind, templateFile) {
+    if (templateFile === undefined || templateFile === null || templateFile === '') {
+      return path.join(templatesDir, kind, TEMPLATE_FILE);
     }
-    return { templateDir, html: fillTemplate(template, values, 'voucher') };
+    return path.isAbsolute(templateFile) ? templateFile : path.join(templatesDir, templateFile);
   }
 
-  async function renderOnce({ kind, values, renderId }) {
+  function builtDirFor(templatePath, builtDir) {
+    if (builtDir === undefined || builtDir === null || builtDir === '') {
+      return path.dirname(templatePath);
+    }
+    return path.isAbsolute(builtDir) ? builtDir : path.join(templatesDir, builtDir);
+  }
+
+  function loadTemplate(templatePath, kind) {
+    try {
+      return readFileSync(templatePath, 'utf8');
+    } catch {
+      throw new RenderError(`The ${kind} template was not found at ${templatePath}.`, 500);
+    }
+  }
+
+  async function renderOnce({ kind, values, renderId, templateFile, builtDir }) {
     if (kind !== 'voucher' && kind !== 'kit') {
       throw new RenderError(`Unknown template kind "${kind}".`, 400);
     }
 
-    const templateDir = path.join(templatesDir, kind);
-    const templateFile = path.join(templateDir, TEMPLATE_FILE);
-    let template;
-    try {
-      template = readFileSync(templateFile, 'utf8');
-    } catch {
-      throw new RenderError(`The ${kind} template was not found at ${templateFile}.`, 500);
-    }
-
-    const html = fillTemplate(template, values, kind);
+    const templatePath = templatePathFor(kind, templateFile);
+    const outputDir = builtDirFor(templatePath, builtDir);
+    const html = fillTemplate(loadTemplate(templatePath, kind), values, kind);
 
     mkdirSync(rendersDir, { recursive: true });
-    // The built file sits inside the template directory so ../assets and
-    // ../fonts resolve, then it is removed once the render is done.
-    const builtFile = path.join(templateDir, `built-${renderId}.html`);
+    const builtFile = path.join(outputDir, `built-${renderId}.html`);
     const pdfPath = path.join(rendersDir, `${renderId}.pdf`);
     const pagePrefix = path.join(rendersDir, renderId);
 
@@ -350,16 +374,18 @@ export function createRenderer({
 
   // Build page one of a voucher as a PNG thumbnail. Runs on the same queue as
   // full renders so a preview and a voucher never share the template directory.
-  async function renderPreviewOnce({ templateId, values }) {
+  async function renderPreviewOnce({ templateId, values, templateFile, builtDir }) {
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(templateId ?? ''))) {
       throw new RenderError(`Invalid template id "${templateId}".`, 400);
     }
 
-    const { templateDir, html } = voucherTemplateHtml(values);
+    const templatePath = templatePathFor('voucher', templateFile);
+    const outputDir = builtDirFor(templatePath, builtDir);
+    const html = fillTemplate(loadTemplate(templatePath, 'voucher'), values, 'voucher');
     mkdirSync(previewsDir, { recursive: true });
 
     const nonce = randomBytes(4).toString('hex');
-    const builtFile = path.join(templateDir, `built-preview-${templateId}-${nonce}.html`);
+    const builtFile = path.join(outputDir, `built-preview-${templateId}-${nonce}.html`);
     const pdfPath = path.join(previewsDir, `.tmp-${templateId}-${nonce}.pdf`);
     const outputPrefix = path.join(previewsDir, `.tmp-${templateId}-${nonce}`);
     const outputPng = `${outputPrefix}.png`;

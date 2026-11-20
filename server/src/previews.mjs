@@ -2,7 +2,12 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { RenderError } from './render.mjs';
-import { SAMPLE_MATERIALS, SAMPLE_ORDER, buildVoucherDocumentValues } from './variants.mjs';
+import {
+  SAMPLE_MATERIALS,
+  SAMPLE_ORDER,
+  buildVoucherDocumentValues,
+  resolveTemplateSelection,
+} from './variants.mjs';
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const MIN_PREVIEW_BYTES = 1024;
@@ -46,6 +51,7 @@ export function createPreviewStore({ variants, templatesDir, dataDir, renderer, 
     if (!pending) {
       pending = (async () => {
         mkdirSync(previewsDir, { recursive: true });
+        const selection = resolveTemplateSelection(variants, templateId);
         const values = buildVoucherDocumentValues({
           order: SAMPLE_ORDER,
           materials: SAMPLE_MATERIALS,
@@ -53,7 +59,12 @@ export function createPreviewStore({ variants, templatesDir, dataDir, renderer, 
           variants,
           templateId,
         });
-        const filePath = await renderer.renderPreview({ templateId, values });
+        const filePath = await renderer.renderPreview({
+          templateId,
+          values,
+          templateFile: selection.templateFile,
+          builtDir: 'voucher',
+        });
         ready.add(templateId);
         return filePath;
       })().finally(() => {

@@ -31,6 +31,7 @@ import { createPreviewStore } from './previews.mjs';
 import {
   buildVoucherDocumentValues,
   loadVariants,
+  resolveTemplateSelection,
   templateCatalog,
 } from './variants.mjs';
 
@@ -360,6 +361,8 @@ export function createApp(options) {
       templateId = requested;
     }
 
+    const selection =
+      kind === 'voucher' ? resolveTemplateSelection(variants, templateId) : null;
     const values =
       kind === 'voucher'
         ? buildVoucherDocumentValues({
@@ -371,7 +374,13 @@ export function createApp(options) {
           })
         : buildKitValues();
     const renderId = newRenderId();
-    const result = await renderer.render({ kind, values, renderId });
+    const result = await renderer.render({
+      kind,
+      values,
+      renderId,
+      templateFile: selection?.templateFile,
+      builtDir: kind === 'voucher' ? 'voucher' : undefined,
+    });
 
     const render = createRender(db, {
       id: renderId,
