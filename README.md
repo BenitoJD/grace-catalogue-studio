@@ -242,10 +242,38 @@ Thirty covers are built from six compositions and five palettes:
 
 `GET /api/templates` lists them with preview images. A render accepts `templateId`. The app shows the gallery from the order screen under Design.
 
-## Deployment notes
+## Production
 
-The server is stateless apart from `data/`. To deploy, run it behind a reverse proxy with the `data/` directory on a persistent volume, set `PORT`, and point the app at it with `EXPO_PUBLIC_API_URL`. The web build in `app/dist` is static and can be served from any CDN.
+The API ships as a container. Full runbook in [docs/DEPLOY.md](docs/DEPLOY.md), the config template in [.env.example](.env.example).
 
-Running on a device: the app defaults to `http://localhost:8787`, which is right for the web build and the iOS simulator. The Android emulator needs `EXPO_PUBLIC_API_URL=http://10.0.2.2:8787`, and a real phone needs the machine's LAN address, for example `EXPO_PUBLIC_API_URL=http://192.168.1.20:8787`.
+```bash
+cp .env.example .env      # set CORS_ORIGINS and the domain
+mkdir -p data && sudo chown 1000:1000 data
+docker compose up -d --build
+curl -fsS localhost:8787/health
+curl -fsS localhost:8787/ready
+```
 
-Two things to check before a customer sees a document: the fonts in the PDF must all be embedded (they are, as CID TrueType subsets), and the images must be at least 200 dpi at their printed size. The cover render is the weakest file at roughly 150 dpi; a larger export from the original render would fix it.
+The image installs WeasyPrint and Poppler, runs as a non root user, and keeps everything stateful in `/app/data`, which is bind mounted to `./data`. The web build is static, served by the same reverse proxy at the apex path, so the app and the API share an origin and `EXPO_PUBLIC_API_URL` can stay unset.
+
+**Operational behaviour**
+
+| Concern | How it behaves |
+|---|---|
+| Liveness | `GET /health`, cheap, always 200 while the process runs |
+| Readiness | `GET /ready`, 200 only when the database answers and the WeasyPrint binary is executable, 503 with a reason otherwise |
+| Logs | one JSON line per request to stdout: time, level, requestId, method, path, status, durationMs. No request bodies |
+| Tracing | every response carries `X-Request-Id`, and every error JSON repeats it |
+| Errors | JSON `{ error, requestId }`, never a stack trace to the client |
+| Limits | 120 requests per minute per IP, 12 renders per minute per IP, 64 KB body cap, configurable by env |
+| CORS | explicit allowlist, `*` only for testing |
+| Storage | WAL mode, foreign keys on, schema versioned through PRAGMA user_version |
+| Renders | concurrent identical requests share one render, files older than `RENDER_RETENTION_DAYS` are swept daily |
+| Shutdown | SIGTERM drains in flight renders for up to 20 seconds, then closes the database |
+| Backup | `sqlite3 data/catalog.db ".backup data/backup.db"` plus a copy of `data/renders` and `data/previews` |
+
+Behind a proxy, keep the API on loopback and let Caddy hold TLS. The container reads the first `X-Forwarded-For` entry for rate limiting, which is only trustworthy behind that proxy. The Caddyfile in DEPLOY.md handles `/api`, `/files`, `/pages`, `/previews`, `/media`, `/health` and `/ready`, and falls back to `index.html` for the single page web app.
+
+**Native builds.** `app/eas.json` defines development, preview and production profiles. Set `EXPO_PUBLIC_API_URL` for the target API before building. On the Android emulator use `http://10.0.2.2:8787`; on a real phone use the machine's LAN address or the deployed domain.
+
+**Before a customer sees a document.** Fonts in the PDF must all be embedded (they are, as CID TrueType subsets), and images must be at least 200 dpi at their printed size. The cover render is the weakest file at roughly 150 dpi; a larger export from the original render would fix it.

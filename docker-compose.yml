@@ -1,0 +1,114 @@
+# Production stack for Grace Catalogue Studio.
+#
+# One service: the Node API that also renders PDFs with WeasyPrint. The web
+# build (app/dist) is static and is served by the reverse proxy in front of
+# this container; it is not part of the image.
+#
+# Quick start on a VPS:
+#   git clone <repo> && cd Dovetail
+#   cp .env.example .env && editor .env
+#   mkdir -p data && sudo chown 1000:1000 data
+#   docker compose up -d --build
+#   curl http://localhost:8787/health
+#
+# docker compose reads .env from this directory. It refuses to start when the
+# file is missing, so create it from .env.example first.
+#
+# Full instructions, TLS proxy and backups: docs/DEPLOY.md
+
+name: grace-catalogue-studio
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: grace-catalogue-studio:latest
+    container_name: grace-catalogue-studio
+    restart: unless-stopped
+    # tini reaps the WeasyPrint and pdftoppm children if one is ever orphaned.
+    init: true
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    ports:
+      # Publish only on the host loopback when Caddy or nginx runs on the same
+      # machine: change this to "127.0.0.1:8787:8787" before exposing the host
+      # and let the proxy connect to 127.0.0.1:8787. Docker publishes ports with
+      # its own iptables rules, so a ufw rule alone is not a reliable guard.
+      - "8787:8787"
+    volumes:
+      # SQLite database, rendered PDFs, page images, template thumbnails and
+      # material images. A bind mount keeps them visible on the host so
+      # backups are a plain file copy and survive docker compose down -v.
+      - ./data:/app/data
+    # A render can take up to two minutes; give the shutdown handler time to
+    # close the database instead of killing an in flight render.
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:' + (process.env.PORT || '8787') + '/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # Memory limit for a small VPS (2 GB RAM is enough for this stack).
+    # WeasyPrint plus pdftoppm peak around 300-500 MB for a four page voucher
+    # and renders are serialised inside the process, so 1 GB is comfortable.
+    # Uncomment to enforce a hard cap with Compose v2:
+    # mem_limit: 1g
+    #
+    # CPU limit for the same reason, if the VPS is shared with other services:
+    # cpus: 2.0
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Reverse proxy note
+# ------------------
+# Do not expose port 8787 directly to the internet. Run Caddy on the host and
+# proxy the domain to this container; Caddy obtains and renews TLS for you:
+#
+#   catalogue.example.com {
+#       encode zstd gzip
+#       handle /api/* {
+#           reverse_proxy 127.0.0.1:8787
+#       }
+#       handle /files/* {
+#           reverse_proxy 127.0.0.1:8787
+#       }
+#       handle /pages/* {
+#           reverse_proxy 127.0.0.1:8787
+#       }
+#       handle /previews/* {
+#           reverse_proxy 127.0.0.1:8787
+#       }
+#       handle /media/* {
+#           reverse_proxy 127.0.0.1:8787
+#       }
+#       handle /health {
+#           reverse_proxy 127.0.0.1:8787
+#       }
+#       handle /ready {
+#           reverse_proxy 127.0.0.1:8787
+#       }
+#       handle {
+#           root * /srv/grace-web
+#           try_files {path} /index.html
+#           file_server
+#       }
+#   }
+#
+# Caddy forwards the real client address in X-Forwarded-For, which the API uses
+# for its per client rate limits. Do not expose 8787 to the internet directly,
+# and see docs/DEPLOY.md for the full Caddyfile, the firewall rules and the
+# optional access restriction for this internal tool.
+#
+# There is no separate database service: node:sqlite keeps everything in
+# ./data/catalog.db. Back it up with sqlite3 .backup while the API runs.

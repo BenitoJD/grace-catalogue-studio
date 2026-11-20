@@ -15,7 +15,25 @@ function normaliseBaseUrl(value: string): string {
   return trimmed.replace(/\/+$/, '');
 }
 
-export const API_BASE_URL = normaliseBaseUrl(rawBaseUrl) || 'http://localhost:8787';
+/**
+ * Where the API lives.
+ *
+ * Builds can set EXPO_PUBLIC_API_URL. When they do not:
+ * - on a phone or simulator, localhost is the development machine
+ * - on the web in development, the API runs on 8787
+ * - on the web in production, the app is served behind the same host as the API,
+ *   so same origin is the safest default
+ */
+function defaultBaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
+    return isLocal ? 'http://localhost:8787' : window.location.origin;
+  }
+  return 'http://localhost:8787';
+}
+
+export const API_BASE_URL = normaliseBaseUrl(rawBaseUrl) || defaultBaseUrl();
 
 export type OrderStatus = 'draft' | 'approved';
 

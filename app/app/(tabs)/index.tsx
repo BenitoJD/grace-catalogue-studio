@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
@@ -48,6 +48,16 @@ export default function OrdersScreen() {
     <Screen>
       <View style={shared.frame}>
         <FlatList
+          refreshControl={
+            <RefreshControl
+              refreshing={loading && Boolean(data)}
+              onRefresh={() => {
+                void reload();
+              }}
+              tintColor={colors.copper}
+              colors={[colors.copper]}
+            />
+          }
           data={orders}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={header}

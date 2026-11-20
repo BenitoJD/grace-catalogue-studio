@@ -29,7 +29,15 @@ export const ORDER_TEXT_FIELDS = [
   'finishInt',
 ];
 
-const SCHEMA = `
+// The schema is versioned with PRAGMA user_version. Version 1 is the original
+// catalogue schema; every future change is appended as a new migration so an
+// existing data directory upgrades in place. Never edit an applied migration.
+export const SCHEMA_VERSION = 1;
+
+// orders.customerId and renders.orderId are RESTRICT: a customer with orders is
+// never deleted behind the API's back, so orders can not be orphaned. Deleting
+// an order explicitly deletes its renders first (see deleteOrder).
+const INITIAL_SCHEMA = `
 CREATE TABLE IF NOT EXISTS customers (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -41,7 +49,7 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
   orderNo TEXT NOT NULL UNIQUE,
-  customerId TEXT NOT NULL REFERENCES customers(id),
+  customerId TEXT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
   title TEXT NOT NULL,
   room TEXT NOT NULL,
   width TEXT NOT NULL,
@@ -66,7 +74,6 @@ CREATE TABLE IF NOT EXISTS orders (
   status TEXT NOT NULL DEFAULT 'draft',
   createdAt TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS orders_customer_idx ON orders (customerId);
 
 CREATE TABLE IF NOT EXISTS materials (
   id TEXT PRIMARY KEY,
@@ -79,7 +86,7 @@ CREATE TABLE IF NOT EXISTS materials (
 
 CREATE TABLE IF NOT EXISTS renders (
   id TEXT PRIMARY KEY,
-  orderId TEXT NOT NULL REFERENCES orders(id),
+  orderId TEXT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
   kind TEXT NOT NULL,
   pageCount INTEGER NOT NULL,
   pdfUrl TEXT NOT NULL,
@@ -87,26 +94,84 @@ CREATE TABLE IF NOT EXISTS renders (
   templateId TEXT,
   createdAt TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS renders_order_idx ON renders (orderId);
 `;
+
+const INITIAL_INDEXES = `
+CREATE INDEX IF NOT EXISTS orders_customer_idx ON orders (customerId);
+CREATE INDEX IF NOT EXISTS orders_created_idx ON orders (createdAt);
+CREATE INDEX IF NOT EXISTS renders_order_created_idx ON renders (orderId, createdAt);
+CREATE INDEX IF NOT EXISTS renders_created_idx ON renders (createdAt);
+`;
+
+function tableColumns(db, table) {
+  return db
+    .prepare(`PRAGMA table_info(${table})`)
+    .all()
+    .map((column) => column.name);
+}
+
+function addColumnIfMissing(db, table, column, definition) {
+  if (tableColumns(db, table).includes(column)) return false;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  return true;
+}
+
+// Ordered migrations. Version 1 is written to also repair a database created
+// before versioning existed (user_version 0): CREATE IF NOT EXISTS leaves the
+// old tables alone, then missing columns and indices are added.
+export const MIGRATIONS = Object.freeze([
+  {
+    version: 1,
+    name: 'catalogue schema with indices',
+    up(db) {
+      db.exec(INITIAL_SCHEMA);
+      // Older data directories predate selectable brochure templates.
+      addColumnIfMissing(db, 'renders', 'templateId', 'TEXT');
+      db.exec(INITIAL_INDEXES);
+    },
+  },
+]);
+
+export function schemaVersion(db) {
+  return Number(db.prepare('PRAGMA user_version').get()?.user_version ?? 0);
+}
+
+/**
+ * Apply every migration newer than the database's PRAGMA user_version, each in
+ * its own transaction. Returns the version the database is on afterwards.
+ */
+export function migrate(db) {
+  let current = schemaVersion(db);
+  for (const migration of MIGRATIONS) {
+    if (migration.version <= current) continue;
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      migration.up(db);
+      db.exec(`PRAGMA user_version = ${migration.version}`);
+      db.exec('COMMIT');
+      current = migration.version;
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw new Error(
+        `Database migration ${migration.version} (${migration.name}) failed: ${error.message}`,
+        { cause: error },
+      );
+    }
+  }
+  return current;
+}
 
 export function openDb(dbPath = ':memory:') {
   if (dbPath !== ':memory:') mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
+
+  // Durability and concurrency settings for a small always-on service.
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec(SCHEMA);
+  db.exec('PRAGMA busy_timeout = 5000');
+  db.exec('PRAGMA synchronous = NORMAL');
 
-  // Older data directories predate selectable brochure templates. Add the
-  // column in place so existing renders and databases keep working.
-  const renderColumns = db
-    .prepare('PRAGMA table_info(renders)')
-    .all()
-    .map((column) => column.name);
-  if (!renderColumns.includes('templateId')) {
-    db.exec('ALTER TABLE renders ADD COLUMN templateId TEXT');
-  }
-
+  migrate(db);
   return db;
 }
 
@@ -151,6 +216,28 @@ export function getCustomer(db, id) {
   return plain(
     db.prepare('SELECT id, name, phone, address, createdAt FROM customers WHERE id = ?').get(id),
   );
+}
+
+/**
+ * Delete a customer, but never leave its orders behind. The foreign key is
+ * ON DELETE RESTRICT, and this helper checks explicitly so callers get a clear
+ * error instead of a raw constraint failure. Returns true when a row was
+ * deleted, false when the customer did not exist.
+ */
+export function deleteCustomer(db, id) {
+  const row = db.prepare('SELECT COUNT(*) AS count FROM orders WHERE customerId = ?').get(id);
+  const orderCount = Number(row?.count ?? 0);
+  if (orderCount > 0) {
+    const error = new Error(
+      `Customer has ${orderCount} order${orderCount === 1 ? '' : 's'} and can not be deleted. ` +
+        'Delete the orders first so no order is orphaned.',
+    );
+    error.code = 'CUSTOMER_HAS_ORDERS';
+    error.orderCount = orderCount;
+    throw error;
+  }
+  const result = db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+  return Number(result.changes) > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -282,7 +369,7 @@ export function createRender(db, input) {
     pdfUrl: input.pdfUrl,
     pageUrls: input.pageUrls,
     templateId: input.templateId ?? null,
-    createdAt: now(),
+    createdAt: input.createdAt ?? now(),
   };
   db.prepare(
     'INSERT INTO renders (id, orderId, kind, pageCount, pdfUrl, pageUrls, templateId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -316,3 +403,7 @@ export function listRendersForOrder(db, orderId) {
 export function getRender(db, id) {
   return renderFromRow(db.prepare('SELECT * FROM renders WHERE id = ?').get(id));
 }
+
+// The retention sweep lives in its own module; re-exported here so the data
+// layer is the one obvious import for anything that touches render rows.
+export { sweepRenders } from './retention.mjs';

@@ -1,26 +1,34 @@
 {
   "expo": {
-    "name": "Grace Wood",
-    "slug": "grace-wood",
+    "name": "Grace Studio",
+    "slug": "grace-catalogue-studio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gracewood",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gracewoodindustry.studio",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.gracewoodindustry.studio",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "themeColor": "#A65E22",
+      "backgroundColor": "#FFFFFF",
+      "name": "Grace Studio",
+      "shortName": "Grace Studio"
     },
     "plugins": [
       "expo-router",
@@ -35,6 +43,9 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "description": "Catalogue studio for Grace Wood Industry. Capture a wardrobe order and render a print ready voucher.",
+    "primaryColor": "#A65E22",
+    "backgroundColor": "#FFFFFF"
   }
 }

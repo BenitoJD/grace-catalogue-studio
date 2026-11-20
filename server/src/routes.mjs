@@ -1,8 +1,8 @@
-import { rmSync, readdirSync } from 'node:fs';
+import { readdirSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 
 import {
   ORDER_TEXT_FIELDS,
@@ -22,11 +22,14 @@ import {
   updateOrder,
 } from './db.mjs';
 import {
-  RenderError,
-  buildKitValues,
-  createRenderer,
-  newRenderId,
-} from './render.mjs';
+  DEFAULT_RATE_LIMIT_PER_MIN,
+  DEFAULT_RENDER_LIMIT_PER_MIN,
+  parseCorsOrigins,
+  parsePositiveInt,
+} from './config.mjs';
+import { installHttpHardening, isExecutable } from './http.mjs';
+import { createLogger, parseLogLevel } from './logger.mjs';
+import { buildKitValues, createRenderer, newRenderId } from './render.mjs';
 import { createPreviewStore } from './previews.mjs';
 import {
   buildVoucherDocumentValues,
@@ -36,6 +39,13 @@ import {
 } from './variants.mjs';
 
 const API_VERSION = '1.0.0';
+
+// Validation caps. Titles and human names get more room than the short
+// specification fields; template ids have their own small cap.
+const TITLE_MAX_LENGTH = 120;
+const NAME_MAX_LENGTH = 120;
+const FIELD_MAX_LENGTH = 80;
+const TEMPLATE_ID_MAX_LENGTH = 64;
 
 // Only these fields must be present on create. The rest start empty and can be
 // filled in with PATCH, which keeps the mobile form forgiving.
@@ -50,6 +60,10 @@ const IMAGE_TYPES = new Map([
   ['svg', 'image/svg+xml'],
 ]);
 
+function fail(c, status, message) {
+  return c.json({ error: message, requestId: c.get('requestId') ?? null }, status);
+}
+
 async function readJsonObject(c) {
   let body;
   try {
@@ -63,30 +77,39 @@ async function readJsonObject(c) {
   return { body };
 }
 
-function readTextField(body, key, required = false, maxLength = 4000) {
+/**
+ * Read one text field. Strings are trimmed; anything that is not a string
+ * (numbers, arrays, objects, booleans) is rejected instead of being coerced.
+ */
+function readText(body, key, { required = false, maxLength = FIELD_MAX_LENGTH } = {}) {
   const raw = body[key];
-  if (raw === undefined || raw === null || raw === '') {
+  if (raw === undefined || raw === null) {
     if (required) return { error: `Field "${key}" is required.` };
     return { value: '' };
   }
-  if (typeof raw !== 'string' && typeof raw !== 'number') {
+  if (typeof raw !== 'string') {
     return { error: `Field "${key}" must be text.` };
   }
-  const value = String(raw).trim();
-  if (required && value === '') return { error: `Field "${key}" is required.` };
-  if (value.length > maxLength) return { error: `Field "${key}" is too long.` };
+  const value = raw.trim();
+  if (value === '') {
+    if (required) return { error: `Field "${key}" is required.` };
+    return { value: '' };
+  }
+  if (value.length > maxLength) {
+    return { error: `Field "${key}" must be ${maxLength} characters or fewer.` };
+  }
   return { value };
 }
 
-function readOptionalText(body, key, maxLength = 4000) {
+function readOptionalImageUrl(body, key, maxLength = FIELD_MAX_LENGTH) {
   const raw = body[key];
-  if (raw === undefined || raw === null) return { value: '' };
-  if (typeof raw !== 'string' && typeof raw !== 'number') {
-    return { error: `Field "${key}" must be text.` };
+  if (raw === undefined || raw === null) return { value: null };
+  if (typeof raw !== 'string') return { error: `Field "${key}" must be text.` };
+  const value = raw.trim();
+  if (value.length > maxLength) {
+    return { error: `Field "${key}" must be ${maxLength} characters or fewer.` };
   }
-  const value = String(raw).trim();
-  if (value.length > maxLength) return { error: `Field "${key}" is too long.` };
-  return { value };
+  return { value: value === '' ? null : value };
 }
 
 async function sendFile(c, filePath, contentType) {
@@ -97,7 +120,7 @@ async function sendFile(c, filePath, contentType) {
       'Content-Length': String(data.length),
     });
   } catch {
-    return c.json({ error: 'File not found.' }, 404);
+    return fail(c, 404, 'File not found.');
   }
 }
 
@@ -114,47 +137,117 @@ function removeRenderFiles(rendersDir, renderId) {
   }
 }
 
+function checkDatabase(db) {
+  try {
+    const row = db.prepare('SELECT 1 AS ok').get();
+    if (row && Number(row.ok) === 1) return { ok: true, error: null };
+    return { ok: false, error: 'The database did not answer the readiness query.' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export function createApp(options) {
   const { db, dataDir, templatesDir } = options;
   const rendersDir = path.join(dataDir, 'renders');
+  const weasyprintBin = options.weasyprintBin ?? 'weasyprint';
+  const pdftoppmBin = options.pdftoppmBin ?? 'pdftoppm';
+
+  const logger =
+    options.logger ??
+    createLogger({ level: options.logLevel ?? parseLogLevel(process.env.LOG_LEVEL) });
+  const corsOrigins = Array.isArray(options.corsOrigins)
+    ? options.corsOrigins
+    : typeof options.corsOrigins === 'string'
+      ? parseCorsOrigins(options.corsOrigins)
+      : parseCorsOrigins(process.env.CORS_ORIGINS);
+  const rateLimitPerMin =
+    options.rateLimitPerMin ??
+    parsePositiveInt(process.env.RATE_LIMIT_PER_MIN, DEFAULT_RATE_LIMIT_PER_MIN);
+  const renderLimitPerMin =
+    options.renderLimitPerMin ??
+    parsePositiveInt(process.env.RENDER_LIMIT_PER_MIN, DEFAULT_RENDER_LIMIT_PER_MIN);
+
   const variants = loadVariants(templatesDir);
   const renderer =
     options.renderer ??
     createRenderer({
       templatesDir,
       dataDir,
-      weasyprintBin: options.weasyprintBin ?? 'weasyprint',
-      pdftoppmBin: options.pdftoppmBin ?? 'pdftoppm',
+      weasyprintBin,
+      pdftoppmBin,
     });
-  const previewStore = createPreviewStore({ variants, templatesDir, dataDir, renderer });
-
-  const app = new Hono();
-
-  app.use(
-    '*',
-    cors({
-      origin: '*',
-      allowMethods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type'],
-      maxAge: 86400,
-    }),
-  );
-
-  app.onError((error, c) => {
-    if (error instanceof RenderError) {
-      return c.json({ error: error.message }, error.status);
-    }
-    console.error(error);
-    return c.json({ error: 'The server hit an unexpected error.' }, 500);
+  const previewStore = createPreviewStore({
+    variants,
+    templatesDir,
+    dataDir,
+    renderer,
+    log: logger,
   });
 
-  app.notFound((c) => c.json({ error: 'Not found.' }, 404));
+  const app = new Hono();
+  const lifecycle = { shuttingDown: false };
+
+  installHttpHardening(app, {
+    logger,
+    corsOrigins,
+    rateLimitPerMin,
+    renderLimitPerMin,
+    isShuttingDown: () => lifecycle.shuttingDown,
+  });
+
+  // Concurrent requests for the same document share one build instead of
+  // queueing a second identical render behind the first.
+  const inflightRenders = new Map();
+
+  function startRenderJob(key, run) {
+    const promise = (async () => run())();
+    inflightRenders.set(key, promise);
+    const cleanup = () => {
+      if (inflightRenders.get(key) === promise) inflightRenders.delete(key);
+    };
+    promise.then(cleanup, cleanup);
+    return promise;
+  }
 
   // -------------------------------------------------------------------------
-  // Health and bootstrap
+  // Health and readiness
   // -------------------------------------------------------------------------
 
+  // Cheap liveness check: the process is up. It touches nothing on disk.
   app.get('/health', (c) => c.json({ ok: true, version: API_VERSION }));
+
+  // Readiness check: the database answers and the renderer binary is usable.
+  // Returns 503 with a JSON reason when either dependency is missing.
+  app.get('/ready', (c) => {
+    const database = checkDatabase(db);
+    const weasyprint = isExecutable(weasyprintBin);
+
+    if (database.ok && weasyprint) {
+      return c.json({
+        ready: true,
+        version: API_VERSION,
+        checks: { database: true, weasyprint: true },
+      });
+    }
+
+    const reasons = [];
+    if (!database.ok) reasons.push(`database: ${database.error}`);
+    if (!weasyprint) reasons.push(`weasyprint: "${weasyprintBin}" is missing or not executable`);
+    return c.json(
+      {
+        ready: false,
+        error: `Not ready. ${reasons.join(' ')}`,
+        requestId: c.get('requestId') ?? null,
+        checks: { database: database.ok, weasyprint },
+      },
+      503,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Bootstrap
+  // -------------------------------------------------------------------------
 
   app.get('/api/bootstrap', (c) =>
     c.json({
@@ -173,7 +266,7 @@ export function createApp(options) {
   app.get('/previews/:file', async (c) => {
     const match = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.png$/.exec(c.req.param('file'));
     if (!match || !variants.byId.has(match[1])) {
-      return c.json({ error: 'Preview not found.' }, 404);
+      return fail(c, 404, 'Preview not found.');
     }
     const filePath = await previewStore.ensure(match[1]);
     return sendFile(c, filePath, 'image/png');
@@ -187,14 +280,17 @@ export function createApp(options) {
 
   app.post('/api/customers', async (c) => {
     const parsed = await readJsonObject(c);
-    if (parsed.error) return c.json({ error: parsed.error }, 400);
+    if (parsed.error) return fail(c, 400, parsed.error);
 
-    const name = readTextField(parsed.body, 'name', true, 200);
-    if (name.error) return c.json({ error: name.error }, 400);
-    const phone = readOptionalText(parsed.body, 'phone', 100);
-    if (phone.error) return c.json({ error: phone.error }, 400);
-    const address = readOptionalText(parsed.body, 'address', 1000);
-    if (address.error) return c.json({ error: address.error }, 400);
+    const name = readText(parsed.body, 'name', {
+      required: true,
+      maxLength: NAME_MAX_LENGTH,
+    });
+    if (name.error) return fail(c, 400, name.error);
+    const phone = readText(parsed.body, 'phone');
+    if (phone.error) return fail(c, 400, phone.error);
+    const address = readText(parsed.body, 'address');
+    if (address.error) return fail(c, 400, address.error);
 
     const customer = createCustomer(db, {
       name: name.value,
@@ -212,18 +308,21 @@ export function createApp(options) {
 
   app.post('/api/orders', async (c) => {
     const parsed = await readJsonObject(c);
-    if (parsed.error) return c.json({ error: parsed.error }, 400);
+    if (parsed.error) return fail(c, 400, parsed.error);
 
-    const customerId = readTextField(parsed.body, 'customerId', true, 200);
-    if (customerId.error) return c.json({ error: customerId.error }, 400);
+    const customerId = readText(parsed.body, 'customerId', { required: true });
+    if (customerId.error) return fail(c, 400, customerId.error);
     if (!getCustomer(db, customerId.value)) {
-      return c.json({ error: 'Customer not found. Create the customer first.' }, 400);
+      return fail(c, 400, 'Customer not found. Create the customer first.');
     }
 
     const fields = {};
     for (const field of ORDER_TEXT_FIELDS) {
-      const result = readTextField(parsed.body, field, REQUIRED_ORDER_FIELDS.has(field));
-      if (result.error) return c.json({ error: result.error }, 400);
+      const result = readText(parsed.body, field, {
+        required: REQUIRED_ORDER_FIELDS.has(field),
+        maxLength: field === 'title' ? TITLE_MAX_LENGTH : FIELD_MAX_LENGTH,
+      });
+      if (result.error) return fail(c, 400, result.error);
       fields[field] = result.value;
     }
 
@@ -233,44 +332,46 @@ export function createApp(options) {
 
   app.get('/api/orders/:id', (c) => {
     const order = getOrder(db, c.req.param('id'));
-    if (!order) return c.json({ error: 'Order not found.' }, 404);
+    if (!order) return fail(c, 404, 'Order not found.');
     return c.json(order);
   });
 
   app.patch('/api/orders/:id', async (c) => {
     const id = c.req.param('id');
-    if (!getOrder(db, id)) return c.json({ error: 'Order not found.' }, 404);
+    if (!getOrder(db, id)) return fail(c, 404, 'Order not found.');
 
     const parsed = await readJsonObject(c);
-    if (parsed.error) return c.json({ error: parsed.error }, 400);
+    if (parsed.error) return fail(c, 400, parsed.error);
 
     const patch = {};
 
     if ('customerId' in parsed.body) {
-      const customerId = readTextField(parsed.body, 'customerId', true, 200);
-      if (customerId.error) return c.json({ error: customerId.error }, 400);
+      const customerId = readText(parsed.body, 'customerId', { required: true });
+      if (customerId.error) return fail(c, 400, customerId.error);
       if (!getCustomer(db, customerId.value)) {
-        return c.json({ error: 'Customer not found.' }, 400);
+        return fail(c, 400, 'Customer not found.');
       }
       patch.customerId = customerId.value;
     }
 
     if ('status' in parsed.body) {
       if (parsed.body.status !== 'draft' && parsed.body.status !== 'approved') {
-        return c.json({ error: 'Field "status" must be "draft" or "approved".' }, 400);
+        return fail(c, 400, 'Field "status" must be "draft" or "approved".');
       }
       patch.status = parsed.body.status;
     }
 
     for (const field of ORDER_TEXT_FIELDS) {
       if (!(field in parsed.body)) continue;
-      const result = readTextField(parsed.body, field, false);
-      if (result.error) return c.json({ error: result.error }, 400);
+      const result = readText(parsed.body, field, {
+        maxLength: field === 'title' ? TITLE_MAX_LENGTH : FIELD_MAX_LENGTH,
+      });
+      if (result.error) return fail(c, 400, result.error);
       patch[field] = result.value;
     }
 
     if (Object.keys(patch).length === 0) {
-      return c.json({ error: 'No order fields to update.' }, 400);
+      return fail(c, 400, 'No order fields to update.');
     }
 
     const order = updateOrder(db, id, patch);
@@ -280,7 +381,7 @@ export function createApp(options) {
   app.delete('/api/orders/:id', (c) => {
     const id = c.req.param('id');
     const renders = listRendersForOrder(db, id);
-    if (!deleteOrder(db, id)) return c.json({ error: 'Order not found.' }, 404);
+    if (!deleteOrder(db, id)) return fail(c, 404, 'Order not found.');
     for (const render of renders) removeRenderFiles(rendersDir, render.id);
     return c.json({ ok: true });
   });
@@ -291,31 +392,28 @@ export function createApp(options) {
 
   app.post('/api/materials', async (c) => {
     const parsed = await readJsonObject(c);
-    if (parsed.error) return c.json({ error: parsed.error }, 400);
+    if (parsed.error) return fail(c, 400, parsed.error);
 
-    const name = readTextField(parsed.body, 'name', true, 200);
-    if (name.error) return c.json({ error: name.error }, 400);
-    const kind = readTextField(parsed.body, 'kind', true, 100);
-    if (kind.error) return c.json({ error: kind.error }, 400);
-    const hex = readTextField(parsed.body, 'hex', true, 20);
-    if (hex.error) return c.json({ error: hex.error }, 400);
+    const name = readText(parsed.body, 'name', {
+      required: true,
+      maxLength: NAME_MAX_LENGTH,
+    });
+    if (name.error) return fail(c, 400, name.error);
+    const kind = readText(parsed.body, 'kind', { required: true });
+    if (kind.error) return fail(c, 400, kind.error);
+    const hex = readText(parsed.body, 'hex', { required: true });
+    if (hex.error) return fail(c, 400, hex.error);
     if (!/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex.value)) {
-      return c.json({ error: 'Field "hex" must be a colour like #A65E22.' }, 400);
+      return fail(c, 400, 'Field "hex" must be a colour like #A65E22.');
     }
-
-    let imageUrl = null;
-    if (parsed.body.imageUrl !== undefined && parsed.body.imageUrl !== null) {
-      if (typeof parsed.body.imageUrl !== 'string') {
-        return c.json({ error: 'Field "imageUrl" must be text.' }, 400);
-      }
-      imageUrl = parsed.body.imageUrl.trim() || null;
-    }
+    const imageUrl = readOptionalImageUrl(parsed.body, 'imageUrl');
+    if (imageUrl.error) return fail(c, 400, imageUrl.error);
 
     const material = createMaterial(db, {
       name: name.value,
       kind: kind.value,
       hex: hex.value,
-      imageUrl,
+      imageUrl: imageUrl.value,
     });
     return c.json(material, 201);
   });
@@ -326,14 +424,14 @@ export function createApp(options) {
 
   app.post('/api/orders/:id/render', async (c) => {
     const order = getOrder(db, c.req.param('id'));
-    if (!order) return c.json({ error: 'Order not found.' }, 404);
+    if (!order) return fail(c, 404, 'Order not found.');
 
     const parsed = await readJsonObject(c);
-    if (parsed.error) return c.json({ error: parsed.error }, 400);
+    if (parsed.error) return fail(c, 400, parsed.error);
 
     const kind = parsed.body.kind;
     if (kind !== 'voucher' && kind !== 'kit') {
-      return c.json({ error: 'Field "kind" must be "voucher" or "kit".' }, 400);
+      return fail(c, 400, 'Field "kind" must be "voucher" or "kit".');
     }
 
     // templateId is optional. Missing means the first template in the
@@ -342,55 +440,69 @@ export function createApp(options) {
     const requestedTemplateId = parsed.body.templateId;
     if (requestedTemplateId !== undefined && requestedTemplateId !== null) {
       if (typeof requestedTemplateId !== 'string') {
-        return c.json({ error: 'Field "templateId" must be a template id.' }, 400);
+        return fail(c, 400, 'Field "templateId" must be a template id.');
       }
       const requested = requestedTemplateId.trim();
       if (requested === '') {
-        return c.json({ error: 'Field "templateId" must be a template id.' }, 400);
+        return fail(c, 400, 'Field "templateId" must be a template id.');
+      }
+      if (requested.length > TEMPLATE_ID_MAX_LENGTH) {
+        return fail(
+          c,
+          400,
+          `Field "templateId" must be ${TEMPLATE_ID_MAX_LENGTH} characters or fewer.`,
+        );
       }
       if (!variants.byId.has(requested)) {
-        return c.json(
-          {
-            error:
-              `Unknown templateId "${requested}". ` +
-              'GET /api/templates lists the available templates.',
-          },
+        return fail(
+          c,
           400,
+          `Unknown templateId "${requested}". GET /api/templates lists the available templates.`,
         );
       }
       templateId = requested;
     }
 
-    const selection =
-      kind === 'voucher' ? resolveTemplateSelection(variants, templateId) : null;
-    const values =
-      kind === 'voucher'
-        ? buildVoucherDocumentValues({
-            order,
-            materials: listMaterials(db),
-            templatesDir,
-            variants,
-            templateId,
-          })
-        : buildKitValues();
-    const renderId = newRenderId();
-    const result = await renderer.render({
-      kind,
-      values,
-      renderId,
-      templateFile: selection?.templateFile,
-      builtDir: kind === 'voucher' ? 'voucher' : undefined,
-    });
+    // Concurrent identical renders (same order, kind and template) share one
+    // build: the second request awaits the first instead of queueing another.
+    const renderKey = `${order.id}|${kind}|${kind === 'voucher' ? templateId : ''}`;
+    let job = inflightRenders.get(renderKey);
+    if (!job) {
+      job = startRenderJob(renderKey, async () => {
+        const selection =
+          kind === 'voucher' ? resolveTemplateSelection(variants, templateId) : null;
+        const values =
+          kind === 'voucher'
+            ? buildVoucherDocumentValues({
+                order,
+                materials: listMaterials(db),
+                templatesDir,
+                variants,
+                templateId,
+              })
+            : buildKitValues();
+        const renderId = newRenderId();
+        const result = await renderer.render({
+          kind,
+          values,
+          renderId,
+          templateFile: selection?.templateFile,
+          builtDir: kind === 'voucher' ? 'voucher' : undefined,
+        });
 
-    const render = createRender(db, {
-      id: renderId,
-      orderId: order.id,
-      kind,
-      pageCount: result.pageCount,
-      pdfUrl: result.pdfUrl,
-      pageUrls: result.pageUrls,
-      templateId: kind === 'voucher' ? templateId : null,
-    });
+        return createRender(db, {
+          id: renderId,
+          orderId: order.id,
+          kind,
+          pageCount: result.pageCount,
+          pdfUrl: result.pdfUrl,
+          pageUrls: result.pageUrls,
+          templateId: kind === 'voucher' ? templateId : null,
+        });
+      });
+    }
+
+    const render = await job;
     return c.json(render, 201);
   });
 
@@ -398,7 +510,7 @@ export function createApp(options) {
 
   app.get('/api/renders/:id', (c) => {
     const render = getRender(db, c.req.param('id'));
-    if (!render) return c.json({ error: 'Render not found.' }, 404);
+    if (!render) return fail(c, 404, 'Render not found.');
     return c.json(render);
   });
 
@@ -409,7 +521,7 @@ export function createApp(options) {
   app.get('/files/:name', (c) => {
     const name = c.req.param('name');
     if (!/^[A-Za-z0-9_-]+\.pdf$/.test(name)) {
-      return c.json({ error: 'File not found.' }, 404);
+      return fail(c, 404, 'File not found.');
     }
     return sendFile(c, path.join(rendersDir, name), 'application/pdf');
   });
@@ -417,13 +529,13 @@ export function createApp(options) {
   app.get('/pages/:renderId/:file', (c) => {
     const renderId = c.req.param('renderId');
     if (!/^[A-Za-z0-9_-]+$/.test(renderId)) {
-      return c.json({ error: 'Page not found.' }, 404);
+      return fail(c, 404, 'Page not found.');
     }
     const match = /^(\d+)\.png$/.exec(c.req.param('file'));
-    if (!match) return c.json({ error: 'Page not found.' }, 404);
+    if (!match) return fail(c, 404, 'Page not found.');
     const page = Number.parseInt(match[1], 10);
     if (!Number.isInteger(page) || page < 1) {
-      return c.json({ error: 'Page not found.' }, 404);
+      return fail(c, 404, 'Page not found.');
     }
     return sendFile(c, path.join(rendersDir, `${renderId}-${page}.png`), 'image/png');
   });
@@ -431,11 +543,11 @@ export function createApp(options) {
   app.get('/media/:name', (c) => {
     const name = c.req.param('name');
     if (!/^[A-Za-z0-9._-]+$/.test(name) || name.includes('..')) {
-      return c.json({ error: 'File not found.' }, 404);
+      return fail(c, 404, 'File not found.');
     }
     const extension = path.extname(name).slice(1).toLowerCase();
     const contentType = IMAGE_TYPES.get(extension);
-    if (!contentType) return c.json({ error: 'File not found.' }, 404);
+    if (!contentType) return fail(c, 404, 'File not found.');
     return sendFile(c, path.join(dataDir, 'media', name), contentType);
   });
 
@@ -444,6 +556,10 @@ export function createApp(options) {
   if (typeof options.onReady === 'function') {
     options.onReady({ variants, renderer, previewStore });
   }
+
+  // Exposed so the entry point can stop accepting new work during shutdown.
+  app.lifecycle = lifecycle;
+  app.renderer = renderer;
 
   return app;
 }

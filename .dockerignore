@@ -1,0 +1,41 @@
+# Keep the build context to what the server image actually needs.
+# Anything listed here is never sent to the Docker daemon.
+
+# Dependencies are installed inside the image with npm ci / pip.
+node_modules
+**/node_modules
+.venv
+**/.venv
+
+# Repository and local tooling.
+.git
+.gitignore
+.github
+.DS_Store
+
+# Runtime state, never baked into an image.
+data
+*.log
+
+# The Expo app is not part of the API image. Only its web build could be
+# served separately by a reverse proxy, never by the container.
+app/dist
+app/.expo
+app/node_modules
+
+# Screenshots and specimen material are documentation, not runtime files.
+docs/screenshots
+specimen
+specimen-tamil
+grace
+
+# Secrets and local overrides.
+.env
+.env.*
+
+# Generated template artifacts, if a local render left them behind.
+templates/.build
+templates/*/.build
+templates/**/built-*.html
+templates/**/test.html
+templates/**/test.pdf

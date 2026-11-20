@@ -297,13 +297,63 @@ export function createRenderer({
 
   // One in process queue: builds never share the template directory at once.
   let tail = Promise.resolve();
+  let pendingTasks = 0;
+  let pendingRenders = 0;
+  const idleWaiters = new Set();
+  const renderIdleWaiters = new Set();
+  // Render ids that are currently being written to disk. The retention sweep
+  // uses this so it never deletes page images of a render still in progress.
+  const activeRenderIds = new Set();
+
+  function notifyIdle() {
+    if (pendingTasks === 0) {
+      for (const resolve of idleWaiters) resolve(true);
+      idleWaiters.clear();
+    }
+    if (pendingRenders === 0) {
+      for (const resolve of renderIdleWaiters) resolve(true);
+      renderIdleWaiters.clear();
+    }
+  }
+
   function enqueue(task) {
+    pendingTasks += 1;
     const result = tail.then(task);
-    tail = result.then(
+    const settled = result.finally(() => {
+      pendingTasks -= 1;
+      notifyIdle();
+    });
+    tail = settled.then(
       () => undefined,
       () => undefined,
     );
     return result;
+  }
+
+  function waitForIdle(idleWhen, waiters, timeoutMs) {
+    if (idleWhen()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let timer = null;
+      function finish(idle) {
+        if (timer !== null) clearTimeout(timer);
+        waiters.delete(finish);
+        resolve(idle);
+      }
+      waiters.add(finish);
+      timer = setTimeout(() => finish(false), timeoutMs);
+    });
+  }
+
+  // Resolve true once the whole queue is empty (renders and previews), or
+  // false after the timeout.
+  function whenIdle(timeoutMs = 20_000) {
+    return waitForIdle(() => pendingTasks === 0, idleWaiters, timeoutMs);
+  }
+
+  // Graceful shutdown only needs to wait for real render jobs, not for the
+  // background preview cache warmup.
+  function whenRendersIdle(timeoutMs = 20_000) {
+    return waitForIdle(() => pendingRenders === 0, renderIdleWaiters, timeoutMs);
   }
 
   // Voucher documents can live in sub directories (templates/voucher/families),
@@ -421,10 +471,36 @@ export function createRenderer({
 
   return {
     render(input) {
-      return enqueue(() => renderOnce(input));
+      pendingRenders += 1;
+      return enqueue(async () => {
+        activeRenderIds.add(input.renderId);
+        try {
+          return await renderOnce(input);
+        } finally {
+          activeRenderIds.delete(input.renderId);
+          pendingRenders -= 1;
+          notifyIdle();
+        }
+      });
     },
     renderPreview(input) {
       return enqueue(() => renderPreviewOnce(input));
+    },
+    /** Number of builds (renders and previews) waiting or running. */
+    pendingCount() {
+      return pendingTasks;
+    },
+    /** Number of real render jobs waiting or running. */
+    pendingRenderCount() {
+      return pendingRenders;
+    },
+    /** Resolves true when every build drained, false on timeout. */
+    whenIdle,
+    /** Resolves true when only the render jobs drained, false on timeout. */
+    whenRendersIdle,
+    /** Snapshot of render ids whose files are being written right now. */
+    activeRenderIds() {
+      return new Set(activeRenderIds);
     },
   };
 }

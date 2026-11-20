@@ -49,3 +49,44 @@ jobs:
         run: npm ci
       - name: Run the test suite
         run: npm --prefix server test
+
+  web:
+    name: static web build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Export the static web build
+        # Expo writes the single page app to app/dist. EXPO_PUBLIC_API_URL is
+        # read at build time; leave it unset so the build talks to the same
+        # origin it is served from.
+        run: npx expo export --platform web
+        env:
+          CI: "1"
+          EXPO_NO_TELEMETRY: "1"
+      - name: Upload the web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: app/dist
+          if-no-files-found: error
+
+  docker:
+    name: production image build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image
+        # Proves the Dockerfile, the system packages and the pip install all
+        # work on a clean machine. Nothing is pushed from CI.
+        run: docker build -t grace-catalogue-studio .
+      - name: Show the resulting image
+        run: docker image ls grace-catalogue-studio
