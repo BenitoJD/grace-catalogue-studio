@@ -72,7 +72,21 @@ export interface Order {
   finishExt: string;
   finishInt: string;
   status: OrderStatus;
+  brief?: string;
+  copy?: BrochureCopy | null;
   createdAt: string;
+}
+
+export interface BrochureCopy {
+  headline: string;
+  body: string;
+  closing: string;
+}
+
+export interface GeneratedCopy {
+  copy: BrochureCopy;
+  model: string;
+  latencyMs: number;
 }
 
 export interface Material {
@@ -302,6 +316,16 @@ export const api = {
   },
   saveLlmSettings(input: { endpoint?: string; model?: string; apiKey?: string }): Promise<LlmSettings> {
     return request<LlmSettings>('/api/llm/settings', { method: 'PUT', body: input });
+  },
+  generateOrderCopy(
+    orderId: string,
+    input: { brief?: string; regenerate?: boolean } = {}
+  ): Promise<GeneratedCopy> {
+    return request<GeneratedCopy>(`/api/orders/${encodeId(orderId)}/copy`, {
+      method: 'POST',
+      body: input,
+      timeoutMs: 90000,
+    });
   },
   draftOrderNote(orderId: string): Promise<OrderNote> {
     return request<OrderNote>(`/api/orders/${encodeId(orderId)}/note`, {

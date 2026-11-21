@@ -61,6 +61,12 @@ Order {
   finishExt: string;
   finishInt: string;
   status: "draft" | "approved";
+  brief?: string;            // what the customer said, free text, max 2000 chars
+  copy?: {                   // written by the model, null until generated
+    headline: string;
+    body: string;
+    closing: string;
+  } | null;
   createdAt: string;
 }
 
@@ -109,6 +115,12 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | PATCH | `/api/orders/:id` | partial order fields | `Order` |
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
 | POST | `/api/orders/:id/render` | `{ kind: "voucher" \| "kit", templateId? }` | `Render` (201) |
+| POST | `/api/orders/:id/copy` | `{ brief?, regenerate? }` | `{ copy: { headline, body, closing }, model, latencyMs }` |
+| POST | `/api/orders/:id/note` | `{}` | `{ note, model, latencyMs }` |
+| GET | `/api/llm/settings` | | `{ endpoint, model, hasKey, source, updatedAt }` |
+| PUT | `/api/llm/settings` | `{ endpoint?, model?, apiKey? }` | same shape as GET |
+| POST | `/api/llm/test` | `{}` | `{ ok: true, latencyMs, model, sample }` or 502 with the provider message |
+| GET | `/api/templates` | | 30 designs with `id, name, family, palette, previewUrl` |
 | GET | `/api/templates` | | `Template[]` (30 brochure templates) |
 | GET | `/previews/:templateId.png` | | `image/png` (template thumbnail) |
 | GET | `/api/renders` | | `Render[]` |
@@ -129,7 +141,7 @@ unknown id returns `400` and must not create a render. The field is ignored for
 
 Server fills one of the family documents in `templates/voucher/families/` and `templates/kit/index.html` with `{{key}}` replacement. Every placeholder in the file must be provided; an unfilled placeholder is a bug and the render must fail with a 500 and a clear message.
 
-Voucher keys: `orderNo, title, date, customerName, width, height, depth, shutters, room, carcass, backPanel, shuttersMat, drawers, exterior, interior, hinges, channels, layoutLeft, layoutMiddle, layoutRight, edgeShutter, edgeCarcass, edgeNote, handle, handleNote, finishExt, finishInt, shopLine, coverImage, detailImage, insideImage, insideImage2, mat1Name, mat2Name, mat3Name, mat4Name, mat1Image, mat2Image, mat3Image, mat4Image`.
+Voucher keys: `orderNo, title, noteHeadline, noteBody, noteClosing, date, customerName, width, height, depth, shutters, room, carcass, backPanel, shuttersMat, drawers, exterior, interior, hinges, channels, layoutLeft, layoutMiddle, layoutRight, edgeShutter, edgeCarcass, edgeNote, handle, handleNote, finishExt, finishInt, shopLine, coverImage, detailImage, insideImage, insideImage2, mat1Name, mat2Name, mat3Name, mat4Name, mat1Image, mat2Image, mat3Image, mat4Image`.
 
 Two tokens are supplied automatically by the server for every voucher render and
 are not order data: `{{paletteCss}}` (the palette CSS variables for the family
@@ -183,6 +195,12 @@ and served from `/previews/<templateId>.png`. They are generated once per
 template from a fixed sample order: in the background on boot, lazily when a
 missing preview is requested, or eagerly with
 `npm --prefix server run previews` (add `-- --force` to rebuild all 30).
+
+## Language model
+
+The model is configured at runtime and stored in the `settings` table as `llm_endpoint`, `llm_model` and `llm_api_key`. Environment fallbacks are `LLM_ENDPOINT`, `LLM_MODEL` and `LLM_API_KEY`; stored values win. The key is never returned by the API and never logged.
+
+`POST /api/orders/:id/copy` builds a prompt from the order plus the customer brief and asks for strict JSON `{ headline, body, closing }`. The reply is parsed defensively, capped, stored in `orders.copy_json`, and passed to the templates as `noteHeadline`, `noteBody` and `noteClosing`. When an order has no copy the three placeholders are empty strings and every template hides the block.
 
 ## Rendering
 

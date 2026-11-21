@@ -27,23 +27,35 @@
   .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--dark); }
   .page:last-child{ page-break-after:auto; }
   .abs{ position:absolute; }
-  .sans{ font-family:"Barlow", Helvetica, Arial, sans-serif; }
-  .serif{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
   .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
   .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
   .micro{ font-family:"Barlow", sans-serif; font-size:4.8pt; letter-spacing:.26em; text-transform:uppercase; font-weight:600; color:var(--on-dark); opacity:.78; }
   .micro.acc{ color:var(--accent-on-dark); opacity:1; }
   .label{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.24em; text-transform:uppercase; color:var(--accent-on-dark); font-weight:600; }
-  .cover-title{ position:absolute; font-family:"Instrument Serif", Georgia, serif; font-weight:400; letter-spacing:-.015em; color:var(--on-dark); }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.015em; color:var(--on-dark); }
   .scrim{ position:absolute; left:0; width:216mm; }
   .spec-k{ font-family:"Barlow", sans-serif; font-size:4.1pt; letter-spacing:.16em; text-transform:uppercase; color:var(--on-dark); opacity:.55; }
   .spec-v{ font-family:"Barlow", sans-serif; font-size:6pt; line-height:1.25; color:var(--on-dark); opacity:.95; margin-bottom:2.6mm; }
+
+  /* Optional brochure copy. The server injects plain text here, or an empty
+     string when no copy was generated. Empty blocks collapse completely so the
+     page is pixel identical to a voucher without copy. */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline{ white-space:nowrap; }
+  .copy-closing{ white-space:nowrap; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+  .copy-panel{ background:rgba(10,9,8,0.55); padding:3.5mm; }
+
 </style>
 </head>
 <body>
 
 <!-- 01 COVER -->
 <div class="page">
+  <div class="copy copy-headline" style="left:21mm; top:224mm; width:168mm; font-family:'Instrument Serif', Georgia, serif; font-size:9pt; line-height:1.2; color:var(--on-dark);">{{noteHeadline}}</div>
+  <div class="copy copy-body copy-panel" style="left:105mm; top:54mm; width:90mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:5.8pt; line-height:1.6; color:var(--on-dark);">{{noteBody}}</div>
   <div class="abs ph" style="left:0; top:0; width:216mm; height:303mm; background-image:url({{coverImage}});"></div>
   <div class="scrim" style="top:108mm; height:195mm; background-image:linear-gradient(180deg, rgba(10,9,8,0.32) 0%, rgba(10,9,8,0.78) 48%, rgba(10,9,8,0.94) 100%);"></div>
   <div class="scrim" style="top:0; height:44mm; background-image:linear-gradient(180deg, rgba(10,9,8,0.45) 0%, rgba(10,9,8,0) 100%);"></div>
@@ -135,6 +147,7 @@
 
 <!-- 04 INSIDE -->
 <div class="page">
+  <div class="copy copy-closing" style="left:21mm; top:258mm; width:174mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:5pt; line-height:1.2; color:var(--on-dark); opacity:.9;">{{noteClosing}}</div>
   <div class="abs ph" style="left:0; top:0; width:216mm; height:303mm; background-image:url({{insideImage2}});"></div>
   <div class="scrim" style="top:110mm; height:193mm; background-image:linear-gradient(180deg, rgba(10,9,8,0) 0%, rgba(10,9,8,0.60) 45%, rgba(10,9,8,0.93) 100%);"></div>
   <div class="scrim" style="top:0; height:50mm; background-image:linear-gradient(180deg, rgba(10,9,8,0.42) 0%, rgba(10,9,8,0) 100%);"></div>

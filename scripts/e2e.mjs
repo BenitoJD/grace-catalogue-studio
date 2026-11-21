@@ -1,7 +1,7 @@
 // Drives the real web app in Chrome and behaves like a person using it.
 // Run with: node scripts/e2e.mjs
-import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import puppeteer from "puppeteer-core";
 
@@ -78,6 +78,24 @@ async function clickText(page, text) {
   return clicked;
 }
 
+async function setValueByPlaceholder(page, placeholder, value) {
+  return page.evaluate(
+    (needle, next) => {
+      const element = document.querySelector(`[placeholder="${needle}"]`);
+      if (!element) return false;
+      const prototype =
+        element.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, "value").set;
+      setter.call(element, next);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    },
+    placeholder,
+    value
+  );
+}
+
 async function fillByPlaceholder(page, placeholder, value) {
   const handle = await page.$(`[placeholder="${placeholder}"]`);
   if (!handle) return false;
@@ -113,7 +131,11 @@ if (seeded.status !== 0) {
 
 const api = startProcess("node", ["server/src/index.mjs"], {
   PORT: "8787",
-  CATALOG_DB: dbFile
+  CATALOG_DB: dbFile,
+  // The suite drives a whole browser and uploads many page images from one IP.
+  RATE_LIMIT_PER_MIN: "100000",
+  RENDER_LIMIT_PER_MIN: "10000",
+  NOTE_LIMIT_PER_MIN: "10000"
 });
 const web = startProcess("node", ["scripts/serve-web.mjs", "8081"]);
 const mock = startProcess("node", ["scripts/mock-llm.mjs", "8793"]);
@@ -136,9 +158,12 @@ try {
   browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: "new",
+    protocolTimeout: 240000,
     args: ["--no-sandbox", "--disable-gpu"]
   });
   const page = await browser.newPage();
+  page.setDefaultTimeout(40000);
+  page.setDefaultNavigationTimeout(40000);
   await page.setViewport({ width: 1400, height: 1000 });
   const consoleErrors = [];
   page.on("pageerror", (error) => consoleErrors.push(String(error)));
@@ -309,6 +334,66 @@ try {
   );
   check("copy gives feedback", copied);
   await page.screenshot({ path: `${shots}/06c-customer-note.png` });
+
+  // 4c. the model writes the brochure body, and the voucher picks it up
+  await page.goto(`${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
+  await sleep(2500);
+  await sleep(2500);
+  check(
+    "brief field present",
+    await setValueByPlaceholder(
+      page,
+      "Anything the customer added, changed or dropped",
+      "Client wants extra loft storage and a lighter oak for the shutters."
+    )
+  );
+  check("write copy button present", await clickText(page, "Write the brochure copy"));
+  await sleep(2000);
+  const storedOrder = await (await fetch(`${API}/api/orders/${noteOrderId}`)).json();
+  check(
+    "server stored the copy",
+    Boolean(storedOrder.copy && storedOrder.copy.headline),
+    JSON.stringify(storedOrder.copy ? Object.keys(storedOrder.copy) : storedOrder.copy)
+  );
+
+  const copyReady = await page
+    .waitForFunction(() => document.body.innerText.includes("Write it again"), { timeout: 45000 })
+    .then(() => true)
+    .catch(() => false);
+  const copyText = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, " ").toLowerCase();
+  let copyBox = "";
+  if (copyReady && !copyText.includes("built to the millimetre")) {
+    const at = copyText.indexOf("white laminate");
+    copyBox = at >= 0 ? copyText.slice(Math.max(0, at - 260), at + 120) : "body phrase missing";
+  }
+  check(
+    "generated headline appears",
+    copyReady && copyText.includes("built to the millimetre"),
+    copyBox || copyText.slice(0, 120)
+  );
+  check("generated body appears", copyText.includes("white laminate keeps the interior bright"));
+  await page.screenshot({ path: `${shots}/06d-brochure-copy.png` });
+
+  check("generate voucher after copy", await clickText(page, "Generate voucher again"));
+  await sleep(4000);
+
+  // the voucher should have re-rendered with the copy inside the PDF
+  let bodyInPdf = false;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const renders = await (await fetch(`${API}/api/renders`)).json();
+    const target = renders.find((item) => item.kind === "voucher");
+    if (target) {
+      const pdf = Buffer.from(await (await fetch(`${API}${target.pdfUrl}`)).arrayBuffer());
+      writeFileSync("/tmp/e2e-copy.pdf", pdf);
+      const text = execFileSync("pdftotext", ["/tmp/e2e-copy.pdf", "-"], { encoding: "utf8" }).replace(/\s+/g, " ");
+      if (text.includes("millimetre") && text.includes("white laminate keeps")) {
+        bodyInPdf = true;
+        break;
+      }
+    }
+    await sleep(1000);
+  }
+  check("brochure body is printed in the voucher", bodyInPdf);
 
   // 5. materials tab
   await page.goto(`${WEB}/materials`, { waitUntil: "networkidle2" });

@@ -31,11 +31,23 @@ import {
   listRenders,
   listSettings,
   openDb,
+  setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
-import { LlmError, buildNoteMessages, requestChat, resolveLlmConfig } from '../src/llm.mjs';
+import {
+  COPY_BODY_MAX_CHARS,
+  COPY_CLOSING_MAX_CHARS,
+  COPY_HEADLINE_MAX_CHARS,
+  LlmError,
+  buildCopyMessages,
+  buildNoteMessages,
+  parseCopyReply,
+  requestChat,
+  resolveLlmConfig,
+} from '../src/llm.mjs';
 import { createLogger } from '../src/logger.mjs';
+import { buildVoucherValues, fillTemplate, noteCopyValues } from '../src/render.mjs';
 import { sweepRenders } from '../src/retention.mjs';
 import { createApp } from '../src/routes.mjs';
 
@@ -1287,6 +1299,12 @@ test('the migration runner upgrades a pre versioning database to the current sch
       .sort();
     assert.deepEqual(settingsColumns, ['key', 'updated_at', 'value'], 'version 2 adds the settings table');
     assert.equal(listSettings(upgraded).length, 0, 'a pre versioning database starts with no saved settings');
+    const legacyOrderColumns = upgraded
+      .prepare('PRAGMA table_info(orders)')
+      .all()
+      .map((column) => column.name);
+    assert.ok(legacyOrderColumns.includes('brief'), 'version 3 adds orders.brief');
+    assert.ok(legacyOrderColumns.includes('copy_json'), 'version 3 adds orders.copy_json');
 
     const indices = upgraded
       .prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
@@ -1763,6 +1781,95 @@ test('language model helpers are unit testable without the internet', async () =
   assert.equal(prompt.includes('null'), false);
   assert.equal(prompt.toLowerCase().includes('back panel'), false, 'empty facts are omitted');
 
+  // Brochure copy prompt: strict JSON, the agreed limits, no dashes.
+  const copyMessages = buildCopyMessages(order, 'Customer wants a calm bedroom with more hanging space.');
+  assert.equal(copyMessages[0].role, 'system');
+  assert.equal(copyMessages[1].role, 'user');
+  assert.match(copyMessages[0].content, /strict JSON/i);
+  assert.match(copyMessages[0].content, /at most 60 characters/i);
+  assert.match(copyMessages[0].content, /70 and 180 words/i);
+  assert.match(copyMessages[0].content, /at most 90 characters/i);
+  assert.match(copyMessages[0].content, /no em dashes or en dashes/i);
+  assert.match(copyMessages[0].content, /British Indian English/i);
+  assert.match(copyMessages[0].content, /Never invent/i);
+  assert.ok(copyMessages[1].content.includes('Ravi Kumar'));
+  assert.ok(copyMessages[1].content.includes('Master Bedroom Wardrobe'));
+  assert.ok(copyMessages[1].content.includes('Customer wants a calm bedroom with more hanging space.'));
+
+  // Defensive reply parsing: bare JSON, fenced JSON with prose, caps, garbage.
+  assert.deepEqual(parseCopyReply(JSON.stringify({ headline: 'H', body: 'B', closing: 'C' })), {
+    headline: 'H',
+    body: 'B',
+    closing: 'C',
+  });
+  assert.deepEqual(
+    parseCopyReply('Here you go:\n```json\n{"headline":" H ","body":"B","closing":" C "}\n```\nRegards.'),
+    { headline: 'H', body: 'B', closing: 'C' },
+  );
+  const cappedCopy = parseCopyReply(
+    JSON.stringify({
+      headline: 'H'.repeat(COPY_HEADLINE_MAX_CHARS + 20),
+      body: 'B'.repeat(COPY_BODY_MAX_CHARS + 200),
+      closing: 'C'.repeat(COPY_CLOSING_MAX_CHARS + 20),
+    }),
+  );
+  assert.equal(cappedCopy.headline.length, COPY_HEADLINE_MAX_CHARS);
+  assert.equal(cappedCopy.body.length, COPY_BODY_MAX_CHARS);
+  assert.equal(cappedCopy.closing.length, COPY_CLOSING_MAX_CHARS);
+  for (const garbage of ['Sure, here is the copy.', '{"headline": 1, "body": "B", "closing": "C"}', '{}']) {
+    assert.throws(
+      () => parseCopyReply(garbage),
+      (error) => error instanceof LlmError && /could not be read/i.test(error.message),
+    );
+  }
+
+  // Render values: copy becomes the three note tokens, malformed copy warns and
+  // renders with empty strings instead of failing.
+  const renderWarnings = [];
+  const renderLogger = { warn: (message) => renderWarnings.push(message) };
+  assert.deepEqual(noteCopyValues({ id: 'x' }, renderLogger), {
+    noteHeadline: '',
+    noteBody: '',
+    noteClosing: '',
+  });
+  assert.deepEqual(
+    noteCopyValues({ id: 'x', copy: { headline: 'H', body: 'B', closing: 'C' } }, renderLogger),
+    { noteHeadline: 'H', noteBody: 'B', noteClosing: 'C' },
+  );
+  assert.deepEqual(
+    noteCopyValues({ id: 'x', copy: null, copy_json: '{broken json' }, renderLogger),
+    { noteHeadline: '', noteBody: '', noteClosing: '' },
+  );
+  assert.deepEqual(
+    noteCopyValues({ id: 'x', copy: null, copy_json: '[]' }, renderLogger),
+    { noteHeadline: '', noteBody: '', noteClosing: '' },
+  );
+  assert.equal(renderWarnings.length, 2, 'each malformed copy logs one warning');
+
+  // The renderer passes the copy to the family templates as the three note
+  // tokens, and supplies empty strings when the order has no copy.
+  const copyValues = buildVoucherValues({
+    order: {
+      ...order,
+      copy: { headline: 'A quiet bedroom', body: 'Planned around the whole room.', closing: 'Talk to us.' },
+    },
+    materials: [],
+    templatesDir,
+  });
+  assert.equal(copyValues.noteHeadline, 'A quiet bedroom');
+  assert.equal(copyValues.noteBody, 'Planned around the whole room.');
+  assert.equal(copyValues.noteClosing, 'Talk to us.');
+  assert.equal(
+    fillTemplate('{{noteHeadline}}|{{noteBody}}|{{noteClosing}}', copyValues, 'voucher'),
+    'A quiet bedroom|Planned around the whole room.|Talk to us.',
+  );
+  const emptyCopyValues = buildVoucherValues({ order: { ...order }, materials: [], templatesDir });
+  assert.deepEqual(
+    [emptyCopyValues.noteHeadline, emptyCopyValues.noteBody, emptyCopyValues.noteClosing],
+    ['', '', ''],
+  );
+  assert.equal(fillTemplate('[{{noteBody}}]', emptyCopyValues, 'voucher'), '[]');
+
   // The request function can be called directly against the loopback mock.
   resetMockProvider({ reply: ' ok ' });
   const success = await requestChat({
@@ -1849,7 +1956,7 @@ test('the note route has its own per minute rate limit', async () => {
   }
 });
 
-test('a version 1 database upgrades in place to the settings schema', () => {
+test('a version 1 database upgrades in place to the current schema', () => {
   const upgradeDir = path.join(tempDir, 'upgrade-data');
   mkdirSync(upgradeDir, { recursive: true });
   const upgradePath = path.join(upgradeDir, 'upgrade.db');
@@ -1859,8 +1966,11 @@ test('a version 1 database upgrades in place to the settings schema', () => {
   try {
     assert.equal(Number(fresh.prepare('PRAGMA user_version').get().user_version), SCHEMA_VERSION);
     createCustomer(fresh, { name: 'Upgrade Customer' });
-    // Simulate a database written by the version 1 release, before settings.
+    // Simulate a database written by the version 1 release: no settings table
+    // and no brief or copy_json columns on orders.
     fresh.exec('DROP TABLE settings');
+    fresh.exec('ALTER TABLE orders DROP COLUMN brief');
+    fresh.exec('ALTER TABLE orders DROP COLUMN copy_json');
     fresh.exec('PRAGMA user_version = 1');
   } finally {
     fresh.close();
@@ -1876,6 +1986,12 @@ test('a version 1 database upgrades in place to the settings schema', () => {
       .sort();
     assert.deepEqual(settingsColumns, ['key', 'updated_at', 'value']);
     assert.equal(listSettings(upgraded).length, 0, 'the upgraded database starts with no saved settings');
+    const orderColumns = upgraded
+      .prepare('PRAGMA table_info(orders)')
+      .all()
+      .map((column) => column.name);
+    assert.ok(orderColumns.includes('brief'), 'version 3 adds orders.brief');
+    assert.ok(orderColumns.includes('copy_json'), 'version 3 adds orders.copy_json');
     assert.equal(
       upgraded.prepare('SELECT COUNT(*) AS count FROM customers').get().count,
       1,
@@ -1884,5 +2000,429 @@ test('a version 1 database upgrades in place to the settings schema', () => {
   } finally {
     upgraded.close();
     rmSync(upgradeDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Brochure copy generation and rendering
+// ---------------------------------------------------------------------------
+
+const BROCHURE_COPY = {
+  headline: 'A calmer bedroom, built around you',
+  body:
+    'The wardrobe is made in 18 mm BWP plywood with soft close hinges and a matte outside finish. ' +
+    'Every shutter and drawer was planned around the whole room, so the storage works quietly in the background of the day.',
+  closing: 'Talk to us about your bedroom.',
+};
+const COPY_BRIEF =
+  'The customer wants a calm, uncluttered bedroom for two with plenty of hanging space and warm wood tones.';
+
+test('order copy generation stores the copy and returns the three fields', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  assert.equal(raw.includes(LLM_KEY), false, 'the key must never be returned');
+  const body = JSON.parse(raw);
+  assert.deepEqual(body.copy, BROCHURE_COPY);
+  assert.equal(body.model, LLM_MODEL);
+  assert.ok(Number.isInteger(body.latencyMs) && body.latencyMs >= 0);
+
+  // The provider saw the order, the customer and the brief.
+  assert.equal(mockProviderState.requests.length, 1);
+  const request = lastProviderRequest();
+  assert.equal(request.url, '/chat/completions');
+  assert.equal(request.headers.authorization, `Bearer ${LLM_KEY}`);
+  const prompt = request.json.messages.map((message) => message.content).join('\n');
+  assert.ok(prompt.includes('Master Bedroom Wardrobe'), 'the prompt carries the order title');
+  assert.ok(prompt.includes('Test Customer'), 'the prompt carries the customer name');
+  assert.ok(prompt.includes(COPY_BRIEF), 'the prompt carries the brief text');
+  assert.ok(prompt.includes('18 mm BWP plywood'), 'the prompt carries the materials');
+  assert.ok(prompt.includes('2 mm PVC'), 'the prompt carries the edge band');
+  assert.ok(prompt.includes('Matte black aluminium'), 'the prompt carries the handles');
+  assert.ok(prompt.includes('Matte outside, white inside'), 'the prompt carries the finish');
+  assert.match(prompt, /strict JSON/i);
+  assert.match(prompt, /at most 60 characters/i);
+  assert.match(prompt, /70 and 180 words/i);
+  assert.match(prompt, /at most 90 characters/i);
+  assert.match(prompt, /no em dashes or en dashes/i);
+  assert.match(prompt, /British Indian English/i);
+  assert.match(prompt, /Never invent/i);
+
+  // Stored as JSON text on the order; the detail endpoint parses it.
+  const storedRow = db.prepare('SELECT copy_json FROM orders WHERE id = ?').get(orderId);
+  assert.deepEqual(JSON.parse(storedRow.copy_json), BROCHURE_COPY);
+  const detail = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
+  assert.equal(detail.brief, COPY_BRIEF);
+  assert.deepEqual(detail.copy, BROCHURE_COPY);
+  assert.equal(Object.hasOwn(detail, 'copy_json'), false, 'the raw column is not exposed');
+
+  // Lists carry the brief but stay small by omitting the copy.
+  const list = await (await fetch(`${baseUrl}/api/orders`)).json();
+  const listed = list.find((entry) => entry.id === orderId);
+  assert.equal(listed.brief, COPY_BRIEF);
+  assert.equal('copy' in listed, false, 'lists omit the generated copy');
+
+  // The response is valid with an empty body as well (all fields optional).
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+  const emptyBody = await fetch(`${baseUrl}/api/orders/${orderId}/copy`, { method: 'POST' });
+  assert.equal(emptyBody.status, 200);
+  assert.deepEqual((await emptyBody.json()).copy, BROCHURE_COPY);
+});
+
+test('order copy parses a fenced JSON reply with prose around it', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({
+    reply:
+      'Here is the brochure copy you asked for:\n```json\n' +
+      JSON.stringify(BROCHURE_COPY) +
+      '\n```\nLet me know if you need a different tone.',
+  });
+
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  assert.deepEqual(JSON.parse(raw).copy, BROCHURE_COPY);
+});
+
+test('order copy returns a readable 502 when the model reply can not be read', async () => {
+  resetLlmState();
+  await configureLlm();
+
+  const created = await postJson(`${baseUrl}/api/orders`, {
+    ...DEMO_ORDER,
+    title: 'Copy Failure Wardrobe',
+    customerId,
+  });
+  assert.equal(created.status, 201);
+  const failureOrder = await created.json();
+  assert.equal(failureOrder.copy, null);
+
+  resetMockProvider({ reply: 'Sure! Here is the brochure copy in a nice tone.' });
+  const response = await postJson(`${baseUrl}/api/orders/${failureOrder.id}/copy`, {});
+  const raw = await response.text();
+  assert.equal(response.status, 502, raw);
+  assert.equal(raw.includes(LLM_KEY), false);
+  assert.equal(raw.toLowerCase().includes('stack'), false, 'no stack trace may be returned');
+  const body = JSON.parse(raw);
+  assert.equal(body.ok, false);
+  assert.match(body.error.message, /could not be read/i);
+  assert.equal(body.error.type, 'invalid_reply');
+
+  const detail = await (await fetch(`${baseUrl}/api/orders/${failureOrder.id}`)).json();
+  assert.equal(detail.copy, null, 'a failed generation must not store a copy');
+});
+
+test('orders accept a brief on create and update and cap it at 2000 characters', async () => {
+  const created = await postJson(`${baseUrl}/api/orders`, {
+    ...DEMO_ORDER,
+    title: 'Brief Wardrobe',
+    customerId,
+    brief: 'Customer wants warm wood tones and a quiet finish.',
+  });
+  assert.equal(created.status, 201);
+  const order = await created.json();
+  assert.equal(order.brief, 'Customer wants warm wood tones and a quiet finish.');
+  assert.equal(order.copy, null);
+
+  const patched = await fetch(`${baseUrl}/api/orders/${order.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ brief: 'Updated after the site visit: more drawers on the left.' }),
+  });
+  assert.equal(patched.status, 200);
+  assert.equal(
+    (await patched.json()).brief,
+    'Updated after the site visit: more drawers on the left.',
+  );
+
+  const tooLongCreate = await postJson(`${baseUrl}/api/orders`, {
+    ...DEMO_ORDER,
+    title: 'Brief Too Long',
+    customerId,
+    brief: 'x'.repeat(2001),
+  });
+  assert.equal(tooLongCreate.status, 400);
+  const tooLongCreateBody = await tooLongCreate.json();
+  assert.match(tooLongCreateBody.error, /brief/i);
+  assert.match(tooLongCreateBody.error, /2000/);
+
+  const tooLongCopy = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, {
+    brief: 'x'.repeat(2001),
+  });
+  assert.equal(tooLongCopy.status, 400);
+  const tooLongCopyBody = await tooLongCopy.json();
+  assert.match(tooLongCopyBody.error, /brief/i);
+  assert.match(tooLongCopyBody.error, /2000/);
+});
+
+test('order copy answers 400 without a provider and 404 for an unknown order', async () => {
+  resetLlmState();
+  resetMockProvider();
+
+  const missing = await postJson(`${baseUrl}/api/orders/does-not-exist/copy`, {});
+  assert.equal(missing.status, 404);
+
+  const unconfigured = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, {});
+  assert.equal(unconfigured.status, 400);
+  assert.match((await unconfigured.json()).error, /configure/i);
+  assert.equal(mockProviderState.requests.length, 0, 'no provider call without configuration');
+});
+
+test('the api key never appears in any copy response', async () => {
+  resetLlmState();
+  await configureLlm();
+  const bodies = [];
+
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+  bodies.push(await (await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF })).text());
+  bodies.push(await (await fetch(`${baseUrl}/api/llm/settings`)).text());
+  bodies.push(await (await fetch(`${baseUrl}/api/orders/${orderId}`)).text());
+  bodies.push(await (await fetch(`${baseUrl}/api/orders`)).text());
+
+  resetMockProvider({ reply: 'not a json reply' });
+  bodies.push(await (await postJson(`${baseUrl}/api/orders/${orderId}/copy`, {})).text());
+  bodies.push(
+    await (await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: 'x'.repeat(2001) })).text(),
+  );
+
+  for (const body of bodies) {
+    assert.equal(body.includes(LLM_KEY), false, 'no copy related response may contain the key');
+  }
+});
+
+test('a voucher prints the generated copy and still renders without one', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+  const generated = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  assert.equal(generated.status, 200);
+
+  const withCopy = await postJson(`${baseUrl}/api/orders/${orderId}/render`, { kind: 'voucher' });
+  const withCopyRaw = await withCopy.text();
+  assert.equal(withCopy.status, 201, withCopyRaw);
+  const render = JSON.parse(withCopyRaw);
+  assert.equal(render.pageCount, 4);
+  const copiedText = normaliseText(pdfText(path.join(dataDir, 'renders', `${render.id}.pdf`))).toLowerCase();
+  assert.ok(
+    copiedText.includes(BROCHURE_COPY.headline.toLowerCase()),
+    'the generated headline must be printed in the PDF',
+  );
+  assert.ok(
+    copiedText.includes('planned around the whole room'),
+    'the generated body must be printed in the PDF',
+  );
+  assert.ok(
+    copiedText.includes(BROCHURE_COPY.closing.toLowerCase()),
+    'the generated closing must be printed in the PDF',
+  );
+  assert.equal(copiedText.includes('{{'), false, 'no placeholder may reach the PDF');
+
+  // An order with no generated copy still renders the same four page document,
+  // with the copy block empty.
+  const created = await postJson(`${baseUrl}/api/orders`, {
+    ...DEMO_ORDER,
+    title: 'No Copy Wardrobe',
+    customerId,
+  });
+  assert.equal(created.status, 201);
+  const noCopyOrder = await created.json();
+  assert.equal(noCopyOrder.copy, null);
+  const withoutCopy = await postJson(`${baseUrl}/api/orders/${noCopyOrder.id}/render`, {
+    kind: 'voucher',
+  });
+  const withoutCopyRaw = await withoutCopy.text();
+  assert.equal(withoutCopy.status, 201, withoutCopyRaw);
+  const plainRender = JSON.parse(withoutCopyRaw);
+  assert.equal(plainRender.pageCount, 4);
+  assert.equal(
+    normaliseText(pdfText(path.join(dataDir, 'renders', `${plainRender.id}.pdf`)))
+      .toLowerCase()
+      .includes('planned around the whole room'),
+    false,
+  );
+});
+
+test('a malformed copy_json is ignored by a render instead of failing it', { timeout: 240_000 }, async () => {
+  const created = await postJson(`${baseUrl}/api/orders`, {
+    ...DEMO_ORDER,
+    title: 'Malformed Copy Wardrobe',
+    customerId,
+  });
+  assert.equal(created.status, 201);
+  const order = await created.json();
+  db.prepare('UPDATE orders SET copy_json = ? WHERE id = ?').run('{not valid json', order.id);
+
+  const response = await postJson(`${baseUrl}/api/orders/${order.id}/render`, { kind: 'voucher' });
+  const raw = await response.text();
+  assert.equal(response.status, 201, raw);
+  const render = JSON.parse(raw);
+  assert.equal(render.pageCount, 4);
+
+  // The malformed value never surfaces on the API either.
+  const detail = await (await fetch(`${baseUrl}/api/orders/${order.id}`)).json();
+  assert.equal(detail.copy, null);
+});
+
+test('a version 2 database upgrades in place and keeps its settings', () => {
+  const upgradeDir = path.join(tempDir, 'upgrade-v2-data');
+  mkdirSync(upgradeDir, { recursive: true });
+  const upgradePath = path.join(upgradeDir, 'upgrade-v2.db');
+
+  const fresh = openDb(upgradePath);
+  let orderIdV2;
+  try {
+    const customer = createCustomer(fresh, { name: 'Version Two Customer' });
+    orderIdV2 = createOrder(fresh, {
+      customerId: customer.id,
+      title: 'Version Two Wardrobe',
+      room: 'Guest bedroom',
+      width: '1800 mm',
+      height: '2100 mm',
+      depth: '600 mm',
+      shutters: '2',
+      brief: 'Old brief',
+    }).id;
+    setSetting(fresh, 'llm_model', 'kept-model');
+    // Simulate the version 2 release: settings exist, orders have no brief or
+    // copy_json columns yet.
+    fresh.exec('ALTER TABLE orders DROP COLUMN brief');
+    fresh.exec('ALTER TABLE orders DROP COLUMN copy_json');
+    fresh.exec('PRAGMA user_version = 2');
+  } finally {
+    fresh.close();
+  }
+
+  const upgraded = openDb(upgradePath);
+  try {
+    assert.equal(Number(upgraded.prepare('PRAGMA user_version').get().user_version), SCHEMA_VERSION);
+    const orderColumns = upgraded
+      .prepare('PRAGMA table_info(orders)')
+      .all()
+      .map((column) => column.name);
+    assert.ok(orderColumns.includes('brief'), 'migration 3 adds orders.brief');
+    assert.ok(orderColumns.includes('copy_json'), 'migration 3 adds orders.copy_json');
+    assert.equal(getSetting(upgraded, 'llm_model')?.value, 'kept-model', 'settings survive');
+    assert.equal(
+      upgraded.prepare('SELECT COUNT(*) AS count FROM customers').get().count,
+      1,
+      'existing rows survive',
+    );
+    const order = upgraded.prepare('SELECT brief, copy_json FROM orders WHERE id = ?').get(orderIdV2);
+    assert.equal(order.brief, '', 'the new column starts on its default');
+    assert.equal(order.copy_json, null);
+  } finally {
+    upgraded.close();
+    rmSync(upgradeDir, { recursive: true, force: true });
+  }
+});
+
+test('orders without materials fall back to the house specification', { timeout: 90_000 }, async () => {
+  const response = await postJson(`${baseUrl}/api/orders`, {
+    customerId,
+    title: 'Minimal Wardrobe',
+    room: 'Study',
+    width: '2000 mm',
+    height: '2100 mm',
+    depth: '600 mm',
+    shutters: '2',
+  });
+  assert.equal(response.status, 201);
+  const order = await response.json();
+  assert.equal(order.carcass, '18 mm BWP plywood');
+  assert.equal(order.backPanel, '6 mm plywood');
+  assert.equal(order.interior, '0.8 mm white laminate');
+  assert.equal(order.handle, 'Matte black aluminium');
+  assert.equal(order.finishInt, 'No painting');
+
+  const cleared = await fetch(`${baseUrl}/api/orders/${order.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ carcass: '   ' }),
+  });
+  assert.equal(cleared.status, 200);
+  assert.equal((await cleared.json()).carcass, '18 mm BWP plywood');
+
+  const rendered = await postJson(`${baseUrl}/api/orders/${order.id}/render`, { kind: 'voucher' });
+  assert.equal(rendered.status, 201);
+  const render = await rendered.json();
+  assert.equal(render.pageCount, 4);
+
+  const pdf = Buffer.from(await (await fetch(`${baseUrl}${render.pdfUrl}`)).arrayBuffer());
+  const file = path.join(tempDir, 'minimal.pdf');
+  writeFileSync(file, pdf);
+  const text = execFileSync('pdftotext', [file, '-'], { encoding: 'utf8' }).replace(/\s+/g, ' ');
+  assert.match(text, /18 mm BWP plywood/);
+  assert.match(text, /Matte black aluminium/);
+  assert.match(text, /0.8 mm white laminate/);
+});
+
+test('brochure copy renders when supplied and disappears when empty', { timeout: 300_000 }, async () => {
+  const headline = 'Built around your morning routine, measured and finished by hand';
+  const bodyStart =
+    'The wardrobe is built in our Nagercoil workshop from eighteen millimetre BWP plywood, cut on a CNC nesting bed and edge banded by hand. ' +
+    'The same hands that milled the plywood fit every hinge, adjust every channel and finish every edge before the wardrobe leaves the bench. ';
+  let body = bodyStart;
+  while (body.length < 1000) body += 'Extra care is taken at every stage of the build. ';
+  body = body.slice(0, 1000).replace(/[^A-Za-z.]$/, '.');
+  const closing =
+    'Every wardrobe leaves our workshop measured twice, finished by hand and fitted by the same team that built it.';
+  assert.equal(body.length, 1000, 'the maximum body length is exercised');
+  assert.ok(body.includes('The same hands that milled the plywood fit every hinge'));
+
+  const renderPdf = async (templateId) => {
+    const response = await postJson(`${baseUrl}/api/orders/${orderId}/render`, {
+      kind: 'voucher',
+      templateId,
+    });
+    const raw = await response.text();
+    assert.equal(response.status, 201, raw);
+    const render = JSON.parse(raw);
+    assert.equal(render.pageCount, 4);
+    return pdfText(path.join(dataDir, 'renders', `${render.id}.pdf`));
+  };
+  const families = ['atelier-copper', 'gallery-copper', 'swiss-ink'];
+
+  setOrderCopy(db, orderId, { headline, body, closing });
+  try {
+    for (const templateId of families) {
+      const text = await renderPdf(templateId);
+      const pages = text.split('\f');
+      const flat = normaliseText(text);
+      assert.ok(flat.includes(headline), `${templateId} should carry the headline`);
+      assert.ok(
+        flat.includes('The same hands that milled the plywood fit every hinge'),
+        `${templateId} should carry the body`,
+      );
+      assert.ok(flat.includes(closing), `${templateId} should carry the closing`);
+      assert.ok(
+        normaliseText(pages[0]).includes(headline),
+        `${templateId} headline belongs on the cover`,
+      );
+      assert.ok(
+        normaliseText(pages[3]).includes(closing),
+        `${templateId} closing belongs on the last page`,
+      );
+      assert.ok(!flat.includes('{{'), `${templateId} should not leak a placeholder`);
+    }
+  } finally {
+    setOrderCopy(db, orderId, null);
+  }
+
+  for (const templateId of families) {
+    const text = await renderPdf(templateId);
+    const flat = normaliseText(text);
+    assert.equal(flat.includes(headline), false, `${templateId} headline must vanish with no copy`);
+    assert.equal(flat.includes(closing), false, `${templateId} closing must vanish with no copy`);
+    assert.equal(
+      flat.includes('The same hands that milled the plywood fit every hinge'),
+      false,
+      `${templateId} body must vanish with no copy`,
+    );
+    assert.ok(!flat.includes('{{'), `${templateId} should not leak a placeholder`);
   }
 });

@@ -20,6 +20,7 @@ import {
   listOrders,
   listRenders,
   listRendersForOrder,
+  setOrderCopy,
   setSetting,
   updateOrder,
 } from './db.mjs';
@@ -33,15 +34,19 @@ import {
 import { installHttpHardening, isExecutable } from './http.mjs';
 import {
   CONNECTION_TEST_MESSAGES,
+  COPY_MAX_TOKENS,
+  COPY_TEMPERATURE,
   LLM_SETTING_KEYS,
   NOT_CONFIGURED_MESSAGE,
   NOTE_MAX_TOKENS,
   NOTE_TEMPERATURE,
   SAMPLE_MAX_CHARS,
   TEST_MAX_TOKENS,
+  buildCopyMessages,
   buildNoteMessages,
   capText,
   llmFailureBody,
+  parseCopyReply,
   publicLlmSettings,
   requestChat,
   resolveLlmConfig,
@@ -67,6 +72,15 @@ const TITLE_MAX_LENGTH = 120;
 const NAME_MAX_LENGTH = 120;
 const FIELD_MAX_LENGTH = 80;
 const TEMPLATE_ID_MAX_LENGTH = 64;
+// The customer brief is loose prose, so it gets a much larger cap than the
+// short specification fields.
+const BRIEF_MAX_LENGTH = 2000;
+
+function orderFieldMaxLength(field) {
+  if (field === 'title') return TITLE_MAX_LENGTH;
+  if (field === 'brief') return BRIEF_MAX_LENGTH;
+  return FIELD_MAX_LENGTH;
+}
 
 // Only these fields must be present on create. The rest start empty and can be
 // filled in with PATCH, which keeps the mobile form forgiving.
@@ -85,10 +99,40 @@ function fail(c, status, message) {
   return c.json({ error: message, requestId: c.get('requestId') ?? null }, status);
 }
 
+// The database row carries copy_json as text for the renderer. JSON responses
+// expose the parsed copy only; the raw column never leaves the server.
+function orderPayload(order) {
+  if (!order) return order;
+  const { copy_json: _copyJson, ...payload } = order;
+  return payload;
+}
+
 async function readJsonObject(c) {
   let body;
   try {
     body = await c.req.json();
+  } catch {
+    return { error: 'Request body must be valid JSON.' };
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Request body must be a JSON object.' };
+  }
+  return { body };
+}
+
+// Same shape, but an empty body (a client that only wants the defaults) is
+// accepted as an empty object.
+async function readOptionalJsonObject(c) {
+  let raw;
+  try {
+    raw = await c.req.text();
+  } catch {
+    return { error: 'Request body could not be read.' };
+  }
+  if (raw.trim() === '') return { body: {} };
+  let body;
+  try {
+    body = JSON.parse(raw);
   } catch {
     return { error: 'Request body must be valid JSON.' };
   }
@@ -348,20 +392,20 @@ export function createApp(options) {
     for (const field of ORDER_TEXT_FIELDS) {
       const result = readText(parsed.body, field, {
         required: REQUIRED_ORDER_FIELDS.has(field),
-        maxLength: field === 'title' ? TITLE_MAX_LENGTH : FIELD_MAX_LENGTH,
+        maxLength: orderFieldMaxLength(field),
       });
       if (result.error) return fail(c, 400, result.error);
       fields[field] = result.value;
     }
 
     const order = createOrder(db, { ...fields, customerId: customerId.value });
-    return c.json(order, 201);
+    return c.json(orderPayload(order), 201);
   });
 
   app.get('/api/orders/:id', (c) => {
     const order = getOrder(db, c.req.param('id'));
     if (!order) return fail(c, 404, 'Order not found.');
-    return c.json(order);
+    return c.json(orderPayload(order));
   });
 
   app.patch('/api/orders/:id', async (c) => {
@@ -392,7 +436,7 @@ export function createApp(options) {
     for (const field of ORDER_TEXT_FIELDS) {
       if (!(field in parsed.body)) continue;
       const result = readText(parsed.body, field, {
-        maxLength: field === 'title' ? TITLE_MAX_LENGTH : FIELD_MAX_LENGTH,
+        maxLength: orderFieldMaxLength(field),
       });
       if (result.error) return fail(c, 400, result.error);
       patch[field] = result.value;
@@ -403,7 +447,7 @@ export function createApp(options) {
     }
 
     const order = updateOrder(db, id, patch);
-    return c.json(order);
+    return c.json(orderPayload(order));
   });
 
   app.delete('/api/orders/:id', (c) => {
@@ -568,6 +612,62 @@ export function createApp(options) {
     }
   });
 
+  // Write the brochure copy for one order. The brief is stored first so the
+  // customer's own wording is never lost even if the model call fails. The
+  // prompt asks for strict JSON and the reply is parsed defensively.
+  app.post('/api/orders/:id/copy', async (c) => {
+    const id = c.req.param('id');
+    let order = getOrder(db, id);
+    if (!order) return fail(c, 404, 'Order not found.');
+
+    const parsed = await readOptionalJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const body = parsed.body;
+
+    // brief is optional. A string replaces the stored brief; an empty string
+    // clears it. Anything that is not a string is rejected rather than coerced.
+    let brief;
+    if ('brief' in body && body.brief !== undefined && body.brief !== null) {
+      if (typeof body.brief !== 'string') return fail(c, 400, 'Field "brief" must be text.');
+      const trimmed = body.brief.trim();
+      if (trimmed.length > BRIEF_MAX_LENGTH) {
+        return fail(c, 400, `Field "brief" must be ${BRIEF_MAX_LENGTH} characters or fewer.`);
+      }
+      brief = trimmed;
+    }
+    // regenerate is accepted for client intent but every copy request writes a
+    // fresh copy: the brief may have changed since the stored one was written.
+    if (
+      'regenerate' in body &&
+      body.regenerate !== undefined &&
+      body.regenerate !== null &&
+      typeof body.regenerate !== 'boolean'
+    ) {
+      return fail(c, 400, 'Field "regenerate" must be true or false.');
+    }
+
+    if (brief !== undefined) order = updateOrder(db, id, { brief });
+
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+
+    try {
+      const result = await requestChat({
+        endpoint: config.endpoint,
+        model: config.model,
+        apiKey: config.apiKey,
+        messages: buildCopyMessages(order, order.brief ?? ''),
+        maxTokens: COPY_MAX_TOKENS,
+        temperature: COPY_TEMPERATURE,
+      });
+      const copy = parseCopyReply(result.content);
+      setOrderCopy(db, id, copy);
+      return c.json({ copy, model: result.model, latencyMs: result.latencyMs });
+    } catch (error) {
+      return llmFailureResponse(c, error);
+    }
+  });
+
   // -------------------------------------------------------------------------
   // Renders
   // -------------------------------------------------------------------------
@@ -629,6 +729,7 @@ export function createApp(options) {
                 templatesDir,
                 variants,
                 templateId,
+                logger,
               })
             : buildKitValues();
         const renderId = newRenderId();

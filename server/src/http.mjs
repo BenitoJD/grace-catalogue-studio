@@ -17,9 +17,10 @@ import { RenderError } from './render.mjs';
 export const BODY_LIMIT_BYTES = 64 * 1024;
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 export const RENDER_ROUTE_PATTERN = /^\/api\/orders\/[^/]+\/render\/?$/;
-// Note drafting calls a paid model, so it gets its own generous limit instead
-// of eating the much smaller render budget.
+// Note and brochure copy drafting call a paid model, so they get their own
+// generous limit instead of eating the much smaller render budget.
 export const NOTE_ROUTE_PATTERN = /^\/api\/orders\/[^/]+\/note\/?$/;
+export const COPY_ROUTE_PATTERN = /^\/api\/orders\/[^/]+\/copy\/?$/;
 
 export const SECURITY_HEADERS = Object.freeze({
   'X-Content-Type-Options': 'nosniff',
@@ -237,7 +238,7 @@ export function errorResponse(c, error, logger) {
  * - corsOrigins: array of allowed origins, or ["*"]
  * - rateLimitPerMin: general requests per minute per IP
  * - renderLimitPerMin: render requests per minute per IP
- * - noteLimitPerMin: note drafting requests per minute per IP
+ * - noteLimitPerMin: note and copy drafting requests per minute per IP
  * - isShuttingDown(): while true, new work gets a 503
  */
 export function installHttpHardening(app, options = {}) {
@@ -331,6 +332,19 @@ export function installHttpHardening(app, options = {}) {
           },
           429,
           { 'Retry-After': String(note.retryAfterSeconds) },
+        );
+      }
+    }
+    if (c.req.method === 'POST' && COPY_ROUTE_PATTERN.test(c.req.path)) {
+      const copy = noteLimiter.hit(ip);
+      if (!copy.allowed) {
+        return c.json(
+          {
+            error: `Too many copy requests. Try again in ${copy.retryAfterSeconds} seconds.`,
+            requestId: c.get('requestId'),
+          },
+          429,
+          { 'Retry-After': String(copy.retryAfterSeconds) },
         );
       }
     }

@@ -5,6 +5,27 @@ import { DatabaseSync } from 'node:sqlite';
 
 // Every order column the API accepts. title, room, width, height, depth and
 // shutters are also required on create; the rest default to an empty string.
+// brief stores the customer's loose notes for the brochure copy writer.
+// A quick order may omit materials. The printed voucher must never show a blank
+// specification row, so blanks fall back to the house standard.
+export const ORDER_DEFAULTS = Object.freeze({
+  carcass: '18 mm BWP plywood',
+  backPanel: '6 mm plywood',
+  shuttersMat: '18 mm BWP plywood',
+  drawers: '12 mm plywood',
+  exterior: '1 mm laminate',
+  interior: '0.8 mm white laminate',
+  hinges: 'Soft-close',
+  channels: 'Soft-close telescopic',
+  edgeShutter: '2 mm PVC',
+  edgeCarcass: '0.8 mm PVC',
+  edgeNote: 'Colour matched',
+  handle: 'Matte black aluminium',
+  handleNote: 'Vertical, three sets',
+  finishExt: 'Matte outside, white inside',
+  finishInt: 'No painting',
+});
+
 export const ORDER_TEXT_FIELDS = [
   'title',
   'room',
@@ -27,13 +48,15 @@ export const ORDER_TEXT_FIELDS = [
   'handleNote',
   'finishExt',
   'finishInt',
+  'brief',
 ];
 
 // The schema is versioned with PRAGMA user_version. Version 1 is the original
-// catalogue schema and version 2 adds the runtime settings table; every future
-// change is appended as a new migration so an existing data directory upgrades
-// in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 2;
+// catalogue schema, version 2 adds the runtime settings table and version 3
+// adds the order brief and generated brochure copy. Every change is appended as
+// a new migration so an existing data directory upgrades in place. Never edit
+// an applied migration.
+export const SCHEMA_VERSION = 3;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -152,6 +175,17 @@ export const MIGRATIONS = Object.freeze([
       db.exec(SETTINGS_SCHEMA);
     },
   },
+  {
+    version: 3,
+    name: 'order brief and generated brochure copy',
+    up(db) {
+      // brief is the customer's own wording for the brochure copy writer.
+      addColumnIfMissing(db, 'orders', 'brief', "TEXT NOT NULL DEFAULT ''");
+      // copy_json holds the validated { headline, body, closing } reply as JSON
+      // text. It stays nullable: an order without generated copy has no value.
+      addColumnIfMissing(db, 'orders', 'copy_json', 'TEXT');
+    },
+  },
 ]);
 
 export function schemaVersion(db) {
@@ -203,6 +237,12 @@ function plain(row) {
 
 function text(value) {
   return value === undefined || value === null ? '' : String(value).trim();
+}
+
+function withDefault(field, value) {
+  const trimmed = text(value);
+  if (trimmed !== '') return trimmed;
+  return ORDER_DEFAULTS[field] ?? '';
 }
 
 function now() {
@@ -286,15 +326,45 @@ const ORDER_SELECT = `
   JOIN customers c ON c.id = o.customerId
 `;
 
+// copy_json is JSON text in the row, but the API and renderer work with the
+// parsed object. A malformed value is treated as "no copy": the order must
+// still load, and a render must still succeed without the copy block.
+export function parseOrderCopy(value) {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+// Internal order shape: every database column plus the parsed copy and the raw
+// copy_json (so the renderer can warn about a value that did not parse). Json
+// responses strip copy_json; see orderPayload in routes.mjs.
+function orderFromRow(row) {
+  const order = plain(row);
+  if (!order) return null;
+  order.copy = parseOrderCopy(order.copy_json);
+  return order;
+}
+
+// The list stays small: lists carry the brief but not the generated copy.
 export function listOrders(db) {
   return db
     .prepare(`${ORDER_SELECT} ORDER BY o.createdAt DESC, o.orderNo DESC`)
     .all()
-    .map(plain);
+    .map((row) => {
+      const order = orderFromRow(row);
+      delete order.copy;
+      delete order.copy_json;
+      return order;
+    });
 }
 
 export function getOrder(db, id) {
-  return plain(db.prepare(`${ORDER_SELECT} WHERE o.id = ?`).get(id));
+  return orderFromRow(db.prepare(`${ORDER_SELECT} WHERE o.id = ?`).get(id));
 }
 
 export function createOrder(db, input) {
@@ -305,7 +375,9 @@ export function createOrder(db, input) {
     status: input.status === 'approved' ? 'approved' : 'draft',
     createdAt: now(),
   };
-  for (const field of ORDER_TEXT_FIELDS) order[field] = text(input[field]);
+  for (const field of ORDER_TEXT_FIELDS) {
+    order[field] = withDefault(field, input[field]);
+  }
 
   const columns = ['id', 'orderNo', 'customerId', ...ORDER_TEXT_FIELDS, 'status', 'createdAt'];
   const placeholders = columns.map(() => '?').join(', ');
@@ -322,9 +394,19 @@ export function updateOrder(db, id, patch) {
   if (keys.length === 0) return getOrder(db, id);
   const assignments = keys.map((key) => `${key} = ?`).join(', ');
   db.prepare(`UPDATE orders SET ${assignments} WHERE id = ?`).run(
-    ...keys.map((key) => patch[key]),
+    ...keys.map((key) => (ORDER_TEXT_FIELDS.includes(key) ? withDefault(key, patch[key]) : patch[key])),
     id,
   );
+  return getOrder(db, id);
+}
+
+/**
+ * Store the generated brochure copy for an order. The caller passes the three
+ * validated strings; they are serialised as one JSON object in copy_json.
+ */
+export function setOrderCopy(db, id, copy) {
+  const json = copy === null || copy === undefined ? null : JSON.stringify(copy);
+  db.prepare('UPDATE orders SET copy_json = ? WHERE id = ?').run(json, id);
   return getOrder(db, id);
 }
 

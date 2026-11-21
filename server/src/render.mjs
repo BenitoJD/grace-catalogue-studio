@@ -12,6 +12,12 @@ import {
 import path from 'node:path';
 import { promisify } from 'node:util';
 
+import {
+  COPY_BODY_MAX_CHARS,
+  COPY_CLOSING_MAX_CHARS,
+  COPY_HEADLINE_MAX_CHARS,
+} from './llm.mjs';
+
 const execFileAsync = promisify(execFile);
 
 const COMMAND_TIMEOUT_MS = 120_000;
@@ -109,7 +115,51 @@ function splitMeasure(value) {
   return { value: match[1], unit: match[2].toLowerCase() };
 }
 
-export function buildVoucherValues({ order, materials = [], templatesDir }) {
+// Generated brochure copy reaches the family templates through three tokens.
+// No copy is not an error: the tokens become empty strings so the copy blocks
+// disappear. A malformed copy_json must never break a render either; it also
+// falls back to empty strings, with a warning so operations can spot it.
+export function noteCopyValues(order, logger) {
+  const empty = { noteHeadline: '', noteBody: '', noteClosing: '' };
+  if (!order || typeof order !== 'object') return empty;
+
+  let copy = order.copy ?? null;
+  if (copy === null && typeof order.copy_json === 'string' && order.copy_json.trim() !== '') {
+    try {
+      copy = JSON.parse(order.copy_json);
+    } catch (error) {
+      logger?.warn?.('Order copy could not be read; rendering the brochure without it.', {
+        orderId: order.id ?? null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return empty;
+    }
+  }
+  if (copy === null) return empty;
+  if (typeof copy !== 'object' || Array.isArray(copy)) {
+    logger?.warn?.('Order copy is malformed; rendering the brochure without it.', {
+      orderId: order.id ?? null,
+    });
+    return empty;
+  }
+
+  const fields = ['headline', 'body', 'closing'];
+  if (!fields.every((field) => typeof copy[field] === 'string')) {
+    logger?.warn?.('Order copy is malformed; rendering the brochure without it.', {
+      orderId: order.id ?? null,
+    });
+    return empty;
+  }
+
+  const cap = (value, maxChars) => value.trim().slice(0, maxChars).trimEnd();
+  return {
+    noteHeadline: cap(copy.headline, COPY_HEADLINE_MAX_CHARS),
+    noteBody: cap(copy.body, COPY_BODY_MAX_CHARS),
+    noteClosing: cap(copy.closing, COPY_CLOSING_MAX_CHARS),
+  };
+}
+
+export function buildVoucherValues({ order, materials = [], templatesDir, logger }) {
   const materialSlots = FALLBACK_MATERIALS.map((fallback, index) => {
     const material = materials[index];
     const image = materialImagePath(material?.imageUrl, templatesDir);
@@ -167,6 +217,7 @@ export function buildVoucherValues({ order, materials = [], templatesDir }) {
     mat2Image: materialSlots[1].image,
     mat3Image: materialSlots[2].image,
     mat4Image: materialSlots[3].image,
+    ...noteCopyValues(order, logger),
   };
 }
 

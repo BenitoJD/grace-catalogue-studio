@@ -35,6 +35,17 @@ export const PROVIDER_ERROR_MAX_CHARS = 300;
 // The provider type/code is also echoed to the client, so cap it as well.
 const PROVIDER_TYPE_MAX_CHARS = 80;
 
+// Brochure copy caps: the prompt asks for tighter limits, these are the hard
+// defensive caps applied to whatever the model actually sends back. render.mjs
+// uses the same values when it puts the copy into the family templates.
+export const COPY_HEADLINE_MAX_CHARS = 80;
+export const COPY_BODY_MAX_CHARS = 1200;
+export const COPY_CLOSING_MAX_CHARS = 140;
+export const COPY_MAX_TOKENS = 700;
+export const COPY_TEMPERATURE = 0.5;
+export const COPY_READ_ERROR_MESSAGE =
+  'The model reply could not be read. Generate the copy again.';
+
 export const NOT_CONFIGURED_MESSAGE =
   'No language model is configured. Save the endpoint, model and API key in Settings first.';
 
@@ -54,6 +65,22 @@ const NOTE_SYSTEM_PROMPT = [
   '- No em dashes.',
   '- Mention only facts listed in the order. Never invent dimensions, materials, prices, dates or promises.',
   '- One short paragraph with no subject line, no bullet points and no quotation marks.',
+].join(' ');
+
+const COPY_SYSTEM_PROMPT = [
+  'You are writing the body copy for a printed brochure about one custom wardrobe or furniture order.',
+  'Grace Wood Industry is a wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
+  'Reply with strict JSON only, in exactly this shape:',
+  '{"headline": "...", "body": "...", "closing": "..."}',
+  'Rules:',
+  '- headline: at most 60 characters.',
+  '- body: between 70 and 180 words, depending on how much detail was supplied.',
+  '- closing: at most 90 characters.',
+  '- Use only facts present in the order and the customer brief.',
+  '- Never invent certifications, prices, dates or brands.',
+  '- No em dashes or en dashes.',
+  '- British Indian English. Warm and concrete, with no marketing fluff.',
+  '- No prose, markdown, code fences or explanation around the JSON object.',
 ].join(' ');
 
 // ---------------------------------------------------------------------------
@@ -381,7 +408,7 @@ export async function requestChat({
 }
 
 // ---------------------------------------------------------------------------
-// Order note prompt
+// Order facts, WhatsApp note and brochure copy prompts
 // ---------------------------------------------------------------------------
 
 function pushFact(facts, label, value) {
@@ -440,4 +467,107 @@ export function buildNoteMessages(order) {
     { role: 'system', content: NOTE_SYSTEM_PROMPT },
     { role: 'user', content: user },
   ];
+}
+
+// ---------------------------------------------------------------------------
+// Brochure copy prompt
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the exact chat messages sent for POST /api/orders/:id/copy. The order
+ * facts are reused from the note builder; the customer brief is passed as the
+ * loose wording the brochure body should adapt to.
+ */
+export function buildCopyMessages(order, brief = '') {
+  const facts = orderNoteFacts(order);
+  const suppliedBrief = clean(brief);
+  const user = [
+    'Order details:',
+    ...facts.map((fact) => `- ${fact}`),
+    '',
+    'Customer brief:',
+    suppliedBrief === ''
+      ? '(No extra brief was supplied. Write from the order details only.)'
+      : suppliedBrief,
+    '',
+    'Write the brochure copy now as strict JSON.',
+  ].join('\n');
+  return [
+    { role: 'system', content: COPY_SYSTEM_PROMPT },
+    { role: 'user', content: user },
+  ];
+}
+
+/**
+ * Find the first complete JSON object in a text reply. Tracks strings and
+ * escapes so braces inside a headline or body do not end the object early.
+ */
+function firstJsonObject(text) {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') inString = true;
+    else if (character === '{') depth += 1;
+    else if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
+function capCopyField(value, maxChars) {
+  return value.trim().slice(0, maxChars).trimEnd();
+}
+
+/**
+ * Parse the model's brochure copy reply defensively.
+ *
+ * Accepts a bare JSON object, a fenced code block (``` or ```json) and JSON
+ * with prose around it by extracting the first complete object. Throws an
+ * LlmError with COPY_READ_ERROR_MESSAGE when the reply can not be read, so the
+ * route returns the standard 502 body without a stack trace.
+ */
+export function parseCopyReply(reply) {
+  const raw = typeof reply === 'string' ? reply : '';
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw);
+  const source = fenced ? fenced[1] : raw;
+  const candidate = firstJsonObject(source);
+
+  let payload = null;
+  if (candidate !== null) {
+    try {
+      payload = JSON.parse(candidate);
+    } catch {
+      payload = null;
+    }
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new LlmError(COPY_READ_ERROR_MESSAGE, { type: 'invalid_reply' });
+  }
+
+  const caps = {
+    headline: COPY_HEADLINE_MAX_CHARS,
+    body: COPY_BODY_MAX_CHARS,
+    closing: COPY_CLOSING_MAX_CHARS,
+  };
+  const copy = {};
+  for (const [field, maxChars] of Object.entries(caps)) {
+    const value = payload[field];
+    if (typeof value !== 'string' || value.trim() === '') {
+      throw new LlmError(COPY_READ_ERROR_MESSAGE, { type: 'invalid_reply' });
+    }
+    copy[field] = capCopyField(value, maxChars);
+  }
+  return copy;
 }

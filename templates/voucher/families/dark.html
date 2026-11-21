@@ -29,8 +29,8 @@
   .page.dark{ background:var(--dark); }
   .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
   .abs{ position:absolute; }
-  .sans{ font-family:"Barlow", Helvetica, Arial, sans-serif; }
-  .serif{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
   .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
   .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
   .micro{ font-family:"Barlow", sans-serif; font-size:5pt; letter-spacing:.26em; text-transform:uppercase; font-weight:600; color:var(--faint); }
@@ -40,7 +40,7 @@
   .hair.on{ height:0.2mm; background:var(--accent-on-dark); opacity:.75; }
   .label{ font-family:"Barlow", sans-serif; font-size:4.8pt; letter-spacing:.24em; text-transform:uppercase; color:var(--accent); font-weight:600; }
   .label.on{ color:var(--accent-on-dark); }
-  .cover-title{ position:absolute; font-family:"Instrument Serif", Georgia, serif; font-weight:400; letter-spacing:-.015em; color:var(--on-dark); }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.015em; color:var(--on-dark); }
   .rev{ font-family:"Barlow", sans-serif; color:var(--on-dark); }
   .rev-k{ font-family:"Barlow", sans-serif; font-size:6.2pt; color:var(--on-dark); opacity:.52; }
   .rev-v{ font-family:"Barlow", sans-serif; font-size:7pt; color:var(--on-dark); opacity:.92; }
@@ -49,12 +49,23 @@
   .rev-table tr:last-child td{ border-bottom:none; }
   .rev-table td.k{ width:34mm; }
   .band{ position:absolute; left:0; width:216mm; background:var(--dark); }
+
+  /* Optional brochure copy. The server injects plain text here, or an empty
+     string when no copy was generated. Empty blocks collapse completely so the
+     page is pixel identical to a voucher without copy. */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline{ white-space:nowrap; }
+  .copy-closing{ white-space:nowrap; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+  .copy-panel{ background:rgba(10,9,8,0.55); padding:3.5mm; }
+
 </style>
 </head>
 <body>
 
 <!-- 01 COVER -->
 <div class="page dark">
+  <div class="copy copy-headline" style="left:21mm; top:149.5mm; width:174mm; font-family:'Instrument Serif', Georgia, serif; font-size:8pt; line-height:1.2; color:var(--on-dark); opacity:.92;">{{noteHeadline}}</div>
   <div class="abs ph" style="left:0; top:0; width:216mm; height:146mm; background-image:url({{coverImage}});"></div>
   <div class="abs" style="left:0; top:0; width:216mm; height:146mm; background-image:linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(18,16,12,0.55) 78%, rgba(18,16,12,1) 100%);"></div>
   <img class="abs" src="../assets/derived/logo-white.png" style="left:21mm; top:21mm; width:15mm;">
@@ -71,6 +82,7 @@
 
 <!-- 02 SPECIFICATION, reversed -->
 <div class="page dark">
+  <div class="copy copy-body" style="left:24mm; top:208mm; width:174mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:6pt; line-height:1.65; color:var(--on-dark); opacity:.82;">{{noteBody}}</div>
   <div class="sheet">
     <div class="abs micro on" style="left:21mm; top:18mm;">02 Specification</div>
     <div class="abs micro on" style="right:21mm; top:18mm; text-align:right;">{{orderNo}}</div>
@@ -170,6 +182,7 @@
 
 <!-- 04 INSIDE -->
 <div class="page">
+  <div class="copy copy-closing" style="left:21mm; top:259mm; width:174mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:4.8pt; line-height:1.2; color:var(--muted);">{{noteClosing}}</div>
   <div class="abs ph" style="left:0; top:0; width:216mm; height:150mm; background-image:url({{insideImage}});"></div>
   <div class="band" style="top:150mm; height:38mm;"></div>
   <div class="sheet">

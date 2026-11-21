@@ -8,6 +8,17 @@ import { createServer } from 'node:http';
 
 const port = Number.parseInt(process.argv[2] ?? '8793', 10);
 
+const COPY = {
+  headline: 'Built to the millimetre',
+  body:
+    'This wardrobe is made for the master bedroom, 2400 by 2100 mm, with three shutters in warm oak ' +
+    'and a matching edge band so the grain runs unbroken across the front. Inside, white laminate keeps ' +
+    'the interior bright, with hanging on the left, adjustable shelves and two drawers in the middle, ' +
+    'and long hanging on the right. The matte black handles sit vertically so the line of the shutters ' +
+    'stays quiet. Every panel is cut, banded and bored in our workshop before assembly.',
+  closing: 'Drawings follow for your approval before we cut.'
+};
+
 const NOTE = [
   'Good morning Mr. Kumar. Your master bedroom wardrobe is drafted at 2400 by 2100 mm,',
   'three shutters in warm oak with a matching edge band. The inside is white laminate,',
@@ -60,9 +71,10 @@ createServer(async (request, response) => {
     }
 
     const messages = Array.isArray(body.messages) ? body.messages : [];
-    const user = messages.find((message) => message.role === 'user')?.content ?? '';
-    const isConnectionTest = String(user).includes('single word ok');
-    const content = isConnectionTest ? 'ok' : NOTE;
+    const prompt = messages.map((message) => String(message.content ?? '')).join('\n').toLowerCase();
+    const isConnectionTest = prompt.includes('single word ok');
+    const isCopyRequest = prompt.includes('headline') && prompt.includes('json');
+    const content = isConnectionTest ? 'ok' : isCopyRequest ? JSON.stringify(COPY) : NOTE;
 
     // A small delay so latency numbers look real in the UI.
     setTimeout(() => {

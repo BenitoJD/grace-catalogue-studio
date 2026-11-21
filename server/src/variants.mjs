@@ -264,12 +264,19 @@ function paletteVariables(palette) {
 }
 
 // Order data plus the raw palette CSS and the fitted cover title markup.
-export function buildVoucherDocumentValues({ order, materials = [], templatesDir, variants, templateId }) {
+export function buildVoucherDocumentValues({
+  order,
+  materials = [],
+  templatesDir,
+  variants,
+  templateId,
+  logger,
+}) {
   const selection = resolveTemplateSelection(variants, templateId);
   if (!selection) {
     throw new Error(`Unknown template "${templateId}".`);
   }
-  const values = buildVoucherValues({ order, materials, templatesDir });
+  const values = buildVoucherValues({ order, materials, templatesDir, logger });
 
   return {
     ...values,

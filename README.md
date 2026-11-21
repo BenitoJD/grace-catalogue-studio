@@ -138,14 +138,14 @@ House rules for copy: short sentences, no em dashes or en dashes, a middot for s
 ## Tests
 
 ```bash
-npm test          # 22 api and rendering tests
+npm test          # 61 server tests, api, rendering and the model
 npm run verify    # black box: create, render, check the pdf with pdfinfo
 npm run e2e       # drives the real web app in Chrome like a person
 npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API and the web build, then walks the product: order book, new order, create, detail, render, open PDF, share, re-render, choose a different design, materials, settings, deep link, mobile viewport, and the sad path when the API is down. It writes screenshots to `docs/screenshots/e2e/`. It fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product: order book, new order, create, detail, render, open PDF, share, re-render, choose a different design, test the model connection, draft a customer note, write the brochure body, confirm the body is inside the PDF, materials, settings, deep link, mobile viewport, and the sad path when the API is down. 63 checks. It writes screenshots to `docs/screenshots/e2e/`. It fails on console errors.
 
 ## Design templates
 
@@ -169,78 +169,6 @@ Thirty designs, built as **ten complete document families**, not permutations of
 Palettes: copper `#A65E22`, ink `#1C1A17`, olive `#5C6B3C`, indigo `#2F3E6B`, sand `#B08A63`.
 
 `GET /api/templates` lists them with preview images. A render accepts `templateId`. The app shows the gallery from the order screen under Design. Every design shares the same placeholders and the same data, so switching design never changes what the document says.
-
-## The API
-
-Full contract in [CONTRACT.md](CONTRACT.md). The essentials:
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/bootstrap` | customers, orders and materials in one call |
-| POST | `/api/orders` | create an order |
-| POST | `/api/orders/:id/render` | render a voucher with an optional `templateId`, returns page URLs |
-| GET | `/api/templates` | the 30 brochure templates and their thumbnail URLs |
-| GET | `/previews/:templateId.png` | a template thumbnail |
-| GET | `/files/:name` | the PDF |
-| GET | `/pages/:renderId/:n.png` | a page image for the in app preview |
-
-A voucher has 30 selectable designs: ten complete document families with their
-own cover, specification, finishes and inside pages, each offered in three
-palettes. The catalogue is data in `templates/variants.json`; every family is a
-full four page HTML document in `templates/voucher/families/`, and the palette
-arrives as CSS variables. The app sends `templateId` with a render; missing
-means the first template (`atelier-copper`). Thumbnails are cached in
-`data/previews/` and generated once per template.
-
-## Rendering
-
-Templates live in `templates/`. The server replaces `{{key}}` tokens with order data, writes the built HTML into `templates/voucher/` (or `templates/kit/`) so relative asset paths resolve, then calls:
-
-```
-weasyprint <html> data/renders/<id>.pdf
-pdftoppm -png -r 96 <pdf> data/renders/<id>
-```
-
-If a placeholder is left unfilled the render fails with a clear message rather than printing `{{customerName}}` on a customer's document.
-
-Rendering is queued per process so two requests cannot write into the same build directory.
-
-## Design system
-
-| Token | Value |
-|---|---|
-| paper | `#FFFFFF` |
-| ink | `#14100C` |
-| muted | `#6E6259` |
-| faint | `#A2938A` |
-| copper | `#A65E22` |
-| hairline | `#E6DED2` |
-
-Display type is a serif, set large and tight. Body type is a neutral sans. Section labels are small, tracked, uppercase. No shadows, no gradients, no decoration.
-
-House rules for copy: short sentences, no em dashes or en dashes, a middot for separators. Say what the person should do next, not what the system did.
-
-## Tests
-
-```bash
-npm test          # 22 api and rendering tests
-npm run verify    # black box: create, render, check the pdf with pdfinfo
-npm run e2e       # drives the real web app in Chrome like a person
-npm run typecheck
-npm run lint
-```
-
-`npm run e2e` starts the API and the web build, then walks the product: order book, new order, create, detail, render, open PDF, share, re-render, choose a different design, materials, settings, deep link, mobile viewport, and the sad path when the API is down. It writes screenshots to `docs/screenshots/e2e/`. It fails on console errors.
-
-## Design templates
-
-Thirty covers are built from six compositions and five palettes:
-
-| Compositions | Palettes |
-|---|---|
-| full bleed, split right, split left, band top, type only, centred | copper, ink, olive, indigo, sand |
-
-`GET /api/templates` lists them with preview images. A render accepts `templateId`. The app shows the gallery from the order screen under Design.
 
 ## Desktop app for Windows and Mac
 
@@ -267,7 +195,11 @@ The studio can point itself at any OpenAI compatible model. Open Settings, Langu
 
 ![Model settings](docs/screenshots/e2e/06b-model-settings.png)
 
-Once configured, an order screen can draft a short customer note from the order data. Nothing is invented: the prompt is built from the order fields, and the note is shown for review before anyone copies it.
+Once configured, the model writes the brochure body. Paste what the customer said into the brief, press Write the brochure copy, and the studio returns a headline, a body paragraph and a closing line built only from the order facts and that brief. The copy is stored on the order and printed into every design, then regenerated with the voucher.
+
+![Brochure copy](docs/screenshots/e2e/06d-brochure-copy.png)
+
+An order screen can also draft a short customer note for WhatsApp from the same data. Nothing is invented: the prompt carries the order fields, and the result is shown for review before anyone copies or prints it.
 
 ![Customer note](docs/screenshots/e2e/06c-customer-note.png)
 

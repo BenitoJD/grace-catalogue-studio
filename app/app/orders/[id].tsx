@@ -15,11 +15,21 @@ import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
 import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ErrorState, LoadingState } from '@/components/StateViews';
 import { openUrl, shareLink } from '@/lib/actions';
-import { api, errorMessage, fileUrl, type Order, type OrderNote, type Render, type Template } from '@/lib/api';
+import {
+  api,
+  errorMessage,
+  fileUrl,
+  type BrochureCopy,
+  type Order,
+  type OrderNote,
+  type Render,
+  type Template,
+} from '@/lib/api';
 import { displayValue, formatDate, pageCountLabel, statusLabel } from '@/lib/format';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
@@ -97,6 +107,11 @@ export default function OrderDetailScreen() {
   const [renderError, setRenderError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [briefDraft, setBriefDraft] = useState<string | null>(null);
+  const [writtenCopy, setWrittenCopy] = useState<BrochureCopy | null>(null);
+  const [copyModel, setCopyModel] = useState<string | null>(null);
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [note, setNote] = useState<OrderNote | null>(null);
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -211,6 +226,24 @@ export default function OrderDetailScreen() {
       setRendering(false);
     }
   }, [chosenTemplate, currentTemplate, orderId, rendering]);
+
+  const writeCopy = useCallback(async () => {
+    if (!orderId || copyLoading) {
+      return;
+    }
+    setCopyLoading(true);
+    setCopyError(null);
+    try {
+      const result = await api.generateOrderCopy(orderId, { brief: briefDraft ?? order?.brief ?? '' });
+      setWrittenCopy(result.copy);
+      setCopyModel(result.model);
+      setOrder((current) => (current ? { ...current, copy: result.copy } : current));
+    } catch (error) {
+      setCopyError(errorMessage(error, 'The model could not write the copy. Check the model settings.'));
+    } finally {
+      setCopyLoading(false);
+    }
+  }, [briefDraft, copyLoading, order, orderId]);
 
   const draftNote = useCallback(async () => {
     if (!orderId || noteLoading) {
@@ -360,6 +393,52 @@ export default function OrderDetailScreen() {
                       }}
                     />
                   </View>
+                </View>
+              </View>
+
+              <View style={styles.voucherSection}>
+                <View style={shared.rowBetween}>
+                  <Text style={text.sectionLabel}>Brochure copy</Text>
+                  {copyModel ? <Text style={text.caption}>{copyModel}</Text> : null}
+                </View>
+                <Text style={[text.muted, styles.voucherIntro]}>
+                  Paste what the customer said, including anything they added or dropped. The model
+                  writes the body from the order and this brief, then the voucher is rendered again.
+                </Text>
+                <View style={styles.briefField}>
+                  <Field
+                    label="Customer brief, optional"
+                    value={briefDraft ?? order.brief ?? ''}
+                    onChangeText={setBriefDraft}
+                    placeholder="Anything the customer added, changed or dropped"
+                    multiline
+                    maxLength={2000}
+                  />
+                </View>
+                {copyError ? <Text style={[text.muted, styles.noteError]}>{copyError}</Text> : null}
+                {writtenCopy ?? order.copy ? (
+                  <View style={styles.noteBox}>
+                    <Text style={[text.caption, styles.noteStatus]}>
+                      Generate the voucher again to print this copy.
+                    </Text>
+                    <Text style={[text.value, styles.copyHeadline]}>
+                      {(writtenCopy ?? order.copy)?.headline}
+                    </Text>
+                    <Text style={[text.body, styles.noteText]} selectable>
+                      {(writtenCopy ?? order.copy)?.body}
+                    </Text>
+                    <Text style={[text.caption, styles.copyClosing]}>
+                      {(writtenCopy ?? order.copy)?.closing}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.generateAction}>
+                  <Button
+                    label={writtenCopy ?? order.copy ? 'Write it again' : 'Write the brochure copy'}
+                    loading={copyLoading}
+                    loadingLabel="Writing"
+                    onPress={() => void writeCopy()}
+                  />
                 </View>
               </View>
 
@@ -594,6 +673,18 @@ function PageImage({ uri, label }: { uri: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  briefField: {
+    marginTop: space.md,
+    maxWidth: 640,
+  },
+  copyHeadline: {
+    fontFamily: 'Georgia',
+    fontSize: 19,
+    lineHeight: 26,
+  },
+  copyClosing: {
+    color: colors.muted,
+  },
   noteBox: {
     marginTop: space.md,
     gap: space.md,
