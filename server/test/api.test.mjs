@@ -621,35 +621,13 @@ test('deletes an order and its renders', async () => {
 
 
 // ---------------------------------------------------------------------------
-// Ten complete document families, three palettes each
+// Thirty complete document families, one palette each
 // ---------------------------------------------------------------------------
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const PALETTE_IDS = ['copper', 'ink', 'olive', 'indigo', 'sand'];
-const FAMILY_IDS = [
-  'atelier',
-  'swiss',
-  'gallery',
-  'index',
-  'dark',
-  'blueprint',
-  'lookbook',
-  'poster',
-  'card',
-  'folio',
-];
-const COVER_IDS = [
-  'editorial',
-  'grid',
-  'void',
-  'contents',
-  'reversed',
-  'technical',
-  'photoFirst',
-  'display',
-  'card',
-  'centred',
-];
+const templateManifest = JSON.parse(readFileSync(path.join(templatesDir, 'variants.json'), 'utf8'));
+const PALETTE_IDS = templateManifest.palettes.map((palette) => palette.id);
+const FAMILY_IDS = templateManifest.families.map((family) => family.id);
 
 async function fetchTemplates() {
   const response = await fetch(`${baseUrl}/api/templates`);
@@ -688,17 +666,19 @@ async function pageHash(render, pageNumber) {
   return hashBytes(bytes);
 }
 
-test('lists 30 templates from ten complete families, three palettes each', { timeout: 120_000 }, async () => {
+test('lists 30 designs from thirty unique families, one palette each', { timeout: 120_000 }, async () => {
   const templates = await fetchTemplates();
   assert.equal(templates.length, 30);
   assert.equal(new Set(templates.map((template) => template.id)).size, 30);
+  assert.equal(new Set(templates.map((template) => template.family)).size, 30, 'every design is its own family');
+  assert.equal(new Set(templates.map((template) => template.name)).size, 30, 'every design needs its own name');
 
   for (const template of templates) {
     assert.equal(typeof template.id, 'string');
     assert.ok(template.name && template.name.trim().length > 0, 'every template needs a human name');
     assert.ok(PALETTE_IDS.includes(template.palette), `unknown palette ${template.palette}`);
     assert.ok(FAMILY_IDS.includes(template.family), `unknown family ${template.family}`);
-    assert.ok(COVER_IDS.includes(template.cover), `unknown cover ${template.cover}`);
+    assert.match(template.cover, /^[A-Za-z][A-Za-z0-9]*$/, `family ${template.family} needs a cover descriptor`);
     assert.equal(template.pageCount, 4);
     assert.equal(template.previewUrl, `/previews/${template.id}.png`);
     assert.equal(template.id, `${template.family}-${template.palette}`);
@@ -707,16 +687,39 @@ test('lists 30 templates from ten complete families, three palettes each', { tim
   const combinations = new Set(templates.map((template) => `${template.family}/${template.palette}`));
   assert.equal(combinations.size, 30, 'every family and palette pair appears exactly once');
 
-  for (const family of FAMILY_IDS) {
+  for (const family of new Set(templates.map((template) => template.family))) {
     const entries = templates.filter((template) => template.family === family);
-    assert.equal(entries.length, 3, `family ${family} needs three palettes`);
-    assert.equal(new Set(entries.map((entry) => entry.palette)).size, 3);
+    assert.equal(entries.length, 1, `family ${family} must not be repeated in another palette`);
   }
 
   assert.equal(templates[0].id, 'atelier-copper', 'the first template is the default');
-  assert.ok(templates.some((template) => template.name === 'Ink Swiss'));
-  assert.ok(templates.some((template) => template.name === 'Sand Poster'));
-  assert.ok(templates.some((template) => template.name === 'Olive Card'));
+});
+
+test('every family is a different document, not a recolour', async () => {
+  const hashes = new Map();
+  for (const family of templateManifest.families) {
+    const html = readFileSync(path.join(templatesDir, family.file), 'utf8');
+    const digest = createHash('sha256').update(html).digest('hex');
+    assert.equal(hashes.has(digest), false, `${family.id} duplicates ${hashes.get(digest)}`);
+    hashes.set(digest, family.id);
+    for (const token of [
+      '{{noteHeadline}}',
+      '{{noteBody}}',
+      '{{noteClosing}}',
+      '.copy-headline:empty',
+      '{{coverImage}}',
+      '{{detailImage}}',
+      '{{insideImage}}',
+      '{{insideImage2}}',
+      '{{width}}',
+      '{{handle}}',
+      '{{mat1Image}}',
+      '{{paletteCss}}',
+    ]) {
+      assert.ok(html.includes(token), `${family.id} is missing ${token}`);
+    }
+  }
+  assert.equal(hashes.size, 30, 'thirty families, thirty different files');
 });
 
 test('serves valid cached preview PNGs for at least five templates', { timeout: 240_000 }, async () => {
@@ -1176,7 +1179,7 @@ test('retention sweep deletes old renders and files and keeps fresh ones', () =>
 
 test('concurrent identical renders create only one render row', { timeout: 120_000 }, async () => {
   const before = (await (await fetch(`${baseUrl}/api/renders`)).json()).length;
-  const requestBody = { kind: 'voucher', templateId: 'lookbook-copper' };
+  const requestBody = { kind: 'voucher', templateId: 'lookbook-sand' };
 
   const [first, second] = await Promise.all([
     postJson(`${baseUrl}/api/orders/${orderId}/render`, requestBody),
@@ -2463,7 +2466,7 @@ test('brochure copy renders when supplied and disappears when empty', { timeout:
     assert.equal(render.pageCount, 4);
     return pdfText(path.join(dataDir, 'renders', `${render.id}.pdf`));
   };
-  const families = ['atelier-copper', 'gallery-copper', 'swiss-ink'];
+  const families = ['atelier-copper', 'gallery-sand', 'swiss-ink'];
 
   setOrderCopy(db, orderId, { headline, body, closing });
   try {

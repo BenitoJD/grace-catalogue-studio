@@ -75,7 +75,8 @@ const filled = fillTemplate(
 
 const outDir = path.join('/tmp/family-check', familyId);
 mkdirSync(outDir, { recursive: true });
-const builtFile = path.join(path.dirname(file), `.check-${familyId}.html`);
+// Build inside templates/voucher, like production, so ../assets and ../fonts resolve.
+const builtFile = path.join(templatesDir, 'voucher', `.check-${familyId}.html`);
 const pdfFile = path.join(outDir, 'family.pdf');
 for (const name of ['page-1.png', 'page-2.png', 'page-3.png', 'page-4.png']) {
   rmSync(path.join(outDir, name), { force: true });

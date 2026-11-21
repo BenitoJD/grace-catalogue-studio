@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.8pt; letter-spacing:.26em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.acc{ color:var(--accent); }
+  .micro.ink{ color:var(--ink); }
+  .hair{ height:0.16mm; background:var(--hair); }
+  .head{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; font-size:21pt; line-height:1.06; color:var(--ink); letter-spacing:-.012em; }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.012em; color:var(--ink); }
+
+  /* a matted work: printed mat, hairline window, photograph */
+  .mat{ position:absolute; background:var(--cover-paper); border:0.22mm solid var(--hair); }
+  .page.cover .mat{ background:var(--paper); }
+  .photo{ position:absolute; border:0.25mm solid rgba(0,0,0,0.16); background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .plaque{ position:absolute; background:var(--paper); border:0.16mm solid var(--hair); }
+  .plaque .n{ position:absolute; left:2.6mm; top:1.9mm; font-family:'Barlow', sans-serif; font-size:4.2pt; font-weight:600; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); }
+  .plaque .t{ position:absolute; left:2.6mm; top:4.9mm; width:34mm; font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-size:6pt; font-weight:500; color:var(--ink); }
+  .plaque .r{ position:absolute; right:2.6mm; top:1.9mm; font-family:'Barlow', sans-serif; font-size:4.2pt; letter-spacing:.18em; text-transform:uppercase; color:var(--faint); }
+
+  .label{ position:absolute; font-family:'Barlow', sans-serif; font-size:4.7pt; letter-spacing:.24em; text-transform:uppercase; color:var(--faint); }
+  .caption{ position:absolute; font-family:'Barlow', sans-serif; font-size:5pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+  .caption b{ font-weight:600; color:var(--accent); }
+
+  /* museum wall label (specification) */
+  .panel{ position:absolute; background:var(--cover-paper); border:0.2mm solid var(--hair); }
+  .sect{ position:absolute; font-family:'Barlow', sans-serif; font-size:4.6pt; font-weight:600; letter-spacing:.24em; text-transform:uppercase; color:var(--accent); }
+  .lrow{ position:absolute; width:64mm; height:7mm; }
+  .lrow .lk{ position:absolute; left:0; top:0.5mm; width:23mm; font-family:'Barlow', sans-serif; font-size:4.4pt; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); }
+  .lrow .lv{ position:absolute; left:24mm; width:40mm; font-family:'Barlow', sans-serif; font-size:6.6pt; line-height:1.3; color:var(--ink); }
+
+  /* Optional brochure copy. The server injects plain text here, or an empty
+     string when no copy was generated. Empty blocks collapse completely so the
+     page is pixel identical to a voucher without copy. */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline{ white-space:nowrap; }
+  .copy-closing{ white-space:nowrap; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+  .copy-panel{ background:rgba(10,9,8,0.55); padding:3.5mm; }
+
+</style>
+</head>
+<body>
+
+<!-- 01 COVER: one matted photograph, title as wall label -->
+<div class="page cover">
+  <div class="sheet">
+    <div class="copy copy-headline" style="left:18mm; top:256mm; width:174mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:8pt; line-height:1.2; color:var(--muted);">{{noteHeadline}}</div>
+
+    <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:18mm; width:14mm;">
+    <div class="abs micro" style="left:35mm; top:22mm;">Grace Wood Industry · Works on paper</div>
+    <div class="abs micro" style="right:18mm; top:20mm; text-align:right;">{{orderNo}}<br>{{date}}</div>
+    <div class="abs hair" style="left:18mm; top:38mm; width:174mm;"></div>
+
+    <div class="abs label" style="left:18mm; top:44mm;">Exhibition 04 · one wardrobe</div>
+
+    <div class="abs mat" style="left:42mm; top:56mm; width:126mm; height:140mm;"></div>
+    <div class="abs photo" style="left:52mm; top:66mm; width:106mm; height:120mm; background-image:url({{coverImage}});"></div>
+
+    <div class="abs plaque" style="left:42mm; top:204mm; width:126mm; height:50mm;"></div>
+    <div class="abs micro acc" style="left:46mm; top:208mm;">Wall label · cat. 01</div>
+    <div class="cover-title" style="left:46mm; top:213mm; width:116mm;">{{title}}</div>
+    <div class="abs hair" style="left:46mm; top:236mm; width:118mm;"></div>
+    <div class="abs sans" style="left:46mm; top:239mm; width:118mm; font-size:6pt; line-height:1.5; color:var(--ink);">{{room}} · {{width}} × {{height}} × {{depth}} · {{shutters}} shutters</div>
+    <div class="abs sans" style="left:46mm; top:245mm; width:118mm; font-size:6pt; line-height:1.5; color:var(--muted);">{{customerName}} · {{orderNo}} · {{date}}</div>
+
+    <div class="abs hair" style="left:18mm; top:268mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:273mm;">Grace Wood Industry · Nagercoil</div>
+    <div class="abs micro" style="right:18mm; top:273mm; text-align:right;">01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION: museum wall label panel -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:18mm; top:18mm;">02 · Specification</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
+
+    <div class="abs panel" style="left:22mm; top:52mm; width:166mm; height:214mm;"></div>
+
+    <div class="abs micro acc" style="left:34mm; top:61mm;">Specification · wall label</div>
+    <div class="abs head" style="left:34mm; top:66mm; width:140mm;">The wardrobe, described.</div>
+    <div class="abs micro" style="left:34mm; top:84mm;">{{customerName}} · {{room}} · order {{orderNo}}</div>
+    <div class="abs hair" style="left:34mm; top:92mm; width:142mm;"></div>
+
+    <div class="abs sect" style="left:34mm; top:101mm;">Dimensions</div>
+    <div class="abs lrow" style="left:34mm; top:107mm;"><span class="lk">Room</span><span class="lv">{{room}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:114mm;"><span class="lk">Width</span><span class="lv">{{width}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:121mm;"><span class="lk">Height</span><span class="lv">{{height}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:128mm;"><span class="lk">Depth</span><span class="lv">{{depth}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:135mm;"><span class="lk">Shutters</span><span class="lv">{{shutters}}</span></div>
+
+    <div class="abs sect" style="left:34mm; top:148mm;">Carcass &amp; materials</div>
+    <div class="abs lrow" style="left:34mm; top:154mm;"><span class="lk">Carcass</span><span class="lv">{{carcass}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:161mm;"><span class="lk">Back panel</span><span class="lv">{{backPanel}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:168mm;"><span class="lk">Shutter material</span><span class="lv">{{shuttersMat}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:175mm;"><span class="lk">Drawers</span><span class="lv">{{drawers}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:182mm;"><span class="lk">Exterior</span><span class="lv">{{exterior}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:189mm;"><span class="lk">Interior</span><span class="lv">{{interior}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:196mm;"><span class="lk">Hinges</span><span class="lv">{{hinges}}</span></div>
+    <div class="abs lrow" style="left:34mm; top:203mm;"><span class="lk">Channels</span><span class="lv">{{channels}}</span></div>
+
+    <div class="abs sect" style="left:108mm; top:101mm;">Inside the plan</div>
+    <div class="abs lrow" style="left:108mm; top:107mm;"><span class="lk">Layout left</span><span class="lv">{{layoutLeft}}</span></div>
+    <div class="abs lrow" style="left:108mm; top:114mm;"><span class="lk">Layout middle</span><span class="lv">{{layoutMiddle}}</span></div>
+    <div class="abs lrow" style="left:108mm; top:121mm;"><span class="lk">Layout right</span><span class="lv">{{layoutRight}}</span></div>
+
+    <div class="abs sect" style="left:108mm; top:136mm;">Edges &amp; handles</div>
+    <div class="abs lrow" style="left:108mm; top:142mm;"><span class="lk">Edge shutter</span><span class="lv">{{edgeShutter}}</span></div>
+    <div class="abs lrow" style="left:108mm; top:149mm;"><span class="lk">Edge carcass</span><span class="lv">{{edgeCarcass}}</span></div>
+    <div class="abs lrow" style="left:108mm; top:156mm;"><span class="lk">Edge note</span><span class="lv">{{edgeNote}} · {{mat4Name}}</span></div>
+    <div class="abs lrow" style="left:108mm; top:163mm;"><span class="lk">Handle</span><span class="lv">{{handle}}</span></div>
+    <div class="abs lrow" style="left:108mm; top:170mm;"><span class="lk">Handle note</span><span class="lv">{{handleNote}}</span></div>
+
+    <div class="abs sect" style="left:108mm; top:185mm;">Finish</div>
+    <div class="abs lrow" style="left:108mm; top:191mm;"><span class="lk">Exterior</span><span class="lv">{{finishExt}}</span></div>
+    <div class="abs lrow" style="left:108mm; top:198mm;"><span class="lk">Interior</span><span class="lv">{{finishInt}}</span></div>
+
+    <div class="abs hair" style="left:34mm; top:232mm; width:142mm;"></div>
+    <div class="abs label" style="left:34mm; top:237mm;">Described by Grace Wood Industry</div>
+    <div class="abs name" style="right:34mm; top:236mm; text-align:right; font-size:7.2pt; color:var(--ink);">{{customerName}}</div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES: four framed swatches with plaques -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:18mm; top:18mm;">03 · Finishes</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
+
+    <div class="abs micro acc" style="left:18mm; top:34mm;">The collection</div>
+    <div class="abs head" style="left:18mm; top:39mm; width:174mm;">Four works, four finishes.</div>
+    <div class="abs micro" style="right:18mm; top:54mm; text-align:right;">Framed samples nos. 01–04</div>
+
+    <div class="abs mat" style="left:18mm; top:64mm; width:40mm; height:50mm;"></div>
+    <div class="abs photo" style="left:24mm; top:70mm; width:28mm; height:38mm; background-image:url({{mat1Image}});"></div>
+    <div class="abs mat" style="left:62.7mm; top:64mm; width:40mm; height:50mm;"></div>
+    <div class="abs photo" style="left:68.7mm; top:70mm; width:28mm; height:38mm; background-image:url({{mat2Image}});"></div>
+    <div class="abs mat" style="left:107.4mm; top:64mm; width:40mm; height:50mm;"></div>
+    <div class="abs photo" style="left:113.4mm; top:70mm; width:28mm; height:38mm; background-image:url({{mat3Image}});"></div>
+    <div class="abs mat" style="left:152.1mm; top:64mm; width:40mm; height:50mm;"></div>
+    <div class="abs photo" style="left:158.1mm; top:70mm; width:28mm; height:38mm; background-image:url({{mat4Image}});"></div>
+
+    <div class="abs plaque" style="left:19.5mm; top:118mm; width:37mm; height:11mm;">
+      <div class="n">No. 1</div><div class="t">{{mat1Name}}</div>
+    </div>
+    <div class="abs plaque" style="left:64.2mm; top:118mm; width:37mm; height:11mm;">
+      <div class="n">No. 2</div><div class="t">{{mat2Name}}</div>
+    </div>
+    <div class="abs plaque" style="left:108.9mm; top:118mm; width:37mm; height:11mm;">
+      <div class="n">No. 3</div><div class="t">{{mat3Name}}</div>
+    </div>
+    <div class="abs plaque" style="left:153.6mm; top:118mm; width:37mm; height:11mm;">
+      <div class="n">No. 4</div><div class="t">{{mat4Name}}</div>
+    </div>
+
+    <div class="abs hair" style="left:18mm; top:138mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:144mm;">The detail · handle profile</div>
+
+    <div class="abs mat" style="left:18mm; top:150mm; width:174mm; height:76mm;"></div>
+    <div class="abs photo" style="left:25mm; top:157mm; width:160mm; height:62mm; background-image:url({{detailImage}});"></div>
+
+    <div class="abs caption" style="left:18mm; top:230mm; width:132mm;"><b>Cat. 05</b> · matte black aluminium, recessed channel</div>
+    <div class="abs micro" style="right:18mm; top:230mm; text-align:right;">Grace Wood Industry</div>
+
+    <div class="abs" style="left:18mm; top:244mm; width:80mm;">
+      <div class="label">Exterior finish</div>
+      <div class="abs sans" style="position:static; margin-top:2mm; width:80mm; font-size:7pt; line-height:1.45; color:var(--ink);">{{finishExt}}</div>
+    </div>
+    <div class="abs" style="left:112mm; top:244mm; width:80mm;">
+      <div class="label">Interior finish</div>
+      <div class="abs sans" style="position:static; margin-top:2mm; width:80mm; font-size:7pt; line-height:1.45; color:var(--ink);">{{finishInt}}</div>
+    </div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE: two framed photographs, different sizes -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:18mm; top:18mm;">04 · Inside</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
+
+    <div class="abs micro acc" style="left:18mm; top:33mm;">The finished room</div>
+    <div class="abs serif" style="left:18mm; top:37mm; width:174mm; font-size:22pt; line-height:1.06; color:var(--ink); letter-spacing:-.012em;">The room, as it was left.</div>
+
+    <div class="copy copy-closing" style="left:18mm; top:53mm; width:174mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:6pt; line-height:1.5; color:var(--muted);">{{noteClosing}}</div>
+
+    <div class="abs mat" style="left:18mm; top:72mm; width:106mm; height:104mm;"></div>
+    <div class="abs photo" style="left:25mm; top:79mm; width:92mm; height:90mm; background-image:url({{insideImage}});"></div>
+    <div class="abs caption" style="left:18mm; top:182mm; width:104mm;"><b>Plate 01</b> · walk-in wardrobe</div>
+
+    <div class="abs mat" style="left:128mm; top:96mm; width:64mm; height:58mm;"></div>
+    <div class="abs photo" style="left:133mm; top:101mm; width:54mm; height:48mm; background-image:url({{insideImage2}});"></div>
+    <div class="abs caption" style="left:128mm; top:160mm; width:64mm;"><b>Plate 02</b> · shutter detail</div>
+
+    <div class="copy copy-body" style="left:128mm; top:172mm; width:64mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:5.6pt; line-height:1.55; color:var(--muted);">{{noteBody}}</div>
+
+    <div class="abs micro acc" style="left:18mm; top:196mm;">On the wall</div>
+    <div class="abs sans" style="left:18mm; top:201mm; width:98mm; font-size:6.2pt; line-height:1.65; color:var(--muted);">
+      Photographed after installation, with the frames made in the Nagercoil workshop.
+      Mat cut by hand, glass cleaned twice.
+    </div>
+
+    <div class="abs hair" style="left:18mm; top:258mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:263mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:263mm; text-align:right;">Grace Wood Industry · Nagercoil</div>
+    <div class="abs micro" style="left:18mm; top:284mm;">{{orderNo}}</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

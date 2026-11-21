@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.27em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.acc{ color:var(--accent); }
+  .micro.ink{ color:var(--ink); }
+  .hair{ height:0.14mm; background:var(--hair); }
+  .rule{ height:0.22mm; background:var(--accent); }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.01em; color:var(--ink); }
+  .v{ position:absolute; transform:rotate(-90deg); transform-origin:0 0; white-space:nowrap; line-height:1; }
+  .specimen-a{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-size:286pt; line-height:.78; letter-spacing:-.045em; color:var(--ink); }
+  .specimen-a .italic{ font-style:italic; color:var(--accent); }
+
+  /* page 2: five by five glyph grid, one labelled fact per cell */
+  .grid{ position:absolute; left:12mm; top:36mm; width:186mm; height:210mm; border-top:0.14mm solid var(--hair); border-left:0.14mm solid var(--hair); }
+  .cell{ position:absolute; width:37.2mm; height:42mm; border-right:0.14mm solid var(--hair); border-bottom:0.14mm solid var(--hair); padding:3mm; }
+  .cell .glyph{ font-family:'Instrument Serif', Georgia, serif; font-size:30pt; line-height:1; color:var(--accent); opacity:.72; }
+  .cell .k{ position:absolute; left:3mm; top:24mm; font-family:"Barlow", sans-serif; font-size:4.1pt; letter-spacing:.17em; text-transform:uppercase; color:var(--muted); }
+  .cell .v2{ position:absolute; left:3mm; top:27mm; width:31mm; font-family:"Barlow", sans-serif; font-size:5.9pt; line-height:1.32; color:var(--ink); }
+
+  /* page 3: type specimen rows */
+  .srow{ position:absolute; left:12mm; width:186mm; border-bottom:0.14mm solid var(--hair); }
+  .srow .no{ font-family:"Barlow", sans-serif; font-size:4.6pt; font-weight:600; letter-spacing:.22em; color:var(--accent); }
+  .srow .nm{ font-family:'Instrument Serif', Georgia, serif; font-size:17pt; line-height:1.03; color:var(--ink); }
+  .srow .cap{ font-family:"Barlow", sans-serif; font-size:5.1pt; line-height:1.5; color:var(--muted); margin-top:1.6mm; }
+  .srow .big{ font-family:'Instrument Serif', Georgia, serif; font-size:26pt; line-height:.9; color:var(--accent-soft); text-align:right; letter-spacing:.04em; }
+
+  /* optional brochure copy: same rule in every family */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline{ white-space:nowrap; }
+  .copy-closing{ white-space:nowrap; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+  .copy-panel{ background:rgba(10,9,8,0.55); padding:3.5mm; }
+</style>
+</head>
+<body>
+
+<!-- 01 COVER : the type specimen -->
+<div class="page cover">
+  <div class="copy copy-headline" style="left:12mm; top:155mm; width:120mm; font-family:'Instrument Serif', Georgia, serif; font-size:6.8pt; line-height:1.25; color:var(--muted);">{{noteHeadline}}</div>
+
+  <div class="sheet">
+    <img class="abs" src="../assets/grace-logo.png" style="left:12mm; top:14mm; width:11mm;">
+    <div class="abs micro" style="left:27mm; top:16mm;">Grace Wood Industry</div>
+    <div class="abs micro" style="left:27mm; top:22mm;">Type specimen sheet</div>
+
+    <div class="abs micro" style="left:126mm; top:14mm; width:72mm; text-align:right;">Catalogue {{orderNo}}</div>
+    <div class="abs micro" style="left:126mm; top:20mm; width:72mm; text-align:right;">{{date}}</div>
+
+    <div class="specimen-a" style="left:11mm; top:42mm;">A<span class="italic">a</span></div>
+
+    <div class="abs hair" style="left:12mm; top:138mm; width:107mm;"></div>
+    <div class="abs micro acc" style="left:12mm; top:150mm;">Display roman &amp; italic · 286 pt</div>
+    <div class="abs micro" style="left:78mm; top:150mm; width:41mm; text-align:right;">Specimen 01</div>
+
+    <div class="cover-title" style="left:12mm; top:166mm; width:118mm;">{{title}}</div>
+    <div class="abs micro" style="left:12mm; top:186mm;">Specimen label · four page brochure</div>
+
+    <div class="abs ph" style="left:132mm; top:160mm; width:72mm; height:82mm; background-image:url({{coverImage}});"></div>
+    <div class="abs micro" style="left:132mm; top:244mm; width:72mm;">Plate I · {{room}}</div>
+
+    <div class="abs micro" style="left:12mm; top:214mm;">Prepared for</div>
+    <div class="abs serif" style="left:12mm; top:220mm; width:110mm; font-size:11pt; line-height:1.05; color:var(--ink);">{{customerName}}</div>
+    <div class="abs micro" style="left:12mm; top:238mm;">Room</div>
+    <div class="abs sans" style="left:12mm; top:243mm; width:110mm; font-size:7pt; color:var(--ink);">{{room}}</div>
+
+    <div class="abs serif" style="left:12mm; top:258mm; width:110mm; font-size:12pt; line-height:1.1; color:var(--accent); font-style:italic;">Set, measured, proofed.</div>
+
+    <div class="abs micro" style="left:132mm; top:58mm;">Alphabet · roman</div>
+    <div class="abs serif" style="left:132mm; top:64mm; width:70mm; font-size:12pt; line-height:1.35; color:var(--ink); letter-spacing:.01em;">ABCDEFGHIJK<br>NOPQRSTUVWXYZ<br>abcdefghijklmnopqrstuvwxyz</div>
+    <div class="abs micro" style="left:132mm; top:112mm;">Figures &amp; glyphs · italic</div>
+    <div class="abs serif" style="left:132mm; top:118mm; width:70mm; font-size:12pt; line-height:1.35; color:var(--accent); font-style:italic;">0123456789 &amp; ? !<br>Aa Bb Cc Dd Ee Ff Gg</div>
+
+    <div class="abs v micro" style="left:207mm; top:150mm;">Aa Bb Cc · Instrument Serif · Copper specimen</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:196mm; text-align:right;">01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION : the glyph grid -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">02 · Specification</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:196mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs serif" style="left:12mm; top:18mm; width:150mm; font-size:23pt; line-height:1.02; color:var(--ink); letter-spacing:-.01em;">The specification, in glyphs.</div>
+    <div class="abs micro acc" style="left:12mm; top:31mm;">Twenty five cells · one fact each</div>
+
+    <div class="grid">
+      <div class="cell" style="left:0; top:0;"><div class="glyph">A</div><div class="k">Room</div><div class="v2">{{room}}</div></div>
+      <div class="cell" style="left:37.2mm; top:0;"><div class="glyph">B</div><div class="k">Width</div><div class="v2">{{width}}</div></div>
+      <div class="cell" style="left:74.4mm; top:0;"><div class="glyph">C</div><div class="k">Height</div><div class="v2">{{height}}</div></div>
+      <div class="cell" style="left:111.6mm; top:0;"><div class="glyph">D</div><div class="k">Depth</div><div class="v2">{{depth}}</div></div>
+      <div class="cell" style="left:148.8mm; top:0;"><div class="glyph">E</div><div class="k">Shutters</div><div class="v2">{{shutters}}</div></div>
+
+      <div class="cell" style="left:0; top:42mm;"><div class="glyph">F</div><div class="k">Carcass</div><div class="v2">{{carcass}}</div></div>
+      <div class="cell" style="left:37.2mm; top:42mm;"><div class="glyph">G</div><div class="k">Back panel</div><div class="v2">{{backPanel}}</div></div>
+      <div class="cell" style="left:74.4mm; top:42mm;"><div class="glyph">H</div><div class="k">Shutter material</div><div class="v2">{{shuttersMat}}</div></div>
+      <div class="cell" style="left:111.6mm; top:42mm;"><div class="glyph">I</div><div class="k">Drawers</div><div class="v2">{{drawers}}</div></div>
+      <div class="cell" style="left:148.8mm; top:42mm;"><div class="glyph">J</div><div class="k">Exterior</div><div class="v2">{{exterior}}</div></div>
+
+      <div class="cell" style="left:0; top:84mm;"><div class="glyph">K</div><div class="k">Interior</div><div class="v2">{{interior}}</div></div>
+      <div class="cell" style="left:37.2mm; top:84mm;"><div class="glyph">L</div><div class="k">Hinges</div><div class="v2">{{hinges}}</div></div>
+      <div class="cell" style="left:74.4mm; top:84mm;"><div class="glyph">M</div><div class="k">Channels</div><div class="v2">{{channels}}</div></div>
+      <div class="cell" style="left:111.6mm; top:84mm;"><div class="glyph">N</div><div class="k">Layout · left</div><div class="v2">{{layoutLeft}}</div></div>
+      <div class="cell" style="left:148.8mm; top:84mm;"><div class="glyph">O</div><div class="k">Layout · middle</div><div class="v2">{{layoutMiddle}}</div></div>
+
+      <div class="cell" style="left:0; top:126mm;"><div class="glyph">P</div><div class="k">Layout · right</div><div class="v2">{{layoutRight}}</div></div>
+      <div class="cell" style="left:37.2mm; top:126mm;"><div class="glyph">Q</div><div class="k">Shutter edge</div><div class="v2">{{edgeShutter}}</div></div>
+      <div class="cell" style="left:74.4mm; top:126mm;"><div class="glyph">R</div><div class="k">Carcass edge</div><div class="v2">{{edgeCarcass}}</div></div>
+      <div class="cell" style="left:111.6mm; top:126mm;"><div class="glyph">S</div><div class="k">Edge note</div><div class="v2">{{edgeNote}}</div></div>
+      <div class="cell" style="left:148.8mm; top:126mm;"><div class="glyph">T</div><div class="k">Handle</div><div class="v2">{{handle}}</div></div>
+
+      <div class="cell" style="left:0; top:168mm;"><div class="glyph">U</div><div class="k">Handle note</div><div class="v2">{{handleNote}}</div></div>
+      <div class="cell" style="left:37.2mm; top:168mm;"><div class="glyph">V</div><div class="k">Exterior finish</div><div class="v2">{{finishExt}}</div></div>
+      <div class="cell" style="left:74.4mm; top:168mm;"><div class="glyph">W</div><div class="k">Interior finish</div><div class="v2">{{finishInt}}</div></div>
+      <div class="cell" style="left:111.6mm; top:168mm;"><div class="glyph">X</div><div class="k">Prepared for</div><div class="v2">{{customerName}}</div></div>
+      <div class="cell" style="left:148.8mm; top:168mm;"><div class="glyph">Y</div><div class="k">Order</div><div class="v2">{{orderNo}}</div></div>
+    </div>
+
+    <div class="abs v micro" style="left:202mm; top:270mm;">A—Y · twenty five cells · Instrument Serif &amp; Barlow</div>
+
+    <div class="abs hair" style="left:12mm; top:252mm; width:186mm;"></div>
+    <div class="abs micro" style="left:12mm; top:258mm;">Glyph grid · A to Y</div>
+    <div class="abs micro" style="left:12mm; top:258mm; width:186mm; text-align:right;">Set in Instrument Serif, 30 pt · Barlow, 5.9 pt</div>
+    <div class="abs serif" style="left:12mm; top:266mm; width:186mm; font-size:10pt; line-height:1.15; color:var(--accent); font-style:italic;">Every fact finds its cell.</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm;">Every fact set as a glyph · {{orderNo}}</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:196mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES : four type quantity rows -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">03 · Finishes</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:196mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs serif" style="left:12mm; top:18mm; width:150mm; font-size:23pt; line-height:1.02; color:var(--ink); letter-spacing:-.01em;">Four samples, set in type.</div>
+    <div class="abs micro acc" style="left:12mm; top:31mm;">One square, one name, one caption</div>
+
+    <div class="srow" style="top:40mm;">
+      <div class="abs ph" style="left:12mm; top:4mm; width:32mm; height:32mm; background-image:url({{mat1Image}});"></div>
+      <div class="abs no" style="left:50mm; top:5mm;">01</div>
+      <div class="abs nm" style="left:50mm; top:9mm; width:80mm;">{{mat1Name}}</div>
+      <div class="abs cap" style="left:50mm; top:20mm; width:100mm;">Laminate sample · shown at one to one, cut for the shutter face.</div>
+      <div class="abs big" style="left:160mm; top:1mm; width:34mm;">01</div>
+    </div>
+
+    <div class="srow" style="top:80mm;">
+      <div class="abs ph" style="left:12mm; top:4mm; width:32mm; height:32mm; background-image:url({{mat2Image}});"></div>
+      <div class="abs no" style="left:50mm; top:5mm;">02</div>
+      <div class="abs nm" style="left:50mm; top:9mm; width:80mm;">{{mat2Name}}</div>
+      <div class="abs cap" style="left:50mm; top:20mm; width:100mm;">Laminate sample · matched to the interior carcass and shelf line.</div>
+      <div class="abs big" style="left:160mm; top:1mm; width:34mm;">02</div>
+    </div>
+
+    <div class="srow" style="top:120mm;">
+      <div class="abs ph" style="left:12mm; top:4mm; width:32mm; height:32mm; background-image:url({{mat3Image}});"></div>
+      <div class="abs no" style="left:50mm; top:5mm;">03</div>
+      <div class="abs nm" style="left:50mm; top:9mm; width:80mm;">{{mat3Name}}</div>
+      <div class="abs cap" style="left:50mm; top:20mm; width:100mm;">Laminate sample · the neutral ground for handles and edge bands.</div>
+      <div class="abs big" style="left:160mm; top:1mm; width:34mm;">03</div>
+    </div>
+
+    <div class="srow" style="top:160mm;">
+      <div class="abs ph" style="left:12mm; top:4mm; width:32mm; height:32mm; background-image:url({{mat4Image}});"></div>
+      <div class="abs no" style="left:50mm; top:5mm;">04</div>
+      <div class="abs nm" style="left:50mm; top:9mm; width:80mm;">{{mat4Name}}</div>
+      <div class="abs cap" style="left:50mm; top:20mm; width:100mm;">Edge band sample · the fine dark line around every panel.</div>
+      <div class="abs big" style="left:160mm; top:1mm; width:34mm;">04</div>
+    </div>
+
+    <div class="abs ph" style="left:12mm; top:202mm; width:120mm; height:44mm; background-image:url({{detailImage}});"></div>
+    <div class="abs micro" style="left:12mm; top:248mm; width:120mm;">Detail plate · handle profile</div>
+
+    <div class="abs" style="left:140mm; top:202mm; width:60mm;">
+      <div class="micro acc">Exterior finish</div>
+      <div class="sans" style="margin-top:2mm; font-size:6.2pt; line-height:1.4; color:var(--ink);">{{finishExt}}</div>
+      <div class="micro acc" style="margin-top:7mm;">Interior finish</div>
+      <div class="sans" style="margin-top:2mm; font-size:6.2pt; line-height:1.4; color:var(--ink);">{{finishInt}}</div>
+    </div>
+
+    <div class="abs serif" style="left:12mm; top:262mm; width:120mm; font-size:13pt; line-height:1.1; color:var(--accent); font-style:italic;">Twelve point caption, one square.</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm;">Shades confirmed against physical samples</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:196mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE : proof sheet with specimen paragraphs -->
+<div class="page">
+  <div class="copy copy-body" style="left:12mm; top:190mm; width:100mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:5.4pt; line-height:1.65; color:var(--ink);">{{noteBody}}</div>
+  <div class="copy copy-closing" style="left:12mm; top:234mm; width:120mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:6.4pt; line-height:1.3; color:var(--muted);">{{noteClosing}}</div>
+
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">04 · Inside</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:196mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs serif" style="left:12mm; top:18mm; width:150mm; font-size:23pt; line-height:1.02; color:var(--ink); letter-spacing:-.01em;">The proof sheet.</div>
+    <div class="abs micro acc" style="left:12mm; top:31mm;">Two plates · set, proofed, signed</div>
+
+    <div class="abs ph" style="left:12mm; top:42mm; width:120mm; height:86mm; background-image:url({{insideImage}});"></div>
+    <div class="abs micro" style="left:12mm; top:130mm; width:120mm;">Plate I · interior elevation · {{room}}</div>
+
+    <div class="abs ph" style="left:140mm; top:42mm; width:64mm; height:86mm; background-image:url({{insideImage2}});"></div>
+    <div class="abs micro" style="left:140mm; top:130mm; width:64mm; line-height:1.7;">Plate II · shutter face</div>
+
+    <div class="abs serif" style="left:12mm; top:146mm; width:186mm; font-size:21pt; line-height:1.05; color:var(--ink); letter-spacing:-.01em;">Every letter, every measure, proofed.</div>
+    <div class="abs hair" style="left:12mm; top:182mm; width:186mm;"></div>
+    <div class="abs micro" style="left:12mm; top:184mm;">Specimen paragraphs · prepared for {{customerName}}</div>
+    <div class="abs" style="left:124mm; top:190mm; width:74mm;">
+      <div class="micro acc">Type notes</div>
+      <div class="sans" style="margin-top:2mm; font-size:5.6pt; line-height:1.6; color:var(--muted);">Body copy set in Barlow at 5.4 pt on a 1.65 line. Captions and labels set in Barlow small caps. Display lines set in Instrument Serif at 21 pt, tracked tight. The four samples are proofed against the physical set before the sheet is signed.</div>
+    </div>
+
+    <div class="abs hair" style="left:12mm; top:250mm; width:186mm;"></div>
+    <div class="abs micro" style="left:12mm; top:256mm;">Signed proof</div>
+    <div class="abs name" style="left:120mm; top:255mm; width:78mm; text-align:right; font-size:7pt; color:var(--ink);">{{customerName}}</div>
+    <div class="abs sans" style="left:12mm; top:264mm; width:186mm; font-size:6.2pt; line-height:1.35; color:var(--muted);">Measured in {{room}} · carcass {{carcass}} · interior {{interior}}</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm; width:80mm;">{{shopLine}}</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:196mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

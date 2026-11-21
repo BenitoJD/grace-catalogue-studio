@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.27em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.acc{ color:var(--accent); }
+  .micro.ink{ color:var(--ink); }
+  .hair{ height:0.14mm; background:var(--hair); }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.012em; color:var(--ink); }
+
+  /* contour lines: repeating radial gradients and nested ellipses */
+  .topo{ position:absolute; background-image:repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 6.5mm, var(--hair) 6.5mm, var(--hair) 6.72mm); opacity:.7; }
+  .topo.acc{ background-image:repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 11mm, var(--accent-soft) 11mm, var(--accent-soft) 11.3mm); opacity:.7; }
+  .ring{ position:absolute; border:0.18mm solid var(--hair); border-radius:50%; transform:rotate(9deg); }
+  .ring.acc{ border-color:var(--accent-soft); }
+
+  /* compass rose, drawn only with borders and hairlines */
+  .rose{ position:absolute; width:26mm; height:26mm; border:0.2mm solid var(--accent); border-radius:50%; }
+  .rose .n{ position:absolute; left:11mm; top:1.4mm; width:0; height:0; border-left:2mm solid transparent; border-right:2mm solid transparent; border-bottom:9mm solid var(--accent); }
+  .rose .s{ position:absolute; left:11mm; top:15.4mm; width:0; height:0; border-left:2mm solid transparent; border-right:2mm solid transparent; border-top:9mm solid var(--accent-soft); }
+  .rose .e{ position:absolute; left:15.6mm; top:11mm; width:0; height:0; border-top:2mm solid transparent; border-bottom:2mm solid transparent; border-left:8.8mm solid var(--accent-soft); }
+  .rose .w{ position:absolute; left:1.6mm; top:11mm; width:0; height:0; border-top:2mm solid transparent; border-bottom:2mm solid transparent; border-right:8.8mm solid var(--accent-soft); }
+  .rose .x{ position:absolute; left:0; top:12.85mm; width:26mm; height:0.14mm; background:var(--accent); }
+  .rose .y{ position:absolute; left:12.9mm; top:0; width:0.14mm; height:26mm; background:var(--accent); }
+  .rose .nl{ position:absolute; left:0; top:-5.4mm; width:26mm; text-align:center; font-family:"Barlow", sans-serif; font-size:5pt; font-weight:600; letter-spacing:.2em; color:var(--accent); }
+
+  /* map frame with corner ticks */
+  .mapframe{ position:absolute; border:0.22mm solid var(--accent); }
+  .tick{ position:absolute; background:var(--accent); }
+
+  /* page 2: legend rows with map symbols */
+  .lrow{ position:absolute; width:88mm; height:12.4mm; border-bottom:0.12mm solid var(--hair); }
+  .lrow .sym{ position:absolute; left:0; top:3.4mm; width:3.4mm; height:3.4mm; }
+  .lrow .k{ position:absolute; left:7.4mm; top:2.6mm; width:32mm; font-family:"Barlow", sans-serif; font-size:4.2pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+  .lrow .v2{ position:absolute; left:7.4mm; top:5.4mm; width:78mm; font-family:"Barlow", sans-serif; font-size:5.9pt; line-height:1.2; color:var(--ink); }
+  .sym.c{ border:0.3mm solid var(--accent); border-radius:50%; }
+  .sym.s{ border:0.3mm solid var(--accent); }
+  .sym.d{ border:0.3mm solid var(--accent); transform:rotate(45deg); }
+  .sym.r{ border:0.3mm solid var(--accent); border-radius:50%; background:var(--accent-soft); }
+  .sym.t{ width:0; height:0; border-left:1.7mm solid transparent; border-right:1.7mm solid transparent; border-bottom:3mm solid var(--accent); }
+  .sym.x{ background-image:linear-gradient(45deg, transparent 46%, var(--accent) 46%, var(--accent) 54%, transparent 54%), linear-gradient(-45deg, transparent 46%, var(--accent) 46%, var(--accent) 54%, transparent 54%); }
+  .sym.l{ background:var(--accent); height:0.3mm !important; top:5mm !important; }
+
+  /* page 2 scale bar */
+  .scalebar{ position:absolute; height:3mm; background:var(--paper); border:0.2mm solid var(--ink); }
+  .scalebar .fill{ position:absolute; top:0; height:100%; background:var(--accent); }
+  .scaletick{ position:absolute; width:0.16mm; height:3mm; background:var(--ink); }
+
+  /* page 4 elevation trace */
+  .elev{ position:absolute; background:var(--accent); width:0.4mm; }
+
+  /* optional brochure copy: same rule in every family */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline{ white-space:nowrap; }
+  .copy-closing{ white-space:nowrap; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+  .copy-panel{ background:rgba(10,9,8,0.55); padding:3.5mm; }
+</style>
+</head>
+<body>
+
+<!-- 01 COVER : survey sheet -->
+<div class="page cover">
+  <div class="topo" style="left:-40mm; top:60mm; width:190mm; height:190mm;"></div>
+  <div class="topo" style="left:110mm; top:-30mm; width:170mm; height:170mm;"></div>
+  <div class="topo acc" style="left:60mm; top:190mm; width:170mm; height:170mm;"></div>
+  <div class="ring" style="left:120mm; top:52mm; width:88mm; height:64mm;"></div>
+  <div class="ring" style="left:130mm; top:60mm; width:68mm; height:48mm;"></div>
+  <div class="ring acc" style="left:138mm; top:67mm; width:52mm; height:34mm;"></div>
+
+  <div class="copy copy-headline" style="left:14mm; top:68mm; width:120mm; font-family:'Instrument Serif', Georgia, serif; font-size:7pt; line-height:1.25; color:var(--muted);">{{noteHeadline}}</div>
+
+  <div class="sheet">
+    <div class="abs micro" style="left:14mm; top:12mm;">Grace Wood Industry · Survey sheet</div>
+    <div class="abs micro" style="left:14mm; top:12mm; width:182mm; text-align:right;">Sheet 01 · {{orderNo}}</div>
+
+    <div class="abs" style="left:12mm; top:24mm; width:140mm; height:42mm; background:var(--cover-paper);"></div>
+    <div class="cover-title" style="left:14mm; top:28mm; width:136mm;">{{title}}</div>
+    <div class="abs micro acc" style="left:14mm; top:60mm;">Map sheet 01 · wardrobe survey</div>
+
+    <div class="rose" style="left:168mm; top:24mm;">
+      <div class="n"></div><div class="s"></div><div class="e"></div><div class="w"></div>
+      <div class="x"></div><div class="y"></div><div class="nl">N</div>
+    </div>
+
+    <div class="mapframe" style="left:112mm; top:96mm; width:82mm; height:104mm;"></div>
+    <div class="abs ph" style="left:114mm; top:98mm; width:78mm; height:100mm; background-image:url({{coverImage}});"></div>
+    <div class="tick" style="left:108mm; top:94mm; width:8mm; height:0.2mm;"></div>
+    <div class="tick" style="left:108mm; top:94mm; width:0.2mm; height:8mm;"></div>
+    <div class="abs micro" style="left:112mm; top:203mm; width:82mm;">Plate 01 · survey photograph</div>
+    <div class="abs micro" style="left:112mm; top:209mm; width:82mm;">{{room}} · looking east</div>
+
+    <div class="abs" style="left:14mm; top:96mm; width:88mm; border:0.2mm solid var(--hair); background:var(--cover-paper); padding:4mm 4mm 3mm 4mm;">
+      <div class="micro acc">Legend</div>
+      <div class="micro" style="margin-top:3mm;">Room</div>
+      <div class="serif" style="font-size:12pt; line-height:1.05; color:var(--ink); margin-top:1.2mm;">{{room}}</div>
+      <div class="micro" style="margin-top:3.4mm;">Prepared for</div>
+      <div class="sans" style="font-size:6.6pt; line-height:1.3; color:var(--ink); margin-top:1.2mm;">{{customerName}}</div>
+      <div class="micro" style="margin-top:3.4mm;">Order</div>
+      <div class="sans" style="font-size:6.6pt; line-height:1.3; color:var(--ink); margin-top:1.2mm;">{{orderNo}}</div>
+      <div class="micro" style="margin-top:3.4mm;">Date</div>
+      <div class="sans" style="font-size:6.6pt; line-height:1.3; color:var(--ink); margin-top:1.2mm;">{{date}}</div>
+      <div class="hair" style="margin-top:4mm;"></div>
+      <div class="micro" style="margin-top:2.6mm; line-height:1.9;">Scale 1 : 20 · sheet 01 / 04<br>Surveyed in Nagercoil</div>
+    </div>
+
+    <div class="abs" style="left:14mm; top:170mm; width:88mm; background:var(--cover-paper); padding:2.5mm 0;">
+      <div class="micro acc">Survey marks</div>
+      <div style="margin-top:2.4mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:5.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); line-height:2.1;">
+        <span style="color:var(--accent);">○</span> existing wall<br>
+        <span style="color:var(--accent);">△</span> window opening<br>
+        <span style="color:var(--accent);">×</span> door reveal<br>
+        <span style="color:var(--accent);">—</span> datum, finished floor
+      </div>
+    </div>
+
+    <div class="abs hair" style="left:14mm; top:226mm; width:182mm;"></div>
+    <div class="abs micro" style="left:14mm; top:232mm;">Contour survey · four plates</div>
+    <div class="abs micro" style="left:14mm; top:232mm; width:182mm; text-align:right;">{{width}} run · {{depth}} deep</div>
+    <div class="abs serif" style="left:14mm; top:244mm; width:182mm; font-size:15pt; line-height:1.1; color:var(--ink); font-style:italic;">The wardrobe, mapped at full size.</div>
+
+    <div class="abs micro" style="left:14mm; top:284mm;">Chettikulam · Nagercoil</div>
+    <div class="abs micro" style="left:14mm; top:284mm; width:182mm; text-align:right;">01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION : the map legend, with a scale bar -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">02 · Specification</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:188mm; text-align:right;">Sheet 02 · {{orderNo}}</div>
+    <div class="abs serif" style="left:12mm; top:18mm; width:150mm; font-size:26pt; line-height:1.02; color:var(--ink); letter-spacing:-.01em;">The legend.</div>
+    <div class="abs micro acc" style="left:12mm; top:34mm;">Twenty five entries · one symbol each</div>
+
+    <div class="abs micro ink" style="left:12mm; top:52mm;">Entry</div>
+    <div class="abs micro ink" style="left:12mm; top:52mm; width:88mm; text-align:right;">Detail</div>
+    <div class="abs micro ink" style="left:112mm; top:52mm;">Entry</div>
+    <div class="abs micro ink" style="left:112mm; top:52mm; width:88mm; text-align:right;">Detail</div>
+    <div class="abs hair" style="left:12mm; top:56mm; width:88mm;"></div>
+    <div class="abs hair" style="left:112mm; top:56mm; width:88mm;"></div>
+
+    <div class="lrow" style="left:12mm; top:58mm;"><div class="sym c"></div><div class="k">Room</div><div class="v2">{{room}}</div></div>
+    <div class="lrow" style="left:12mm; top:70.4mm;"><div class="sym s"></div><div class="k">Width</div><div class="v2">{{width}}</div></div>
+    <div class="lrow" style="left:12mm; top:82.8mm;"><div class="sym d"></div><div class="k">Height</div><div class="v2">{{height}}</div></div>
+    <div class="lrow" style="left:12mm; top:95.2mm;"><div class="sym r"></div><div class="k">Depth</div><div class="v2">{{depth}}</div></div>
+    <div class="lrow" style="left:12mm; top:107.6mm;"><div class="sym t"></div><div class="k">Shutters</div><div class="v2">{{shutters}}</div></div>
+    <div class="lrow" style="left:12mm; top:120mm;"><div class="sym x"></div><div class="k">Carcass</div><div class="v2">{{carcass}}</div></div>
+    <div class="lrow" style="left:12mm; top:132.4mm;"><div class="sym l"></div><div class="k">Back panel</div><div class="v2">{{backPanel}}</div></div>
+    <div class="lrow" style="left:12mm; top:144.8mm; border-bottom:none;"><div class="sym c"></div><div class="k">Shutter material</div><div class="v2">{{shuttersMat}}</div></div>
+    <div class="lrow" style="left:12mm; top:157.2mm;"><div class="sym s"></div><div class="k">Drawers</div><div class="v2">{{drawers}}</div></div>
+    <div class="lrow" style="left:12mm; top:169.6mm;"><div class="sym d"></div><div class="k">Exterior</div><div class="v2">{{exterior}}</div></div>
+    <div class="lrow" style="left:12mm; top:182mm;"><div class="sym r"></div><div class="k">Interior</div><div class="v2">{{interior}}</div></div>
+    <div class="lrow" style="left:12mm; top:194.4mm;"><div class="sym t"></div><div class="k">Hinges</div><div class="v2">{{hinges}}</div></div>
+    <div class="lrow" style="left:12mm; top:206.8mm;"><div class="sym x"></div><div class="k">Channels</div><div class="v2">{{channels}}</div></div>
+
+    <div class="lrow" style="left:112mm; top:58mm;"><div class="sym l"></div><div class="k">Layout · left</div><div class="v2">{{layoutLeft}}</div></div>
+    <div class="lrow" style="left:112mm; top:70.4mm;"><div class="sym c"></div><div class="k">Layout · middle</div><div class="v2">{{layoutMiddle}}</div></div>
+    <div class="lrow" style="left:112mm; top:82.8mm;"><div class="sym s"></div><div class="k">Layout · right</div><div class="v2">{{layoutRight}}</div></div>
+    <div class="lrow" style="left:112mm; top:95.2mm;"><div class="sym d"></div><div class="k">Shutter edge</div><div class="v2">{{edgeShutter}}</div></div>
+    <div class="lrow" style="left:112mm; top:107.6mm;"><div class="sym r"></div><div class="k">Carcass edge</div><div class="v2">{{edgeCarcass}}</div></div>
+    <div class="lrow" style="left:112mm; top:120mm;"><div class="sym t"></div><div class="k">Edge note</div><div class="v2">{{edgeNote}}</div></div>
+    <div class="lrow" style="left:112mm; top:132.4mm;"><div class="sym x"></div><div class="k">Handle</div><div class="v2">{{handle}}</div></div>
+    <div class="lrow" style="left:112mm; top:144.8mm;"><div class="sym l"></div><div class="k">Handle note</div><div class="v2">{{handleNote}}</div></div>
+    <div class="lrow" style="left:112mm; top:157.2mm;"><div class="sym c"></div><div class="k">Exterior finish</div><div class="v2">{{finishExt}}</div></div>
+    <div class="lrow" style="left:112mm; top:169.6mm;"><div class="sym s"></div><div class="k">Interior finish</div><div class="v2">{{finishInt}}</div></div>
+    <div class="lrow" style="left:112mm; top:182mm;"><div class="sym d"></div><div class="k">Prepared for</div><div class="v2">{{customerName}}</div></div>
+    <div class="lrow" style="left:112mm; top:194.4mm; border-bottom:none;"><div class="sym r"></div><div class="k">Order</div><div class="v2">{{orderNo}}</div></div>
+
+    <div class="abs micro acc" style="left:12mm; top:228mm;">Scale bar · 1 : 20</div>
+    <div class="scalebar" style="left:12mm; top:234mm; width:120mm;">
+      <div class="fill" style="left:0; width:20mm;"></div>
+      <div class="fill" style="left:40mm; width:20mm;"></div>
+      <div class="fill" style="left:80mm; width:20mm;"></div>
+      <div class="scaletick" style="left:20mm;"></div>
+      <div class="scaletick" style="left:40mm;"></div>
+      <div class="scaletick" style="left:60mm;"></div>
+      <div class="scaletick" style="left:80mm;"></div>
+      <div class="scaletick" style="left:100mm;"></div>
+    </div>
+    <div class="abs micro" style="left:12mm; top:239mm;">0</div>
+    <div class="abs micro" style="left:50mm; top:239mm;">600</div>
+    <div class="abs micro" style="left:90mm; top:239mm;">1200</div>
+    <div class="abs micro" style="left:124mm; top:239mm;">1800 mm</div>
+
+    <div class="abs" style="left:140mm; top:228mm; width:60mm;">
+      <div class="micro">North</div>
+      <div class="sans" style="margin-top:1.6mm; font-size:5.8pt; line-height:1.45; color:var(--muted);">All symbols refer to the wardrobe elevation on the inside sheet. Heights are taken at the wall, not at the door face.</div>
+    </div>
+
+    <div class="abs hair" style="left:12mm; top:258mm; width:188mm;"></div>
+    <div class="abs micro" style="left:12mm; top:264mm;">Grid A1–D4 · all dimensions at finished size</div>
+    <div class="abs micro" style="left:12mm; top:264mm; width:188mm; text-align:right;">Checked against site</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:188mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES : four terrain swatches with map-key labels -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">03 · Finishes</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:186mm; text-align:right;">Sheet 03 · {{orderNo}}</div>
+    <div class="abs serif" style="left:12mm; top:18mm; width:150mm; font-size:26pt; line-height:1.02; color:var(--ink); letter-spacing:-.01em;">Terrain key.</div>
+    <div class="abs micro acc" style="left:12mm; top:34mm;">Four surfaces · keyed to the plan</div>
+
+    <div class="mapframe" style="left:12mm; top:48mm; width:88mm; height:52mm;"></div>
+    <div class="abs ph" style="left:13.6mm; top:49.6mm; width:84.8mm; height:48.8mm; background-image:url({{mat1Image}});"></div>
+    <div class="mapframe" style="left:110mm; top:48mm; width:88mm; height:52mm;"></div>
+    <div class="abs ph" style="left:111.6mm; top:49.6mm; width:84.8mm; height:48.8mm; background-image:url({{mat2Image}});"></div>
+    <div class="mapframe" style="left:12mm; top:112mm; width:88mm; height:52mm;"></div>
+    <div class="abs ph" style="left:13.6mm; top:113.6mm; width:84.8mm; height:48.8mm; background-image:url({{mat3Image}});"></div>
+    <div class="mapframe" style="left:110mm; top:112mm; width:88mm; height:52mm;"></div>
+    <div class="abs ph" style="left:111.6mm; top:113.6mm; width:84.8mm; height:48.8mm; background-image:url({{mat4Image}});"></div>
+
+    <div class="abs serif" style="left:12mm; top:103mm; width:80mm; font-size:10pt; line-height:1.05; color:var(--ink);">Key 01 · {{mat1Name}}</div>
+    <div class="abs micro" style="left:12mm; top:108mm; width:84mm;">Laminate · elevation 01</div>
+    <div class="abs serif" style="left:110mm; top:103mm; width:80mm; font-size:10pt; line-height:1.05; color:var(--ink);">Key 02 · {{mat2Name}}</div>
+    <div class="abs micro" style="left:110mm; top:108mm; width:84mm;">Laminate · elevation 02</div>
+    <div class="abs serif" style="left:12mm; top:167mm; width:80mm; font-size:10pt; line-height:1.05; color:var(--ink);">Key 03 · {{mat3Name}}</div>
+    <div class="abs micro" style="left:12mm; top:172mm; width:84mm;">Laminate · elevation 03</div>
+    <div class="abs serif" style="left:110mm; top:167mm; width:80mm; font-size:10pt; line-height:1.05; color:var(--ink);">Key 04 · {{mat4Name}}</div>
+    <div class="abs micro" style="left:110mm; top:172mm; width:84mm;">Edge band · elevation 04</div>
+
+    <div class="mapframe" style="left:12mm; top:192mm; width:112mm; height:50mm;"></div>
+    <div class="abs ph" style="left:13.6mm; top:193.6mm; width:108.8mm; height:46.8mm; background-image:url({{detailImage}});"></div>
+    <div class="abs micro" style="left:12mm; top:245mm; width:112mm;">Map detail · handle profile at the seam</div>
+
+    <div class="abs" style="left:134mm; top:192mm; width:64mm;">
+      <div class="micro acc">Exterior finish</div>
+      <div class="sans" style="margin-top:2mm; font-size:6.2pt; line-height:1.4; color:var(--ink);">{{finishExt}}</div>
+      <div class="micro acc" style="margin-top:8mm;">Interior finish</div>
+      <div class="sans" style="margin-top:2mm; font-size:6.2pt; line-height:1.4; color:var(--ink);">{{finishInt}}</div>
+    </div>
+
+    <div class="abs serif" style="left:12mm; top:262mm; width:182mm; font-size:12pt; line-height:1.15; color:var(--accent); font-style:italic;">Samples keyed to the sheet, checked in daylight.</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm;">Shades confirmed against physical samples</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:186mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE : map detail, landmarks and an elevation trace -->
+<div class="page">
+  <div class="copy copy-body" style="left:12mm; top:216mm; width:120mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:5.4pt; line-height:1.6; color:var(--ink);">{{noteBody}}</div>
+  <div class="copy copy-closing" style="left:12mm; top:254mm; width:120mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:6.4pt; line-height:1.3; color:var(--muted);">{{noteClosing}}</div>
+
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">04 · Inside</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:186mm; text-align:right;">Sheet 04 · {{orderNo}}</div>
+
+    <div class="mapframe" style="left:12mm; top:38mm; width:122mm; height:84mm;"></div>
+    <div class="abs ph" style="left:13.6mm; top:39.6mm; width:118.8mm; height:80.8mm; background-image:url({{insideImage}});"></div>
+    <div class="tick" style="left:8mm; top:36mm; width:8mm; height:0.2mm;"></div>
+    <div class="tick" style="left:8mm; top:36mm; width:0.2mm; height:8mm;"></div>
+    <div class="abs micro" style="left:12mm; top:124mm; width:122mm;">Landmark 01 · interior elevation · {{room}}</div>
+
+    <div class="mapframe" style="left:140mm; top:38mm; width:58mm; height:62mm;"></div>
+    <div class="abs ph" style="left:141.6mm; top:39.6mm; width:54.8mm; height:58.8mm; background-image:url({{insideImage2}});"></div>
+    <div class="abs micro" style="left:140mm; top:102mm; width:58mm; line-height:1.7;">Landmark 02 · shutter face</div>
+
+    <div class="abs micro" style="left:140mm; top:114mm;">Benchmark</div>
+    <div class="abs" style="left:140mm; top:119mm; width:58mm; border:0.2mm solid var(--hair); padding:2.6mm;">
+      <div class="micro" style="line-height:1.8;">Datum · finished floor<br>Run · {{width}}<br>Depth · {{depth}}</div>
+    </div>
+
+    <div class="abs serif" style="left:12mm; top:136mm; width:120mm; font-size:20pt; line-height:1.05; color:var(--ink); letter-spacing:-.01em;">The plan, held<br>to the floor.</div>
+    <div class="abs hair" style="left:12mm; top:170mm; width:186mm;"></div>
+    <div class="abs micro" style="left:12mm; top:176mm;">Elevation trace · 2,400 mm run · datum 0</div>
+    <div class="abs micro" style="left:12mm; top:176mm; width:186mm; text-align:right;">Vertical scale 1 : 20</div>
+
+    <div class="elev" style="left:20mm; top:182mm; height:24mm;"></div>
+    <div class="elev" style="left:34mm; top:178mm; height:28mm;"></div>
+    <div class="elev" style="left:48mm; top:182mm; height:24mm;"></div>
+    <div class="elev" style="left:62mm; top:174mm; height:32mm;"></div>
+    <div class="elev" style="left:76mm; top:180mm; height:26mm;"></div>
+    <div class="elev" style="left:96mm; top:177mm; height:29mm;"></div>
+    <div class="elev" style="left:110mm; top:183mm; height:23mm;"></div>
+    <div class="elev" style="left:128mm; top:175mm; height:31mm;"></div>
+    <div class="elev" style="left:148mm; top:181mm; height:25mm;"></div>
+    <div class="elev" style="left:168mm; top:178mm; height:28mm;"></div>
+    <div class="elev" style="left:186mm; top:182mm; height:24mm;"></div>
+    <div class="abs" style="left:12mm; top:206mm; width:186mm; height:0.16mm; background:var(--ink);"></div>
+    <div class="abs micro" style="left:12mm; top:209mm;">0</div>
+    <div class="abs micro" style="left:100mm; top:209mm;">1200</div>
+    <div class="abs micro" style="left:180mm; top:209mm;">2400 mm</div>
+
+    <div class="abs" style="left:140mm; top:212mm; width:58mm;">
+      <div class="micro acc">Survey notes</div>
+      <div class="sans" style="margin-top:2mm; font-size:5.6pt; line-height:1.55; color:var(--muted);">The profile follows the finished ceiling line. Both landmarks are the same interior, square on and from the door reveal.</div>
+    </div>
+
+    <div class="abs micro" style="left:12mm; top:266mm;">Signed</div>
+    <div class="abs name" style="left:38mm; top:265mm; width:70mm; font-size:7pt; color:var(--ink);">{{customerName}}</div>
+    <div class="abs sans" style="left:112mm; top:266mm; width:86mm; text-align:right; font-size:6pt; color:var(--muted);">Survey sheet · {{orderNo}}</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm; width:80mm;">{{shopLine}}</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:186mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

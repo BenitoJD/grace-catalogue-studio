@@ -194,24 +194,46 @@ npm run lint
 
 ![All designs](docs/screenshots/all-designs.png)
 
-Thirty designs, built as **ten complete document families**, not permutations of one layout. Each family has its own cover, its own specification page, its own finishes page and its own inside page. Each family ships in three palettes, so the gallery stays at thirty.
+Thirty designs, and every one is a **different document**, not a recolor. Each design is a complete four page family with its own cover, specification page, finishes page and inside page, in one fixed palette. The gallery refuses to show two arrangements of the same page.
 
-| Family | Cover idea | Specification page | Finishes page |
-|---|---|---|---|
-| Atelier | serif on paper, photo below | labelled tables, signature rules | four square swatches, wide detail |
-| Swiss | strict grid, side photo | numbered, two hairline columns | full width band of four |
-| Gallery | tiny centred photo, huge margins | one centred list, no rules | one large photo, small swatch row |
-| Index | photo band and contents list | three dense columns | grid over a detail photo |
-| Dark | black band, reversed type | white on black | black divider, paper swatches |
-| Blueprint | framed drawing feel | REF / ITEM / SPEC / UNIT table | annotated strips |
-| Lookbook | full bleed photograph | overlay three column spec | swatches on the photo |
-| Poster | enormous title | six ruled lines | full width material strips |
-| Card | bordered card on paper | two by three labelled boxes | bordered chips |
-| Folio | classical, centred, double rules | one long elegant list | numbered swatch list |
+| Design | What makes it different |
+|---|---|
+| Copper Atelier | Editorial paper cover, labelled specification tables, four up finish grid and a large inside photograph |
+| Ink Swiss | Grotesque grid with numbered sections, hairline key value lists and a full width swatch band |
+| Sand Gallery | Huge margins and small centred text, one photograph per page, a single centred specification column |
+| Indigo Index | Dense trade catalogue with small type, a three column specification and a coded finishes grid |
+| Ink Dark | Ink black cover and section dividers, a reversed white on black specification and light hairlines |
+| Indigo Blueprint | Technical drawing furniture, a specification table with a units column and annotated finish strips |
+| Sand Lookbook | Full bleed photography on every page, text in corners over photographs, a compressed overlay specification |
+| Olive Poster | One enormous title with almost nothing else, a six line specification and plain finish strips |
+| Copper Card | Modular bordered cards, a specification split into labelled boxes and a cover built as one card |
+| Ink Folio | Classical centred folio with small caps, thin double rules, one elegant specification list and numbered swatches |
+| Indigo Timeline | Horizontal stage rail and numbered markers, vertical four-stage specification with facts attached to cut, band, assemble and finish, perforated film-strip finishes, two stage frames joined by a drawn line |
+| Indigo Blue Paper | Knocked-out outlined title with a data plate, annotated elevation with dimension lines and numbered callouts, chips on leader lines, photo plates with registration brackets |
+| Olive Magazine | Grace Wood masthead with cover lines and issue line, two-column spread with a pull quote and small caps entries, four-frame photo essay finishes with a full width detail, drop cap article inside |
+| Sand Frame | A single matted photograph with the title as a wall label, wall-label specification panel with generous white space, four framed swatches with plaques, two framed works at different sizes inside |
+| Copper Ticket | Perforated stub with serial and tear-off counterfoil, receipt style dockets with dashed separators and totals rows, four tear-off swatch stubs, stamp circle and ticket window photographs |
+| Indigo Axonometric | Faint 30 degree grid cover with an orientation key and gridded photo plate, three ascending axonometric specification panels with numbered edges, finish blocks with visible top faces, surveyed photographs with corner coordinates |
+| Sand Swatchbook | Overlapping rounded swatch cards fanned over the cover with the title on the top card, tabbed ruled index card specification, stacked finish cards with shadows, paper photo card with a swatch strip footer |
+| Ink Broadsheet | Masthead and edition line above a huge stacked headline, photograph in a rectangular cut with a contents rail, four column classified specification with a display advert, framed finish plate, lead story with pull quote and captions |
+| Sand Redline | Annotated cover photograph with accent circles and an arrow over a revision strip, a revision log table holding every order fact with a change column, ticked and underlined samples, marked up inside photos and a sign off block |
+| Copper Collage | Three overlapping rotated frames with paper tape, title on the top photo, order number on a paper tag, facts on a rotated file card over scraps, pinned swatch chips, two collaged photos with a torn paper strip |
+| Copper Ledger | Account header cover with a received stamp and a contents ledger, double entry specification across two ruled leaves with control totals, posted swatch entries with amount columns, continuation ledger with framed photographs |
+| Olive Geometric | A huge accent circle and ink bars crossed by the grotesque title, a square index, specification rows under oversized numerals and thick accent blocks, bold swatch panels, photographs in heavy bar frames |
+| Olive Sketchbook | Graph paper, dashed annotations with leader lines, italic title, taped photograph and measurement slip, circled number specification sketches with dashed leaders and a drawn elevation, taped swatch cards, callout sketch page |
+| Copper Sleeve | Circular cut out label photograph and catalogue corner, back cover tracklist in two sides with a barcode, liner notes beside square swatch tiles, inside vinyl whose label is a photograph with text around it |
+| Ink Envelope | Folded flap, address block, accent stamp box with date and order number, photo window, letterhead specification letter with indented fact lines and signature, enclosed four window swatch card, closing letter clipped over two photographs |
+| Ink Accordion | Dotted fold creases on every page, two panel title, vertical panel headers on the specification, swatch names running up the folds, two photo panorama inside with a fold register |
+| Sand Split | Vertical paper and photo cover, reversed band above a two column specification, solid diagonal finish field, inside spread with one photograph crossing the seam |
+| Copper Specimen | Giant Aa and alphabet proof on the cover, a glyph grid holding every specification fact, type sample finish rows, proof sheet with specimen paragraphs inside |
+| Sand Contact | Film strips with punched sprocket holes, grease pencil circle, title written across a strip, camera notes specification pad, hand marked swatch strip, enlarged signed frame inside |
+| Olive Atlas | Contour fields, compass rose, legend block with order and date, symbol legend with scale bar, terrain swatch keys, inside map detail with landmarks and an elevation trace |
 
 Palettes: copper `#A65E22`, ink `#1C1A17`, olive `#5C6B3C`, indigo `#2F3E6B`, sand `#B08A63`.
 
 `GET /api/templates` lists them with preview images. A render accepts `templateId`. The app shows the gallery from the order screen under Design. Every design shares the same placeholders and the same data, so switching design never changes what the document says.
+
+Measured, not asserted: `node scripts/design-uniqueness.mjs` renders all thirty with one order and compares them as images. The closest pair of covers differs by 12 of 64 perceptual bits, the average pair by 29.5, and no pair of full documents comes close to matching. The check fails loudly if two designs become near duplicates.
 
 ## Desktop app for Windows and Mac
 

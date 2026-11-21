@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#5C6B3C;
+    --accent-on-dark:#A9B87F;
+    --accent-soft:#E8EBDD;
+    --paper:#FFFFFF;
+    --cover-paper:#F7F7F0;
+    --ink:#14100C;
+    --muted:#5F6651;
+    --faint:#969C8B;
+    --hair:#DEE2D4;
+    --on-dark:#FFFFFF;
+    --dark:#171A12;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .serif.italic{ font-style:italic; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.26em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.ink{ color:var(--ink); }
+  .micro.acc{ color:var(--accent); }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-weight:400; letter-spacing:-.01em; color:var(--ink); }
+
+  /* pencil notebook furniture */
+  .graph{ background-image:
+      repeating-linear-gradient(180deg, var(--accent-soft) 0mm, var(--accent-soft) 0.11mm, transparent 0.11mm, transparent 5mm),
+      repeating-linear-gradient(90deg, var(--accent-soft) 0mm, var(--accent-soft) 0.11mm, transparent 0.11mm, transparent 5mm),
+      repeating-linear-gradient(180deg, var(--hair) 0mm, var(--hair) 0.13mm, transparent 0.13mm, transparent 25mm),
+      repeating-linear-gradient(90deg, var(--hair) 0mm, var(--hair) 0.13mm, transparent 0.13mm, transparent 25mm);
+  }
+  .dashbox{ position:absolute; border:0.34mm dashed var(--accent); background:rgba(255,255,255,0.5); }
+  .dashbox.hair{ border:0.2mm dashed var(--faint); }
+  .dashbox .k{ position:absolute; left:2.4mm; top:1.8mm; font-family:"Barlow", sans-serif; font-size:4.1pt; letter-spacing:.2em; text-transform:uppercase; font-weight:600; color:var(--accent); }
+  .dashbox .t{ position:absolute; left:2.4mm; right:2.2mm; top:5.2mm; font-family:"Barlow", sans-serif; font-size:5.2pt; line-height:1.4; color:var(--ink); }
+  .lead{ position:absolute; height:0; border-top:0.22mm solid var(--faint); transform-origin:0 0; }
+  .lead.acc{ border-top:0.24mm solid var(--accent); opacity:.8; }
+  .lead .dot{ position:absolute; right:0; top:-0.55mm; width:1.1mm; height:1.1mm; border-radius:50%; background:var(--faint); }
+  .tape{ position:absolute; background:var(--accent-soft); opacity:.82; border-left:0.1mm solid var(--hair); border-right:0.1mm solid var(--hair); }
+  .snap{ position:absolute; background:var(--paper); border:0.14mm solid var(--faint); }
+  .snap .ph{ position:absolute; }
+  .snap .cap{ position:absolute; left:2.4mm; bottom:1.4mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:6.6pt; color:var(--muted); }
+  .hand{ font-family:'Instrument Serif', Georgia, serif; font-style:italic; color:var(--muted); }
+
+  /* spec sketches */
+  .spec-row{ position:absolute; left:14mm; width:86mm; height:10mm; }
+  .spec-row .circ{ position:absolute; left:0; top:1.5mm; width:6.2mm; height:6.2mm; border:0.3mm solid var(--accent); border-radius:50%; text-align:center; font-family:"Barlow", sans-serif; font-size:4.6pt; font-weight:600; line-height:6mm; color:var(--accent); }
+  .spec-row .k{ position:absolute; left:8.4mm; top:2.9mm; width:27mm; font-family:"Barlow", sans-serif; font-size:5.2pt; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .spec-row .lead{ left:36.6mm; top:5.5mm; width:13mm; border-top:0.24mm dashed var(--faint); }
+  .spec-row .v{ position:absolute; left:51mm; top:2.4mm; width:35mm; text-align:right; font-family:"Barlow", sans-serif; font-size:5.8pt; line-height:1.2; color:var(--ink); }
+
+  /* elevation sketch */
+  .elev{ position:absolute; border:0.34mm solid var(--ink); }
+  .elev .shut{ position:absolute; top:0; bottom:0; width:0.3mm; background:var(--ink); }
+  .elev .shelf{ position:absolute; border-top:0.2mm dashed var(--faint); }
+  .dim{ position:absolute; height:0; border-top:0.2mm solid var(--muted); }
+  .dim .tick{ position:absolute; top:-1.2mm; width:0.2mm; height:2.6mm; background:var(--muted); }
+  .dimt{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:7pt; color:var(--muted); }
+
+  /* optional brochure copy */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline{ white-space:nowrap; }
+  .copy-closing{ white-space:nowrap; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+</style>
+</head>
+<body>
+
+<!-- 01 COVER · a pencil notebook page -->
+<div class="page cover">
+  <div class="copy copy-headline" style="left:17mm; top:97mm; width:160mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:8pt; line-height:1.3; color:var(--muted);">{{noteHeadline}}</div>
+  <div class="sheet">
+    <div class="abs graph" style="left:0; top:0; width:210mm; height:297mm;"></div>
+
+    <img class="abs" src="../assets/grace-logo.png" style="left:16mm; top:12mm; width:9.5mm;">
+    <div class="abs serif italic" style="left:29mm; top:12.6mm; font-size:10pt; color:var(--ink);">Grace Wood Industry</div>
+    <div class="abs micro" style="right:16mm; top:14mm; text-align:right;">Field notebook &middot; 01 / 04</div>
+    <div class="abs hand" style="left:16mm; top:22mm; font-size:7pt;">site visit &middot; {{date}} &middot; nagercoil</div>
+
+    <div class="dashbox" style="left:14mm; top:32mm; width:66mm; height:21mm;">
+      <div class="k">Note 01</div>
+      <div class="t">Shutter face 18&nbsp;mm plywood, edged both sides. Grain to run with the pull.</div>
+    </div>
+
+    <div class="cover-title" style="left:14mm; top:58mm; width:150mm;">{{title}}</div>
+    <div class="abs blocked" style="left:16mm; top:92mm; width:122mm; height:1.6mm; background:var(--accent); opacity:.5;"></div>
+    <div class="abs hand" style="left:16mm; top:103mm; font-size:7.4pt;">measured by hand &middot; checked twice &middot; pencilled in</div>
+
+    <div class="snap" style="left:16mm; top:112mm; width:98mm; height:78mm; transform:rotate(-2deg);">
+      <div class="ph" style="left:3mm; top:3mm; width:92mm; height:64mm; background-image:url({{coverImage}});"></div>
+      <div class="cap">the master bedroom wall</div>
+      <div class="tape" style="left:-5mm; top:-2.4mm; width:22mm; height:7mm; transform:rotate(-9deg);"></div>
+      <div class="tape" style="right:-6mm; top:-2mm; width:20mm; height:6.6mm; transform:rotate(7deg);"></div>
+    </div>
+
+    <div class="dashbox" style="left:124mm; top:118mm; width:68mm; height:22mm;">
+      <div class="k">Note 02</div>
+      <div class="t">Grain runs vertical. Top rail flush; reveal 3&nbsp;mm all round.</div>
+    </div>
+    <div class="lead acc" style="left:116mm; top:124.6mm; width:8mm; transform:rotate(-30deg);"><div class="dot"></div></div>
+
+    <div class="dashbox hair" style="left:124mm; top:148mm; width:68mm; height:20mm;">
+      <div class="k">Note 03</div>
+      <div class="t">Interior in 0.8&nbsp;mm white laminate. Drawers on telescopic channels.</div>
+    </div>
+    <div class="lead" style="left:116mm; top:156.4mm; width:8mm; transform:rotate(-30deg);"><div class="dot"></div></div>
+
+    <div class="dashbox hair" style="left:16mm; top:200mm; width:176mm; height:58mm;">
+      <div class="k">Measurement slip</div>
+      <div class="abs serif italic" style="left:3mm; top:8.4mm; font-size:14pt; line-height:1; color:var(--ink);">{{customerName}}</div>
+      <div class="abs micro ink" style="left:3mm; top:17mm;">Measured for &middot; {{room}}</div>
+      <div class="abs" style="left:3mm; top:25mm; width:50mm;">
+        <div class="micro">Order no.</div>
+        <div class="sans" style="margin-top:1.4mm; font-size:6.6pt; font-weight:600; color:var(--ink);">{{orderNo}}</div>
+      </div>
+      <div class="abs" style="left:60mm; top:25mm; width:46mm;">
+        <div class="micro">Dated</div>
+        <div class="sans" style="margin-top:1.4mm; font-size:6.4pt; color:var(--ink);">{{date}}</div>
+      </div>
+      <div class="abs" style="left:3mm; top:37mm; width:50mm;">
+        <div class="micro">Room</div>
+        <div class="sans" style="margin-top:1.4mm; font-size:6.4pt; color:var(--ink);">{{room}}</div>
+      </div>
+      <div class="abs" style="left:60mm; top:37mm; width:46mm;">
+        <div class="micro">Drawn by</div>
+        <div class="sans" style="margin-top:1.4mm; font-size:6.4pt; color:var(--ink);">Grace Wood Industry</div>
+      </div>
+      <div class="abs" style="left:112mm; top:8mm; width:58mm;">
+        <div class="micro">Status</div>
+        <div class="hand" style="margin-top:1.6mm; font-size:8pt; line-height:1.25;">approved for cutting, subject to site check</div>
+        <div style="margin-top:4mm; border-top:0.22mm solid var(--ink); width:44mm;"></div>
+        <div class="micro" style="margin-top:1.4mm;">Sign &middot; account holder</div>
+      </div>
+    </div>
+
+    <div class="abs micro" style="left:16mm; top:269mm;">Trace only &middot; keep with the cutting list</div>
+    <div class="abs micro" style="right:16mm; top:282mm; text-align:right;">01 / 04</div>
+    <div class="abs micro" style="left:16mm; top:282mm;">{{shopLine}}</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION · dashed sketches -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:14mm; top:13mm;">02 &middot; Specification sketches</div>
+    <div class="abs micro" style="right:14mm; top:13mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs serif italic" style="left:14mm; top:20mm; font-size:28pt; line-height:1; color:var(--ink);">Specification</div>
+    <div class="abs hand" style="left:14mm; top:36mm; font-size:7.4pt;">every line taken off the wall with a pencil and a tape</div>
+    <div class="abs" style="left:14mm; top:42mm; width:182mm; border-top:0.3mm dashed var(--accent);"></div>
+
+    <div class="spec-row" style="left:14mm; top:50mm;"><div class="circ">01</div><div class="k">Room</div><div class="lead"></div><div class="v">{{room}}</div></div>
+    <div class="spec-row" style="left:14mm; top:60mm;"><div class="circ">02</div><div class="k">Width</div><div class="lead"></div><div class="v">{{width}}</div></div>
+    <div class="spec-row" style="left:14mm; top:70mm;"><div class="circ">03</div><div class="k">Height</div><div class="lead"></div><div class="v">{{height}}</div></div>
+    <div class="spec-row" style="left:14mm; top:80mm;"><div class="circ">04</div><div class="k">Depth</div><div class="lead"></div><div class="v">{{depth}}</div></div>
+    <div class="spec-row" style="left:14mm; top:90mm;"><div class="circ">05</div><div class="k">Shutters</div><div class="lead"></div><div class="v">{{shutters}}</div></div>
+    <div class="spec-row" style="left:14mm; top:100mm;"><div class="circ">06</div><div class="k">Carcass</div><div class="lead"></div><div class="v">{{carcass}}</div></div>
+    <div class="spec-row" style="left:14mm; top:110mm;"><div class="circ">07</div><div class="k">Back panel</div><div class="lead"></div><div class="v">{{backPanel}}</div></div>
+    <div class="spec-row" style="left:14mm; top:120mm;"><div class="circ">08</div><div class="k">Shutter material</div><div class="lead"></div><div class="v">{{shuttersMat}}</div></div>
+    <div class="spec-row" style="left:14mm; top:130mm;"><div class="circ">09</div><div class="k">Drawers</div><div class="lead"></div><div class="v">{{drawers}}</div></div>
+    <div class="spec-row" style="left:14mm; top:140mm;"><div class="circ">10</div><div class="k">Exterior</div><div class="lead"></div><div class="v">{{exterior}}</div></div>
+    <div class="spec-row" style="left:14mm; top:150mm;"><div class="circ">11</div><div class="k">Interior</div><div class="lead"></div><div class="v">{{interior}}</div></div>
+    <div class="spec-row" style="left:14mm; top:160mm;"><div class="circ">12</div><div class="k">Hinges</div><div class="lead"></div><div class="v">{{hinges}}</div></div>
+
+    <div class="spec-row" style="left:110mm; top:50mm;"><div class="circ">13</div><div class="k">Channels</div><div class="lead"></div><div class="v">{{channels}}</div></div>
+    <div class="spec-row" style="left:110mm; top:60mm;"><div class="circ">14</div><div class="k">Layout left</div><div class="lead"></div><div class="v">{{layoutLeft}}</div></div>
+    <div class="spec-row" style="left:110mm; top:70mm;"><div class="circ">15</div><div class="k">Layout middle</div><div class="lead"></div><div class="v">{{layoutMiddle}}</div></div>
+    <div class="spec-row" style="left:110mm; top:80mm;"><div class="circ">16</div><div class="k">Layout right</div><div class="lead"></div><div class="v">{{layoutRight}}</div></div>
+    <div class="spec-row" style="left:110mm; top:90mm;"><div class="circ">17</div><div class="k">{{mat4Name}}</div><div class="lead"></div><div class="v">{{edgeShutter}}</div></div>
+    <div class="spec-row" style="left:110mm; top:100mm;"><div class="circ">18</div><div class="k">Edge carcass</div><div class="lead"></div><div class="v">{{edgeCarcass}}</div></div>
+    <div class="spec-row" style="left:110mm; top:110mm;"><div class="circ">19</div><div class="k">Edge note</div><div class="lead"></div><div class="v">{{edgeNote}}</div></div>
+    <div class="spec-row" style="left:110mm; top:120mm;"><div class="circ">20</div><div class="k">Handle</div><div class="lead"></div><div class="v">{{handle}}</div></div>
+    <div class="spec-row" style="left:110mm; top:130mm;"><div class="circ">21</div><div class="k">Handle note</div><div class="lead"></div><div class="v">{{handleNote}}</div></div>
+    <div class="spec-row" style="left:110mm; top:140mm;"><div class="circ">22</div><div class="k">Finish exterior</div><div class="lead"></div><div class="v">{{finishExt}}</div></div>
+    <div class="spec-row" style="left:110mm; top:150mm;"><div class="circ">23</div><div class="k">Finish interior</div><div class="lead"></div><div class="v">{{finishInt}}</div></div>
+    <div class="spec-row" style="left:110mm; top:160mm;"><div class="circ">24</div><div class="k">Account</div><div class="lead"></div><div class="v">{{customerName}}</div></div>
+
+    <div class="abs hand" style="left:14mm; top:178mm; font-size:7.6pt;">elevation, sketched on site &middot; scale 1:20</div>
+    <div class="elev" style="left:14mm; top:186mm; width:118mm; height:68mm;">
+      <div class="shut" style="left:38.9mm;"></div>
+      <div class="shut" style="left:77.8mm;"></div>
+      <div class="shelf" style="left:3mm; right:3mm; top:20mm;"></div>
+      <div class="shelf" style="left:3mm; right:3mm; top:40mm;"></div>
+      <div class="shelf" style="left:3mm; right:3mm; top:56mm;"></div>
+      <div style="position:absolute; left:0; right:0; top:0; height:3mm; background:var(--accent); opacity:.35;"></div>
+      <div style="position:absolute; left:0; bottom:0; right:0; height:2mm; background:var(--accent); opacity:.35;"></div>
+    </div>
+    <div class="dim" style="left:14mm; top:181mm; width:118mm;">
+      <div class="tick" style="left:0;"></div><div class="tick" style="right:0;"></div>
+    </div>
+    <div class="dimt" style="left:64mm; top:174mm;">{{width}}</div>
+    <div class="dim" style="left:136mm; top:186mm; width:0; border-top:none; border-left:0.2mm solid var(--muted); height:68mm;">
+      <div class="tick" style="top:0; left:-1.2mm; width:2.6mm; height:0.2mm;"></div>
+      <div class="tick" style="bottom:0; left:-1.2mm; width:2.6mm; height:0.2mm;"></div>
+    </div>
+    <div class="dimt" style="left:138mm; top:216mm;">{{height}}</div>
+
+    <div class="dashbox" style="left:152mm; top:186mm; width:44mm; height:32mm;">
+      <div class="k">Note 04</div>
+      <div class="t">Carcass 18&nbsp;mm BWP plywood, back panel 6&nbsp;mm, drawers 12&nbsp;mm.</div>
+    </div>
+    <div class="lead" style="left:134mm; top:205mm; width:19mm; transform:rotate(-14deg);"></div>
+
+    <div class="abs" style="left:152mm; top:230mm; width:44mm; border-top:0.2mm solid var(--muted); border-bottom:0.2mm solid var(--muted); height:5mm;">
+      <div style="position:absolute; left:0; top:0; width:11mm; height:5mm; background:var(--ink);"></div>
+      <div style="position:absolute; left:22mm; top:0; width:11mm; height:5mm; background:var(--ink);"></div>
+    </div>
+    <div class="abs micro" style="left:152mm; top:236.6mm;">Scale &middot; 0</div>
+    <div class="abs micro" style="left:184mm; top:236.6mm;">2 m</div>
+    <div class="abs hand" style="left:152mm; top:243mm; font-size:7pt;">checked against the tape</div>
+    <div class="dashbox hair" style="left:152mm; top:250mm; width:44mm; height:16mm;">
+      <div class="k">Note 05</div>
+      <div class="t">Reveal held at 3&nbsp;mm on site.</div>
+    </div>
+
+    <div class="abs" style="left:14mm; top:268mm; width:70mm; border-top:0.24mm solid var(--ink);"></div>
+    <div class="abs micro" style="left:14mm; top:271mm;">Checked on site by Grace Wood Industry</div>
+    <div class="abs name" style="left:14mm; top:261mm; font-size:7pt; color:var(--ink);">{{customerName}}</div>
+    <div class="abs" style="left:118mm; top:268mm; width:78mm; border-top:0.24mm solid var(--ink);"></div>
+    <div class="abs micro" style="left:118mm; top:271mm;">Account holder &middot; {{date}}</div>
+
+    <div class="abs micro" style="left:14mm; top:282mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:14mm; top:282mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES · taped swatches -->
+<div class="page">
+  <div class="copy copy-body" style="left:17mm; top:261mm; width:176mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:6pt; line-height:1.5; color:var(--muted);">{{noteBody}}</div>
+  <div class="sheet">
+    <div class="abs micro ink" style="left:14mm; top:13mm;">03 &middot; Samples taped in</div>
+    <div class="abs micro" style="right:14mm; top:13mm; text-align:right;">Folio 03</div>
+    <div class="abs serif italic" style="left:14mm; top:20mm; font-size:28pt; line-height:1; color:var(--ink);">The swatches</div>
+    <div class="abs hand" style="left:14mm; top:36mm; font-size:7.4pt;">four laminates, taped here for the record</div>
+    <div class="abs" style="left:14mm; top:42mm; width:182mm; border-top:0.3mm dashed var(--accent);"></div>
+
+    <div class="dashbox" style="left:14mm; top:50mm; width:86mm; height:66mm;">
+      <div class="snap" style="left:22mm; top:8mm; width:62mm; height:40mm; transform:rotate(-2deg);">
+        <div class="ph" style="left:2mm; top:2mm; width:58mm; height:36mm; background-image:url({{mat1Image}});"></div>
+        <div class="tape" style="left:-4mm; top:-2mm; width:17mm; height:5.6mm; transform:rotate(-8deg);"></div>
+        <div class="tape" style="right:-4mm; top:-2mm; width:16mm; height:5.4mm; transform:rotate(6deg);"></div>
+      </div>
+      <div class="k">Sample M1</div>
+      <div class="abs serif italic" style="left:4mm; bottom:8mm; font-size:9pt; color:var(--ink);">{{mat1Name}}</div>
+      <div class="abs micro" style="left:4mm; bottom:3.6mm;">Laminate &middot; 18&nbsp;mm</div>
+    </div>
+
+    <div class="dashbox hair" style="left:110mm; top:50mm; width:86mm; height:66mm;">
+      <div class="snap" style="left:22mm; top:8mm; width:62mm; height:40mm; transform:rotate(1.5deg);">
+        <div class="ph" style="left:2mm; top:2mm; width:58mm; height:36mm; background-image:url({{mat2Image}});"></div>
+        <div class="tape" style="left:-4mm; top:-2mm; width:16mm; height:5.6mm; transform:rotate(-6deg);"></div>
+        <div class="tape" style="right:-5mm; top:-1.6mm; width:18mm; height:5.4mm; transform:rotate(9deg);"></div>
+      </div>
+      <div class="k">Sample M2</div>
+      <div class="abs serif italic" style="left:4mm; bottom:8mm; font-size:9pt; color:var(--ink);">{{mat2Name}}</div>
+      <div class="abs micro" style="left:4mm; bottom:3.6mm;">Laminate &middot; 18&nbsp;mm</div>
+    </div>
+
+    <div class="dashbox hair" style="left:14mm; top:124mm; width:86mm; height:66mm;">
+      <div class="snap" style="left:22mm; top:8mm; width:62mm; height:40mm; transform:rotate(2deg);">
+        <div class="ph" style="left:2mm; top:2mm; width:58mm; height:36mm; background-image:url({{mat3Image}});"></div>
+        <div class="tape" style="left:-4mm; top:-2mm; width:17mm; height:5.6mm; transform:rotate(-9deg);"></div>
+        <div class="tape" style="right:-4mm; top:-2mm; width:16mm; height:5.4mm; transform:rotate(7deg);"></div>
+      </div>
+      <div class="k">Sample M3</div>
+      <div class="abs serif italic" style="left:4mm; bottom:8mm; font-size:9pt; color:var(--ink);">{{mat3Name}}</div>
+      <div class="abs micro" style="left:4mm; bottom:3.6mm;">Laminate &middot; 18&nbsp;mm</div>
+    </div>
+
+    <div class="dashbox hair" style="left:110mm; top:124mm; width:86mm; height:66mm;">
+      <div class="snap" style="left:22mm; top:8mm; width:62mm; height:40mm; transform:rotate(-1.5deg);">
+        <div class="ph" style="left:2mm; top:2mm; width:58mm; height:36mm; background-image:url({{mat4Image}});"></div>
+        <div class="tape" style="left:-4mm; top:-2mm; width:16mm; height:5.6mm; transform:rotate(-7deg);"></div>
+        <div class="tape" style="right:-4mm; top:-2mm; width:17mm; height:5.4mm; transform:rotate(8deg);"></div>
+      </div>
+      <div class="k">Sample M4</div>
+      <div class="abs serif italic" style="left:4mm; bottom:8mm; font-size:9pt; color:var(--ink);">{{mat4Name}}</div>
+      <div class="abs micro" style="left:4mm; bottom:3.6mm;">Edge band &middot; 2&nbsp;mm</div>
+    </div>
+
+    <div class="snap" style="left:14mm; top:198mm; width:112mm; height:52mm; transform:rotate(1.2deg);">
+      <div class="ph" style="left:2.6mm; top:2.6mm; width:106.8mm; height:41mm; background-image:url({{detailImage}});"></div>
+      <div class="cap">handle detail, taped to the page</div>
+      <div class="tape" style="left:-4mm; top:-2mm; width:20mm; height:6mm; transform:rotate(-8deg);"></div>
+      <div class="tape" style="right:-5mm; bottom:6mm; width:18mm; height:5.6mm; transform:rotate(11deg);"></div>
+    </div>
+
+    <div class="dashbox" style="left:132mm; top:198mm; width:64mm; height:50mm;">
+      <div class="k">Sample note</div>
+      <div class="t">Matched under north light, all four shades confirmed against the physical book.</div>
+      <div class="abs" style="left:2.6mm; top:26mm; width:59mm;">
+        <div class="micro">Exterior</div>
+        <div class="sans" style="margin-top:1mm; font-size:5.6pt; line-height:1.3; color:var(--ink);">{{finishExt}}</div>
+        <div class="micro" style="margin-top:3mm;">Interior</div>
+        <div class="sans" style="margin-top:1mm; font-size:5.6pt; line-height:1.3; color:var(--ink);">{{finishInt}}</div>
+      </div>
+    </div>
+
+    <div class="abs micro" style="left:14mm; top:284mm;">Samples taped and kept with the account file</div>
+    <div class="abs micro" style="right:14mm; top:284mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE · the sketch page -->
+<div class="page">
+  <div class="copy copy-closing" style="left:17mm; top:214mm; width:176mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:5.8pt; line-height:1.2; color:var(--muted);">{{noteClosing}}</div>
+  <div class="sheet">
+    <div class="abs micro ink" style="left:14mm; top:13mm;">04 &middot; Sketch page</div>
+    <div class="abs micro" style="right:14mm; top:13mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs serif italic" style="left:14mm; top:20mm; font-size:28pt; line-height:1; color:var(--ink);">Inside, noted</div>
+    <div class="abs hand" style="left:14mm; top:36mm; font-size:7.4pt;">two views from the same afternoon</div>
+    <div class="abs" style="left:14mm; top:42mm; width:182mm; border-top:0.3mm dashed var(--accent);"></div>
+
+    <div class="snap" style="left:16mm; top:48mm; width:100mm; height:74mm; transform:rotate(-1.6deg);">
+      <div class="ph" style="left:2.8mm; top:2.8mm; width:94.4mm; height:62mm; background-image:url({{insideImage}});"></div>
+      <div class="cap">walk-in wardrobe, {{room}}</div>
+      <div class="tape" style="left:-4mm; top:-2mm; width:22mm; height:6.4mm; transform:rotate(-8deg);"></div>
+      <div class="tape" style="right:-5mm; top:-2mm; width:20mm; height:6.2mm; transform:rotate(6deg);"></div>
+    </div>
+
+    <div class="dashbox" style="left:124mm; top:56mm; width:70mm; height:20mm;">
+      <div class="k">Callout 01</div>
+      <div class="t">Three shutters, soft close. Reveal held at 3&nbsp;mm.</div>
+    </div>
+    <div class="lead acc" style="left:117mm; top:66mm; width:12mm; transform:rotate(22deg);"><div class="dot"></div></div>
+
+    <div class="dashbox hair" style="left:124mm; top:84mm; width:66mm; height:19mm;">
+      <div class="k">Callout 02</div>
+      <div class="t">Interior 0.8&nbsp;mm white laminate, shelf on pins.</div>
+    </div>
+    <div class="lead" style="left:117mm; top:105mm; width:13mm; transform:rotate(-44deg);"><div class="dot"></div></div>
+
+    <div class="snap" style="left:16mm; top:128mm; width:82mm; height:56mm; transform:rotate(1.8deg);">
+      <div class="ph" style="left:2.6mm; top:2.6mm; width:76.8mm; height:44mm; background-image:url({{insideImage2}});"></div>
+      <div class="cap">shutter detail, hand checked</div>
+      <div class="tape" style="left:-4mm; top:-2mm; width:19mm; height:6mm; transform:rotate(-7deg);"></div>
+      <div class="tape" style="right:-4mm; bottom:7mm; width:16mm; height:5.6mm; transform:rotate(10deg);"></div>
+    </div>
+
+    <div class="dashbox hair" style="left:108mm; top:132mm; width:86mm; height:24mm;">
+      <div class="k">Callout 03</div>
+      <div class="t">Handle at 1010&nbsp;mm from the floor; holes marked from the top rail.</div>
+    </div>
+    <div class="lead" style="left:99mm; top:146mm; width:11mm; transform:rotate(34deg);"><div class="dot"></div></div>
+
+    <div class="dashbox hair" style="left:108mm; top:164mm; width:86mm; height:18mm;">
+      <div class="k">Callout 04</div>
+      <div class="t">Drawers run on soft close telescopic channels.</div>
+    </div>
+
+    <div class="abs serif italic" style="left:14mm; top:196mm; width:182mm; font-size:22pt; line-height:1.12; color:var(--ink);">A wardrobe measured by hand, not by habit.</div>
+
+    <div class="dashbox" style="left:14mm; top:224mm; width:182mm; height:52mm;">
+      <div class="k">Sign-off</div>
+      <div class="abs serif italic" style="left:4mm; top:9mm; font-size:12pt; color:var(--ink);">{{customerName}}</div>
+      <div class="abs micro ink" style="left:4mm; top:16mm;">Account holder &middot; {{date}}</div>
+      <div class="abs" style="left:96mm; top:9mm; width:76mm;">
+        <div class="micro">Order</div>
+        <div class="sans" style="margin-top:1.4mm; font-size:6.8pt; font-weight:600; color:var(--ink);">{{orderNo}} &middot; {{room}}</div>
+        <div class="micro" style="margin-top:4mm;">Prepared by</div>
+        <div class="sans" style="margin-top:1.4mm; font-size:6.2pt; color:var(--ink);">Grace Wood Industry &middot; Nagercoil</div>
+      </div>
+      <div class="abs" style="left:4mm; top:36mm; width:76mm; border-top:0.22mm solid var(--ink);"></div>
+      <div class="abs micro" style="left:4mm; top:38mm;">Signature &middot; date</div>
+      <div class="abs" style="left:96mm; top:36mm; width:76mm; border-top:0.22mm solid var(--ink);"></div>
+      <div class="abs micro" style="left:96mm; top:38mm;">Signature &middot; for the workshop</div>
+    </div>
+
+    <div class="abs hand" style="left:14mm; top:281mm; font-size:6.8pt;">file copy &middot; {{shopLine}}</div>
+    <div class="abs micro" style="right:14mm; top:282mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

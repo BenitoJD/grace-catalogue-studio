@@ -208,6 +208,266 @@
         "maxSizePt": 44,
         "lineHeight": 1.02
       }
+    },
+    {
+      "id": "timeline",
+      "name": "Timeline",
+      "cover": "chronology",
+      "summary": "Chronology of the commission: horizontal stage rail and numbered markers, vertical four-stage specification with facts attached to cut, band, assemble and finish, perforated film-strip finishes, two stage frames joined by a drawn line",
+      "title": {
+        "widthMm": 96,
+        "availableHeightMm": 64,
+        "maxSizePt": 44,
+        "lineHeight": 0.98
+      },
+      "file": "voucher/families/timeline.html"
+    },
+    {
+      "id": "bluepaper",
+      "name": "Blue Paper",
+      "cover": "inverse",
+      "summary": "Inverted technical drawing on indigo grid paper: knocked-out outlined title with a data plate, annotated elevation with dimension lines and numbered callouts, chips on leader lines, photo plates with registration brackets",
+      "title": {
+        "widthMm": 162,
+        "availableHeightMm": 38,
+        "maxSizePt": 48,
+        "lineHeight": 0.98
+      },
+      "file": "voucher/families/bluepaper.html"
+    },
+    {
+      "id": "magazine",
+      "name": "Magazine",
+      "cover": "masthead",
+      "summary": "Editorial magazine: Grace Wood masthead with cover lines and issue line, two-column spread with a pull quote and small caps entries, four-frame photo essay finishes with a full width detail, drop cap article inside",
+      "title": {
+        "widthMm": 174,
+        "availableHeightMm": 36,
+        "maxSizePt": 50,
+        "lineHeight": 0.96
+      },
+      "file": "voucher/families/magazine.html"
+    },
+    {
+      "id": "frame",
+      "name": "Frame",
+      "cover": "museum",
+      "summary": "Museum framing: a single matted photograph with the title as a wall label, wall-label specification panel with generous white space, four framed swatches with plaques, two framed works at different sizes inside",
+      "title": {
+        "widthMm": 116,
+        "availableHeightMm": 20,
+        "maxSizePt": 22,
+        "lineHeight": 1.02
+      },
+      "file": "voucher/families/frame.html"
+    },
+    {
+      "id": "ticket",
+      "name": "Ticket",
+      "cover": "docket",
+      "summary": "Ticket and docket system: perforated stub with serial and tear-off counterfoil, receipt style dockets with dashed separators and totals rows, four tear-off swatch stubs, stamp circle and ticket window photographs",
+      "title": {
+        "widthMm": 104,
+        "availableHeightMm": 46,
+        "maxSizePt": 44,
+        "lineHeight": 0.98
+      },
+      "file": "voucher/families/ticket.html"
+    },
+    {
+      "id": "axonometric",
+      "name": "Axonometric",
+      "cover": "isometric",
+      "summary": "Isometric drawing sheet: faint 30 degree grid cover with an orientation key and gridded photo plate, three ascending axonometric specification panels with numbered edges, finish blocks with visible top faces, surveyed photographs with corner coordinates",
+      "title": {
+        "widthMm": 98,
+        "availableHeightMm": 54,
+        "maxSizePt": 52,
+        "lineHeight": 0.98
+      },
+      "file": "voucher/families/axonometric.html"
+    },
+    {
+      "id": "swatchbook",
+      "name": "Swatchbook",
+      "cover": "fanDeck",
+      "summary": "Physical fan deck: overlapping rounded swatch cards fanned over the cover with the title on the top card, tabbed ruled index card specification, stacked finish cards with shadows, paper photo card with a swatch strip footer",
+      "title": {
+        "widthMm": 104,
+        "availableHeightMm": 48,
+        "maxSizePt": 36,
+        "lineHeight": 1.0
+      },
+      "file": "voucher/families/swatchbook.html"
+    },
+    {
+      "id": "broadsheet",
+      "name": "Broadsheet",
+      "cover": "newspaper",
+      "summary": "Newspaper: masthead and edition line above a huge stacked headline, photograph in a rectangular cut with a contents rail, four column classified specification with a display advert, framed finish plate, lead story with pull quote and captions",
+      "title": {
+        "widthMm": 174,
+        "availableHeightMm": 64,
+        "maxSizePt": 68,
+        "lineHeight": 0.96
+      },
+      "file": "voucher/families/broadsheet.html"
+    },
+    {
+      "id": "redline",
+      "name": "Redline",
+      "cover": "markup",
+      "summary": "Construction markup: annotated cover photograph with accent circles and an arrow over a revision strip, a revision log table holding every order fact with a change column, ticked and underlined samples, marked up inside photos and a sign off block",
+      "title": {
+        "widthMm": 116,
+        "availableHeightMm": 36,
+        "maxSizePt": 30,
+        "lineHeight": 1.0
+      },
+      "file": "voucher/families/redline.html"
+    },
+    {
+      "id": "collage",
+      "name": "Collage",
+      "cover": "collage",
+      "summary": "Asymmetric taped photo collage: three overlapping rotated frames with paper tape, title on the top photo, order number on a paper tag, facts on a rotated file card over scraps, pinned swatch chips, two collaged photos with a torn paper strip",
+      "title": {
+        "widthMm": 96,
+        "availableHeightMm": 46,
+        "maxSizePt": 34,
+        "lineHeight": 0.98
+      },
+      "file": "voucher/families/collage.html"
+    },
+    {
+      "id": "ledger",
+      "name": "Ledger",
+      "cover": "ledger",
+      "summary": "Accounting ledger: account header cover with a received stamp and a contents ledger, double entry specification across two ruled leaves with control totals, posted swatch entries with amount columns, continuation ledger with framed photographs",
+      "title": {
+        "widthMm": 174,
+        "availableHeightMm": 50,
+        "maxSizePt": 46,
+        "lineHeight": 1.0
+      },
+      "file": "voucher/families/ledger.html"
+    },
+    {
+      "id": "geometric",
+      "name": "Geometric",
+      "cover": "geometric",
+      "summary": "Modernist geometry: a huge accent circle and ink bars crossed by the grotesque title, a square index, specification rows under oversized numerals and thick accent blocks, bold swatch panels, photographs in heavy bar frames",
+      "title": {
+        "widthMm": 132,
+        "availableHeightMm": 68,
+        "maxSizePt": 54,
+        "lineHeight": 0.96
+      },
+      "file": "voucher/families/geometric.html"
+    },
+    {
+      "id": "sketchbook",
+      "name": "Sketchbook",
+      "cover": "sketchbook",
+      "summary": "Pencil notebook: graph paper, dashed annotations with leader lines, italic title, taped photograph and measurement slip, circled number specification sketches with dashed leaders and a drawn elevation, taped swatch cards, callout sketch page",
+      "title": {
+        "widthMm": 150,
+        "availableHeightMm": 66,
+        "maxSizePt": 46,
+        "lineHeight": 1.0
+      },
+      "file": "voucher/families/sketchbook.html"
+    },
+    {
+      "id": "sleeve",
+      "name": "Sleeve",
+      "cover": "sleeve",
+      "summary": "Record sleeve: circular cut out label photograph and catalogue corner, back cover tracklist in two sides with a barcode, liner notes beside square swatch tiles, inside vinyl whose label is a photograph with text around it",
+      "title": {
+        "widthMm": 168,
+        "availableHeightMm": 36,
+        "maxSizePt": 40,
+        "lineHeight": 1.02
+      },
+      "file": "voucher/families/sleeve.html"
+    },
+    {
+      "id": "envelope",
+      "name": "Envelope",
+      "cover": "envelope",
+      "summary": "Letter and envelope: folded flap, address block, accent stamp box with date and order number, photo window, letterhead specification letter with indented fact lines and signature, enclosed four window swatch card, closing letter clipped over two photographs",
+      "title": {
+        "widthMm": 150,
+        "availableHeightMm": 36,
+        "maxSizePt": 34,
+        "lineHeight": 1.05
+      },
+      "file": "voucher/families/envelope.html"
+    },
+    {
+      "id": "accordion",
+      "name": "Accordion",
+      "cover": "foldout",
+      "summary": "Four panel fold out strip: dotted fold creases on every page, two panel title, vertical panel headers on the specification, swatch names running up the folds, two photo panorama inside with a fold register",
+      "title": {
+        "widthMm": 100,
+        "availableHeightMm": 30,
+        "maxSizePt": 30,
+        "lineHeight": 1.0
+      },
+      "file": "voucher/families/accordion.html"
+    },
+    {
+      "id": "split",
+      "name": "Split",
+      "cover": "split",
+      "summary": "Hard two field split on every page: vertical paper and photo cover, reversed band above a two column specification, solid diagonal finish field, inside spread with one photograph crossing the seam",
+      "title": {
+        "widthMm": 104,
+        "availableHeightMm": 64,
+        "maxSizePt": 38,
+        "lineHeight": 1.0
+      },
+      "file": "voucher/families/split.html"
+    },
+    {
+      "id": "specimen",
+      "name": "Specimen",
+      "cover": "specimen",
+      "summary": "Typographic specimen: giant Aa and alphabet proof on the cover, a glyph grid holding every specification fact, type sample finish rows, proof sheet with specimen paragraphs inside",
+      "title": {
+        "widthMm": 120,
+        "availableHeightMm": 26,
+        "maxSizePt": 18,
+        "lineHeight": 1.05
+      },
+      "file": "voucher/families/specimen.html"
+    },
+    {
+      "id": "contact",
+      "name": "Contact Sheet",
+      "cover": "contactSheet",
+      "summary": "35 mm contact sheet: film strips with punched sprocket holes, grease pencil circle, title written across a strip, camera notes specification pad, hand marked swatch strip, enlarged signed frame inside",
+      "title": {
+        "widthMm": 150,
+        "availableHeightMm": 26,
+        "maxSizePt": 22,
+        "lineHeight": 1.0
+      },
+      "file": "voucher/families/contact.html"
+    },
+    {
+      "id": "atlas",
+      "name": "Atlas",
+      "cover": "mapSheet",
+      "summary": "Topographical sheet: contour fields, compass rose, legend block with order and date, symbol legend with scale bar, terrain swatch keys, inside map detail with landmarks and an elevation trace",
+      "title": {
+        "widthMm": 136,
+        "availableHeightMm": 40,
+        "maxSizePt": 34,
+        "lineHeight": 1.0
+      },
+      "file": "voucher/families/atlas.html"
     }
   ],
   "variants": [
@@ -218,93 +478,27 @@
       "palette": "copper"
     },
     {
-      "id": "atelier-ink",
-      "name": "Ink Atelier",
-      "family": "atelier",
-      "palette": "ink"
-    },
-    {
-      "id": "atelier-sand",
-      "name": "Sand Atelier",
-      "family": "atelier",
-      "palette": "sand"
-    },
-    {
       "id": "swiss-ink",
       "name": "Ink Swiss",
       "family": "swiss",
       "palette": "ink"
     },
     {
-      "id": "swiss-indigo",
-      "name": "Indigo Swiss",
-      "family": "swiss",
-      "palette": "indigo"
-    },
-    {
-      "id": "swiss-olive",
-      "name": "Olive Swiss",
-      "family": "swiss",
-      "palette": "olive"
-    },
-    {
-      "id": "gallery-copper",
-      "name": "Copper Gallery",
+      "id": "gallery-sand",
+      "name": "Sand Gallery",
       "family": "gallery",
-      "palette": "copper"
-    },
-    {
-      "id": "gallery-olive",
-      "name": "Olive Gallery",
-      "family": "gallery",
-      "palette": "olive"
-    },
-    {
-      "id": "gallery-indigo",
-      "name": "Indigo Gallery",
-      "family": "gallery",
-      "palette": "indigo"
-    },
-    {
-      "id": "index-copper",
-      "name": "Copper Index",
-      "family": "index",
-      "palette": "copper"
-    },
-    {
-      "id": "index-olive",
-      "name": "Olive Index",
-      "family": "index",
-      "palette": "olive"
-    },
-    {
-      "id": "index-sand",
-      "name": "Sand Index",
-      "family": "index",
       "palette": "sand"
+    },
+    {
+      "id": "index-indigo",
+      "name": "Indigo Index",
+      "family": "index",
+      "palette": "indigo"
     },
     {
       "id": "dark-ink",
       "name": "Ink Dark",
       "family": "dark",
-      "palette": "ink"
-    },
-    {
-      "id": "dark-indigo",
-      "name": "Indigo Dark",
-      "family": "dark",
-      "palette": "indigo"
-    },
-    {
-      "id": "dark-sand",
-      "name": "Sand Dark",
-      "family": "dark",
-      "palette": "sand"
-    },
-    {
-      "id": "blueprint-ink",
-      "name": "Ink Blueprint",
-      "family": "blueprint",
       "palette": "ink"
     },
     {
@@ -314,39 +508,9 @@
       "palette": "indigo"
     },
     {
-      "id": "blueprint-olive",
-      "name": "Olive Blueprint",
-      "family": "blueprint",
-      "palette": "olive"
-    },
-    {
-      "id": "lookbook-copper",
-      "name": "Copper Lookbook",
-      "family": "lookbook",
-      "palette": "copper"
-    },
-    {
       "id": "lookbook-sand",
       "name": "Sand Lookbook",
       "family": "lookbook",
-      "palette": "sand"
-    },
-    {
-      "id": "lookbook-indigo",
-      "name": "Indigo Lookbook",
-      "family": "lookbook",
-      "palette": "indigo"
-    },
-    {
-      "id": "poster-ink",
-      "name": "Ink Poster",
-      "family": "poster",
-      "palette": "ink"
-    },
-    {
-      "id": "poster-sand",
-      "name": "Sand Poster",
-      "family": "poster",
       "palette": "sand"
     },
     {
@@ -362,34 +526,130 @@
       "palette": "copper"
     },
     {
-      "id": "card-indigo",
-      "name": "Indigo Card",
-      "family": "card",
-      "palette": "indigo"
-    },
-    {
-      "id": "card-olive",
-      "name": "Olive Card",
-      "family": "card",
-      "palette": "olive"
-    },
-    {
-      "id": "folio-copper",
-      "name": "Copper Folio",
-      "family": "folio",
-      "palette": "copper"
-    },
-    {
       "id": "folio-ink",
       "name": "Ink Folio",
       "family": "folio",
       "palette": "ink"
     },
     {
-      "id": "folio-sand",
-      "name": "Sand Folio",
-      "family": "folio",
+      "id": "timeline-indigo",
+      "name": "Indigo Timeline",
+      "family": "timeline",
+      "palette": "indigo"
+    },
+    {
+      "id": "bluepaper-indigo",
+      "name": "Indigo Blue Paper",
+      "family": "bluepaper",
+      "palette": "indigo"
+    },
+    {
+      "id": "magazine-olive",
+      "name": "Olive Magazine",
+      "family": "magazine",
+      "palette": "olive"
+    },
+    {
+      "id": "frame-sand",
+      "name": "Sand Frame",
+      "family": "frame",
       "palette": "sand"
+    },
+    {
+      "id": "ticket-copper",
+      "name": "Copper Ticket",
+      "family": "ticket",
+      "palette": "copper"
+    },
+    {
+      "id": "axonometric-indigo",
+      "name": "Indigo Axonometric",
+      "family": "axonometric",
+      "palette": "indigo"
+    },
+    {
+      "id": "swatchbook-sand",
+      "name": "Sand Swatchbook",
+      "family": "swatchbook",
+      "palette": "sand"
+    },
+    {
+      "id": "broadsheet-ink",
+      "name": "Ink Broadsheet",
+      "family": "broadsheet",
+      "palette": "ink"
+    },
+    {
+      "id": "redline-sand",
+      "name": "Sand Redline",
+      "family": "redline",
+      "palette": "sand"
+    },
+    {
+      "id": "collage-copper",
+      "name": "Copper Collage",
+      "family": "collage",
+      "palette": "copper"
+    },
+    {
+      "id": "ledger-copper",
+      "name": "Copper Ledger",
+      "family": "ledger",
+      "palette": "copper"
+    },
+    {
+      "id": "geometric-olive",
+      "name": "Olive Geometric",
+      "family": "geometric",
+      "palette": "olive"
+    },
+    {
+      "id": "sketchbook-olive",
+      "name": "Olive Sketchbook",
+      "family": "sketchbook",
+      "palette": "olive"
+    },
+    {
+      "id": "sleeve-copper",
+      "name": "Copper Sleeve",
+      "family": "sleeve",
+      "palette": "copper"
+    },
+    {
+      "id": "envelope-ink",
+      "name": "Ink Envelope",
+      "family": "envelope",
+      "palette": "ink"
+    },
+    {
+      "id": "accordion-ink",
+      "name": "Ink Accordion",
+      "family": "accordion",
+      "palette": "ink"
+    },
+    {
+      "id": "split-sand",
+      "name": "Sand Split",
+      "family": "split",
+      "palette": "sand"
+    },
+    {
+      "id": "specimen-copper",
+      "name": "Copper Specimen",
+      "family": "specimen",
+      "palette": "copper"
+    },
+    {
+      "id": "contact-sand",
+      "name": "Sand Contact",
+      "family": "contact",
+      "palette": "sand"
+    },
+    {
+      "id": "atlas-olive",
+      "name": "Olive Atlas",
+      "family": "atlas",
+      "palette": "olive"
     }
   ]
 }

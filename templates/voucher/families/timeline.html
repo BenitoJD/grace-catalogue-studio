@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.8pt; letter-spacing:.24em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.acc{ color:var(--accent); }
+  .micro.ink{ color:var(--ink); }
+  .hair{ height:0.16mm; background:var(--hair); }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.016em; color:var(--ink); }
+  .head{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; font-size:20pt; line-height:1.06; color:var(--ink); letter-spacing:-.012em; }
+
+  /* chronology: horizontal band on the cover */
+  .tl-line{ position:absolute; height:0.3mm; background:var(--accent); }
+  .tl-tick{ position:absolute; width:0.3mm; height:3.2mm; background:var(--accent); }
+  .tl-year{ position:absolute; width:24mm; font-family:'Barlow', sans-serif; font-size:6.6pt; font-weight:600; letter-spacing:.16em; color:var(--ink); }
+  .tl-stage{ position:absolute; width:26mm; font-family:'Barlow', sans-serif; font-size:4.8pt; font-weight:600; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); }
+  .tl-dot{ position:absolute; width:1.5mm; height:1.5mm; border-radius:50%; background:var(--accent); }
+
+  /* vertical stage timeline on the specification page */
+  .rail{ position:absolute; left:23.85mm; top:52mm; width:0.22mm; height:194mm; background:var(--hair); }
+  .node{ position:absolute; left:21mm; width:6.2mm; height:6.2mm; border-radius:50%; background:var(--accent); color:var(--on-dark); font-family:'Barlow', sans-serif; font-weight:600; font-size:5pt; text-align:center; line-height:6.2mm; letter-spacing:.02em; }
+  .stage-head{ position:absolute; left:32mm; width:160mm; font-family:'Barlow', sans-serif; font-size:5.6pt; font-weight:600; letter-spacing:.24em; text-transform:uppercase; color:var(--accent); }
+  .stage-note{ position:absolute; right:18mm; font-family:'Barlow', sans-serif; font-size:4.6pt; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
+  .connector{ position:absolute; left:27mm; width:4.4mm; height:0.16mm; background:var(--hair); }
+  .ftab{ width:100%; border-collapse:collapse; }
+  .ftab td{ border-bottom:0.12mm solid var(--hair); padding:1.4mm 0 1.3mm 0; vertical-align:top; }
+  .ftab tr:last-child td{ border-bottom:none; }
+  .ftab td.k{ width:34mm; font-family:'Barlow', sans-serif; font-size:4.6pt; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:600; padding-top:1.8mm; }
+  .ftab td.v{ font-family:'Barlow', sans-serif; font-size:7pt; line-height:1.4; color:var(--ink); }
+
+  /* film strip on the finishes page */
+  .strip{ position:absolute; background:var(--dark); }
+  .perf{ position:absolute; height:2.4mm; left:18mm; width:174mm; background-image:repeating-linear-gradient(90deg, rgba(255,255,255,0.86) 0, rgba(255,255,255,0.86) 3.1mm, rgba(255,255,255,0) 3.1mm, rgba(255,255,255,0) 7.2mm); }
+  .strip-frame{ position:absolute; background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .strip-name{ position:absolute; width:36mm; font-family:'Barlow', sans-serif; font-size:5.5pt; color:var(--on-dark); letter-spacing:.05em; white-space:nowrap; }
+  .strip-no{ position:absolute; width:36mm; font-family:'Barlow', sans-serif; font-size:4.4pt; font-weight:600; letter-spacing:.24em; color:var(--accent-on-dark); }
+
+  /* two stage frames joined by a line on the inside page */
+  .frame{ position:absolute; border:0.22mm solid var(--hair); background:var(--paper); }
+  .join-h{ position:absolute; height:0.22mm; background:var(--accent); }
+  .join-v{ position:absolute; width:0.22mm; background:var(--accent); }
+  .join-dot{ position:absolute; width:2.2mm; height:2.2mm; border-radius:50%; background:var(--accent); }
+  .stage-tag{ position:absolute; font-family:'Barlow', sans-serif; font-size:4.8pt; font-weight:600; letter-spacing:.24em; text-transform:uppercase; color:var(--accent); }
+
+  /* Optional brochure copy. The server injects plain text here, or an empty
+     string when no copy was generated. Empty blocks collapse completely so the
+     page is pixel identical to a voucher without copy. */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline{ white-space:nowrap; }
+  .copy-closing{ white-space:nowrap; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+  .copy-panel{ background:rgba(10,9,8,0.55); padding:3.5mm; }
+
+</style>
+</head>
+<body>
+
+<!-- 01 COVER: horizontal chronology band -->
+<div class="page cover">
+  <div class="sheet">
+    <div class="copy copy-headline" style="left:18mm; top:47mm; width:174mm; font-family:'Instrument Serif', Georgia, serif; font-size:8pt; line-height:1.2; color:var(--muted);">{{noteHeadline}}</div>
+
+    <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:18mm; width:17mm;">
+    <div class="abs micro" style="right:18mm; top:20mm; text-align:right;">{{orderNo}}<br>{{date}}</div>
+
+    <div class="abs ph" style="left:126mm; top:0; width:84mm; height:297mm; background-image:url({{coverImage}});"></div>
+    <div class="abs" style="left:126mm; top:0; width:0.3mm; height:297mm; background:var(--accent);"></div>
+
+    <div class="abs micro acc" style="left:18mm; top:42mm;">Order to install · a chronology</div>
+    <div class="cover-title" style="left:18mm; top:56mm; width:98mm;">{{title}}</div>
+
+    <div class="abs tl-line" style="left:18mm; top:150mm; width:96mm;"></div>
+    <div class="abs tl-tick" style="left:18mm; top:148.5mm;"></div>
+    <div class="abs tl-tick" style="left:42mm; top:148.5mm;"></div>
+    <div class="abs tl-tick" style="left:66mm; top:148.5mm;"></div>
+    <div class="abs tl-tick" style="left:90mm; top:148.5mm;"></div>
+    <div class="abs tl-tick" style="left:114mm; top:148.5mm;"></div>
+    <div class="abs tl-dot" style="left:17.4mm; top:149.4mm;"></div>
+    <div class="abs tl-dot" style="left:41.4mm; top:149.4mm;"></div>
+    <div class="abs tl-dot" style="left:65.4mm; top:149.4mm;"></div>
+    <div class="abs tl-dot" style="left:89.4mm; top:149.4mm;"></div>
+    <div class="abs tl-dot" style="left:113.4mm; top:149.4mm;"></div>
+
+    <div class="abs tl-year" style="left:18mm; top:140mm;">01</div>
+    <div class="abs tl-year" style="left:42mm; top:140mm;">02</div>
+    <div class="abs tl-year" style="left:66mm; top:140mm;">03</div>
+    <div class="abs tl-year" style="left:90mm; top:140mm;">04</div>
+    <div class="abs tl-year" style="left:114mm; top:140mm;">05</div>
+
+    <div class="abs tl-stage" style="left:18mm; top:153mm;">Survey</div>
+    <div class="abs tl-stage" style="left:42mm; top:153mm;">Cut</div>
+    <div class="abs tl-stage" style="left:66mm; top:153mm;">Band</div>
+    <div class="abs tl-stage" style="left:90mm; top:153mm;">Assemble</div>
+    <div class="abs tl-stage" style="left:114mm; top:153mm;">Finish</div>
+
+    <div class="abs micro" style="left:18mm; top:196mm;">{{room}} · {{shutters}} shutters · {{width}}</div>
+    <div class="abs hair" style="left:18mm; top:210mm; width:96mm;"></div>
+    <div class="abs micro" style="left:18mm; top:220mm;">Prepared for</div>
+    <div class="abs name" style="left:18mm; top:226mm; font-size:8pt; color:var(--ink);">{{customerName}}</div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
+    <div class="abs micro" style="left:132mm; top:284mm;">01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION: vertical stage timeline -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:18mm; top:18mm;">02 Specification</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
+
+    <div class="abs head" style="left:18mm; top:34mm; width:174mm;">The making, in four stages.</div>
+
+    <div class="abs rail"></div>
+
+    <div class="abs node" style="top:53.4mm;">1</div>
+    <div class="abs connector" style="top:56.4mm;"></div>
+    <div class="abs stage-head" style="top:54.6mm;">Cut</div>
+    <div class="abs stage-note" style="top:54.6mm;">Stage 01 · dimensions</div>
+    <div class="abs" style="left:32mm; top:62mm; width:160mm;">
+      <table class="ftab">
+        <tr><td class="k">Room</td><td class="v">{{room}}</td></tr>
+        <tr><td class="k">Width</td><td class="v">{{width}}</td></tr>
+        <tr><td class="k">Height</td><td class="v">{{height}}</td></tr>
+        <tr><td class="k">Depth</td><td class="v">{{depth}}</td></tr>
+        <tr><td class="k">Shutters</td><td class="v">{{shutters}}</td></tr>
+      </table>
+    </div>
+
+    <div class="abs node" style="top:105.4mm;">2</div>
+    <div class="abs connector" style="top:108.4mm;"></div>
+    <div class="abs stage-head" style="top:106.6mm;">Band</div>
+    <div class="abs stage-note" style="top:106.6mm;">Stage 02 · boards &amp; edges</div>
+    <div class="abs" style="left:32mm; top:114mm; width:160mm;">
+      <table class="ftab">
+        <tr><td class="k">Carcass</td><td class="v">{{carcass}}</td></tr>
+        <tr><td class="k">Back panel</td><td class="v">{{backPanel}}</td></tr>
+        <tr><td class="k">Shutters</td><td class="v">{{shuttersMat}}</td></tr>
+        <tr><td class="k">Drawers</td><td class="v">{{drawers}}</td></tr>
+        <tr><td class="k">Edge shutter</td><td class="v">{{edgeShutter}}</td></tr>
+        <tr><td class="k">Edge carcass</td><td class="v">{{edgeCarcass}}</td></tr>
+        <tr><td class="k">Edge note</td><td class="v">{{edgeNote}} · {{mat4Name}}</td></tr>
+      </table>
+    </div>
+
+    <div class="abs node" style="top:169.4mm;">3</div>
+    <div class="abs connector" style="top:172.4mm;"></div>
+    <div class="abs stage-head" style="top:170.6mm;">Assemble</div>
+    <div class="abs stage-note" style="top:170.6mm;">Stage 03 · hardware &amp; layout</div>
+    <div class="abs" style="left:32mm; top:178mm; width:160mm;">
+      <table class="ftab">
+        <tr><td class="k">Exterior</td><td class="v">{{exterior}}</td></tr>
+        <tr><td class="k">Interior</td><td class="v">{{interior}}</td></tr>
+        <tr><td class="k">Hinges</td><td class="v">{{hinges}}</td></tr>
+        <tr><td class="k">Channels</td><td class="v">{{channels}}</td></tr>
+        <tr><td class="k">Handle</td><td class="v">{{handle}} · {{handleNote}}</td></tr>
+        <tr><td class="k">Layout left</td><td class="v">{{layoutLeft}}</td></tr>
+        <tr><td class="k">Layout middle</td><td class="v">{{layoutMiddle}}</td></tr>
+        <tr><td class="k">Layout right</td><td class="v">{{layoutRight}}</td></tr>
+      </table>
+    </div>
+
+    <div class="abs node" style="top:238.4mm;">4</div>
+    <div class="abs connector" style="top:241.4mm;"></div>
+    <div class="abs stage-head" style="top:239.6mm;">Finish</div>
+    <div class="abs stage-note" style="top:239.6mm;">Stage 04 · surface</div>
+    <div class="abs" style="left:32mm; top:247mm; width:160mm;">
+      <table class="ftab">
+        <tr><td class="k">Exterior</td><td class="v">{{finishExt}}</td></tr>
+        <tr><td class="k">Interior</td><td class="v">{{finishInt}}</td></tr>
+      </table>
+    </div>
+
+    <div class="abs hair" style="left:32mm; top:263mm; width:160mm;"></div>
+    <div class="abs micro" style="left:32mm; top:267mm;">Grace Wood Industry</div>
+    <div class="abs name" style="right:18mm; top:266mm; text-align:right; font-size:6.8pt; color:var(--ink);">{{customerName}}</div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES: film strip -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:18mm; top:18mm;">03 Finishes</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
+
+    <div class="abs head" style="left:18mm; top:34mm; width:174mm;">Four finishes, one strip.</div>
+
+    <div class="abs strip" style="left:18mm; top:54mm; width:174mm; height:72mm;"></div>
+    <div class="abs perf" style="top:57mm;"></div>
+    <div class="abs perf" style="top:121.6mm;"></div>
+
+    <div class="abs strip-frame" style="left:24mm; top:64mm; width:36mm; height:44mm; background-image:url({{mat1Image}});"></div>
+    <div class="abs strip-frame" style="left:66mm; top:64mm; width:36mm; height:44mm; background-image:url({{mat2Image}});"></div>
+    <div class="abs strip-frame" style="left:108mm; top:64mm; width:36mm; height:44mm; background-image:url({{mat3Image}});"></div>
+    <div class="abs strip-frame" style="left:150mm; top:64mm; width:36mm; height:44mm; background-image:url({{mat4Image}});"></div>
+
+    <div class="abs strip-no" style="left:24mm; top:111mm;">M1</div>
+    <div class="abs strip-no" style="left:66mm; top:111mm;">M2</div>
+    <div class="abs strip-no" style="left:108mm; top:111mm;">M3</div>
+    <div class="abs strip-no" style="left:150mm; top:111mm;">M4</div>
+    <div class="abs strip-name" style="left:24mm; top:115mm;">{{mat1Name}}</div>
+    <div class="abs strip-name" style="left:66mm; top:115mm;">{{mat2Name}}</div>
+    <div class="abs strip-name" style="left:108mm; top:115mm;">{{mat3Name}}</div>
+    <div class="abs strip-name" style="left:150mm; top:115mm;">{{mat4Name}}</div>
+
+    <div class="abs micro" style="left:18mm; top:139mm;">Exterior finish</div>
+    <div class="abs sans" style="left:66mm; top:138mm; width:126mm; font-size:7.2pt; line-height:1.45; color:var(--ink);">{{finishExt}}</div>
+    <div class="abs micro" style="left:18mm; top:151mm;">Interior finish</div>
+    <div class="abs sans" style="left:66mm; top:150mm; width:126mm; font-size:7.2pt; line-height:1.45; color:var(--ink);">{{finishInt}}</div>
+
+    <div class="abs micro" style="left:18mm; top:170mm;">Handle detail · raking light</div>
+    <div class="abs ph" style="left:18mm; top:175mm; width:174mm; height:66mm; background-image:url({{detailImage}});"></div>
+    <div class="abs micro" style="left:18mm; top:245mm;">Matte black profile · recessed channel</div>
+
+    <div class="copy copy-body" style="left:18mm; top:256mm; width:174mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:5.6pt; line-height:1.5; color:var(--ink);">{{noteBody}}</div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">Shades confirmed against physical samples</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE: two stages joined by a line -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:18mm; top:18mm;">04 Inside</div>
+    <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs hair" style="left:18mm; top:27mm; width:174mm;"></div>
+
+    <div class="abs serif" style="left:18mm; top:38mm; width:150mm; font-size:23pt; line-height:1.06; color:var(--ink); letter-spacing:-.012em;">Every stage leaves a mark.</div>
+
+    <div class="copy copy-closing" style="left:18mm; top:60mm; width:174mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:6pt; line-height:1.5; color:var(--muted);">{{noteClosing}}</div>
+
+    <div class="abs stage-tag" style="left:18mm; top:80mm;">01 · The cut</div>
+    <div class="abs frame" style="left:18mm; top:86mm; width:112mm; height:82mm;"></div>
+    <div class="abs ph" style="left:23mm; top:91mm; width:102mm; height:72mm; background-image:url({{insideImage}});"></div>
+    <div class="abs micro" style="left:18mm; top:171mm;">Bench · {{width}} × {{height}} carcass</div>
+
+    <div class="abs stage-tag" style="left:80mm; top:192mm;">02 · The install</div>
+    <div class="abs frame" style="left:80mm; top:198mm; width:112mm; height:64mm;"></div>
+    <div class="abs ph" style="left:85mm; top:203mm; width:102mm; height:54mm; background-image:url({{insideImage2}});"></div>
+    <div class="abs micro" style="left:80mm; top:265mm;">Site · {{room}}, Nagercoil</div>
+
+    <div class="abs join-h" style="left:130mm; top:126mm; width:34mm;"></div>
+    <div class="abs join-v" style="left:163.9mm; top:126mm; height:72mm;"></div>
+    <div class="abs join-dot" style="left:129mm; top:125.1mm;"></div>
+    <div class="abs join-dot" style="left:163mm; top:196.9mm;"></div>
+    <div class="abs micro" style="left:137mm; top:116mm;">Fitted on site</div>
+
+    <div class="abs micro" style="left:18mm; top:284mm;">Grace Wood Industry · {{orderNo}}</div>
+    <div class="abs micro" style="right:18mm; top:284mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.5pt; letter-spacing:.22em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.ink{ color:var(--ink); }
+  .label{ font-family:"Barlow", sans-serif; font-size:4.3pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  .rule{ height:0.2mm; background:var(--ink); }
+  .hair{ height:0.14mm; background:var(--hair); }
+  .cover-title{ position:absolute; font-family:'Barlow', Helvetica, Arial, sans-serif; font-weight:500; letter-spacing:-.005em; color:var(--ink); }
+
+  .mark{ position:absolute; border:1.1mm solid var(--accent); border-radius:50%; z-index:6; }
+  .mark.thin{ border-width:0.55mm; }
+  .mark-label{ position:absolute; z-index:7; background:var(--accent); color:var(--on-dark); font-family:"Barlow", sans-serif; font-size:4pt; font-weight:600; letter-spacing:.14em; text-transform:uppercase; padding:1.1mm 1.6mm; }
+  .arrow{ position:absolute; height:0.7mm; background:var(--accent); transform-origin:left center; z-index:6; }
+  .arrow-head{ position:absolute; width:0; height:0; border-top:1.6mm solid transparent; border-bottom:1.6mm solid transparent; border-left:3.4mm solid var(--accent); z-index:6; transform-origin:center; }
+  .stamp{ position:absolute; border:0.8mm solid var(--accent); background:var(--paper); padding:3.4mm 4mm; z-index:8; }
+  .stamp .inner{ border:0.2mm solid var(--accent); padding:2.6mm 3mm; }
+  .rev-table{ width:100%; border-collapse:collapse; }
+  .rev-table th{ font-family:"Barlow", sans-serif; font-size:3.7pt; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:600; text-align:left; border-top:0.35mm solid var(--ink); border-bottom:0.3mm solid var(--ink); padding:1.4mm 0; }
+  .rev-table td{ font-family:"Barlow", sans-serif; font-size:5.2pt; line-height:1.25; color:var(--ink); border-bottom:0.12mm solid var(--hair); padding:1.35mm 1.6mm 1.25mm 0; vertical-align:top; }
+  .rev-table td.rev{ font-size:4.6pt; letter-spacing:.1em; color:var(--accent); font-weight:600; }
+  .rev-table td.c{ text-align:center; }
+  .tick{ font-family:"Barlow", sans-serif; font-size:5pt; font-weight:600; color:var(--accent); }
+
+  .log{ width:100%; border-collapse:collapse; }
+  .log th{ font-family:"Barlow", sans-serif; font-size:3.8pt; letter-spacing:.18em; text-transform:uppercase; color:var(--on-dark); font-weight:600; text-align:left; background:var(--ink); padding:1.9mm 2mm; }
+  .log td{ font-family:"Barlow", sans-serif; font-size:5.2pt; line-height:1.2; color:var(--ink); border-bottom:0.12mm solid var(--hair); padding:1.75mm 2mm 1.55mm 2mm; vertical-align:top; }
+  .log td.ref{ font-size:4.4pt; letter-spacing:.12em; color:var(--muted); }
+  .log tr.grp td{ background:var(--accent-soft); font-size:3.9pt; letter-spacing:.22em; text-transform:uppercase; font-weight:600; color:var(--ink); padding:1.3mm 2mm; }
+  .log td.chg{ font-size:4.4pt; color:var(--accent); font-weight:600; letter-spacing:.08em; }
+  .log .line{ position:absolute; }
+
+  .swcell{ position:absolute; border:0.28mm solid var(--ink); background:var(--paper); }
+  .swcell .im{ position:absolute; left:4mm; top:4mm; width:34mm; height:34mm; background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .swcell .nm{ position:absolute; left:42mm; top:8mm; width:32mm; font-family:"Barlow", sans-serif; font-size:7pt; line-height:1.25; color:var(--ink); }
+  .swcell .ul{ position:absolute; left:42mm; top:19mm; width:28mm; height:0.5mm; background:var(--accent); }
+  .swcell .kind{ position:absolute; left:42mm; top:22mm; font-family:"Barlow", sans-serif; font-size:3.8pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .tickmark{ position:absolute; width:4.2mm; height:4.2mm; }
+  .tickmark .a{ position:absolute; left:0; top:2.4mm; width:2.4mm; height:0.5mm; background:var(--accent); transform:rotate(45deg); transform-origin:left center; }
+  .tickmark .b{ position:absolute; left:1.6mm; top:2.9mm; width:3.2mm; height:0.5mm; background:var(--accent); transform:rotate(-50deg); transform-origin:left center; }
+
+  .sign{ position:absolute; border:0.28mm solid var(--ink); background:var(--paper); padding:5mm 6mm; }
+  .signline{ height:0.2mm; background:var(--ink); }
+  .signl{ font-family:"Barlow", sans-serif; font-size:4.1pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-top:1.8mm; }
+  .approved{ position:absolute; border:0.9mm solid var(--accent); padding:2mm 3mm; font-family:"Barlow", sans-serif; font-size:11pt; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); transform:rotate(-7deg); }
+
+  /* Optional brochure copy. The server injects plain text here, or an empty
+     string when no copy was generated. Empty blocks collapse completely. */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+
+</style>
+</head>
+<body>
+
+<!-- 01 COVER: marked-up photograph and revision strip -->
+<div class="page cover">
+  <div class="sheet">
+    <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:13mm; width:10mm;">
+    <div class="abs micro ink" style="left:31mm; top:15mm;">Grace Wood Industry<br>Marked-up copy · rev A</div>
+    <div class="abs micro" style="right:18mm; top:14mm; text-align:right;">{{orderNo}}<br>{{date}}</div>
+    <div class="abs rule" style="left:18mm; top:30mm; width:174mm;"></div>
+
+    <div class="abs ph" style="left:18mm; top:36mm; width:174mm; height:166mm; background-image:url({{coverImage}});"></div>
+    <div class="abs" style="left:18mm; top:36mm; width:174mm; height:166mm; border:0.25mm solid var(--ink);"></div>
+
+    <!-- markup over the photograph -->
+    <div class="mark" style="right:36mm; top:70mm; width:44mm; height:44mm;"></div>
+    <div class="mark-label" style="right:30mm; top:66mm;">A1</div>
+    <div class="mark thin" style="left:40mm; top:120mm; width:30mm; height:30mm;"></div>
+    <div class="mark-label" style="left:36mm; top:114mm;">B2</div>
+    <div class="arrow" style="left:96mm; top:150mm; width:52mm; transform:rotate(-34deg);"></div>
+    <div class="arrow-head" style="left:141mm; top:118mm; transform:rotate(146deg);"></div>
+    <div class="mark-label" style="left:140mm; top:156mm;">REV A · raise hinge line 3 mm</div>
+    <div class="mark-label" style="left:36mm; top:154mm;">CHECK REVEAL AT WALL</div>
+
+    <!-- title stamp -->
+    <div class="stamp" style="left:12mm; top:164mm; width:128mm; transform:rotate(-1.5deg);">
+      <div class="inner">
+        <div class="label">Issued for construction · rev A</div>
+        <div class="cover-title" style="position:static; left:auto; top:auto; margin-top:2mm;">{{title}}</div>
+        <div class="micro" style="margin-top:2.6mm; font-size:3.9pt;">{{orderNo}} · {{room}} · approved by site</div>
+      </div>
+    </div>
+
+    <div class="copy copy-headline" style="left:18mm; top:224mm; width:132mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-weight:500; font-size:7pt; line-height:1.35; color:var(--ink);">{{noteHeadline}}</div>
+
+    <table class="rev-table" style="position:absolute; left:18mm; top:236mm; width:174mm;">
+      <tr><th style="width:12mm;">Rev</th><th style="width:22mm;">Date</th><th>Description</th><th style="width:26mm;">By</th></tr>
+      <tr><td class="rev">A</td><td>01 · issued</td><td>First issue for site measurement</td><td>Workshop</td></tr>
+      <tr><td class="rev">B</td><td>02 · checked</td><td>Hinge line raised 3 mm, reveal confirmed</td><td>Site</td></tr>
+      <tr><td class="rev">C</td><td>03 · released</td><td>Released to cutting after sign-off</td><td>Office</td></tr>
+    </table>
+
+    <div class="abs micro" style="left:18mm; top:288mm;">{{customerName}} · {{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:288mm; text-align:right;">01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION: revision log table -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:14mm;">02 Specification · revision log</div>
+    <div class="abs micro" style="right:18mm; top:14mm; text-align:right;">Sheet RD-02 · {{orderNo}}</div>
+    <div class="abs rule" style="left:18mm; top:23mm; width:174mm;"></div>
+    <div class="abs serif" style="left:18mm; top:28mm; width:120mm; font-size:24pt; line-height:1; color:var(--ink);">Revision log</div>
+    <div class="abs micro" style="right:18mm; top:37mm; text-align:right;">All order facts recorded<br>Change column shows issued revision</div>
+
+    <table class="log" style="position:absolute; left:18mm; top:54mm; width:174mm;">
+      <tr><th style="width:11mm;">Ref</th><th style="width:31mm;">Item</th><th style="width:100mm;">Recorded value</th><th style="width:30mm;">Change</th></tr>
+      <tr class="grp"><td colspan="4">Envelope · room and size</td></tr>
+      <tr><td class="ref">E1</td><td>Room</td><td>{{room}}</td><td class="chg">A</td></tr>
+      <tr><td class="ref">E2</td><td>Width</td><td>{{width}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">E3</td><td>Height</td><td>{{height}}</td><td class="chg">B</td></tr>
+      <tr><td class="ref">E4</td><td>Depth</td><td>{{depth}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">E5</td><td>Shutters</td><td>{{shutters}}</td><td class="chg">A</td></tr>
+      <tr class="grp"><td colspan="4">Materials</td></tr>
+      <tr><td class="ref">M1</td><td>Carcass</td><td>{{carcass}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">M2</td><td>Back panel</td><td>{{backPanel}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">M3</td><td>Shutter material</td><td>{{shuttersMat}}</td><td class="chg">A</td></tr>
+      <tr><td class="ref">M4</td><td>Drawers</td><td>{{drawers}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">M5</td><td>Exterior</td><td>{{exterior}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">M6</td><td>Interior</td><td>{{interior}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">M7</td><td>Hinges</td><td>{{hinges}}</td><td class="chg">B</td></tr>
+      <tr><td class="ref">M8</td><td>Channels</td><td>{{channels}}</td><td class="chg">—</td></tr>
+      <tr class="grp"><td colspan="4">Layout</td></tr>
+      <tr><td class="ref">L1</td><td>Layout left</td><td>{{layoutLeft}}</td><td class="chg">A</td></tr>
+      <tr><td class="ref">L2</td><td>Layout middle</td><td>{{layoutMiddle}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">L3</td><td>Layout right</td><td>{{layoutRight}}</td><td class="chg">—</td></tr>
+      <tr class="grp"><td colspan="4">Edges and fittings</td></tr>
+      <tr><td class="ref">D1</td><td>Edge · shutter</td><td>{{edgeShutter}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">D2</td><td>Edge · carcass</td><td>{{edgeCarcass}}</td><td class="chg">B</td></tr>
+      <tr><td class="ref">D3</td><td>Edge note</td><td>{{edgeNote}} · {{mat4Name}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">F1</td><td>Handle</td><td>{{handle}}, {{handleNote}}</td><td class="chg">A</td></tr>
+      <tr class="grp"><td colspan="4">Finish and terms</td></tr>
+      <tr><td class="ref">P1</td><td>Finish exterior</td><td>{{finishExt}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">P2</td><td>Finish interior</td><td>{{finishInt}}</td><td class="chg">—</td></tr>
+      <tr><td class="ref">T1</td><td>Prepared for</td><td>{{customerName}}</td><td class="chg">A</td></tr>
+      <tr><td class="ref">T2</td><td>Order</td><td>{{orderNo}}</td><td class="chg">—</td></tr>
+    </table>
+
+    <div class="abs hair" style="left:18mm; top:222mm; width:174mm;"></div>
+    <div class="abs" style="left:18mm; top:228mm; width:52mm;">
+      <div class="label">Site notes</div>
+      <div class="sans" style="font-size:4.9pt; line-height:1.55; color:var(--muted); margin-top:1.2mm;">Room measured after plaster. Ceiling line checked at both ends, reveal set at the window wall.</div>
+    </div>
+    <div class="abs" style="left:79mm; top:228mm; width:52mm;">
+      <div class="label">Changes</div>
+      <div class="sans" style="font-size:4.9pt; line-height:1.55; color:var(--muted); margin-top:1.2mm;">Rev A first issue, rev B raised the hinge line by 3 mm after the site check.</div>
+    </div>
+    <div class="abs" style="left:140mm; top:228mm; width:52mm;">
+      <div class="label">Release</div>
+      <div class="sans" style="font-size:4.9pt; line-height:1.55; color:var(--muted); margin-top:1.2mm;">Released to cutting as rev C. No further changes without a new mark on sheet 01.</div>
+    </div>
+
+    <div class="abs" style="left:18mm; top:258mm; width:82mm; height:0.2mm; background:var(--ink);"></div>
+    <div class="abs micro" style="left:18mm; top:262mm;">Recorded by · workshop</div>
+    <div class="abs" style="left:110mm; top:258mm; width:82mm; height:0.2mm; background:var(--ink);"></div>
+    <div class="abs micro" style="left:110mm; top:262mm;">Checked by · site</div>
+
+    <div class="abs hair" style="left:18mm; top:278mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:283mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:283mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES: samples under review, ticked and underlined -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:14mm;">03 Finishes · samples under review</div>
+    <div class="abs micro" style="right:18mm; top:14mm; text-align:right;">Sheet RD-03 · {{orderNo}}</div>
+    <div class="abs rule" style="left:18mm; top:23mm; width:174mm;"></div>
+    <div class="abs serif" style="left:18mm; top:28mm; width:150mm; font-size:24pt; line-height:1; color:var(--ink);">Samples under review</div>
+    <div class="abs micro" style="right:18mm; top:37mm; text-align:right;">Ticked where approved<br>Underlined where changed</div>
+
+    <div class="swcell" style="left:18mm; top:56mm; width:82mm; height:50mm;">
+      <div class="im" style="background-image:url({{mat1Image}});"></div>
+      <div class="nm">{{mat1Name}}</div>
+      <div class="ul"></div>
+      <div class="kind">Block 01 · shutter face</div>
+      <div class="tickmark" style="right:5mm; top:5mm;"><div class="a"></div><div class="b"></div></div>
+      <div class="label" style="position:absolute; right:5mm; top:11mm; font-size:3.6pt;">Approved</div>
+    </div>
+    <div class="swcell" style="left:110mm; top:56mm; width:82mm; height:50mm;">
+      <div class="im" style="background-image:url({{mat2Image}});"></div>
+      <div class="nm">{{mat2Name}}</div>
+      <div class="ul"></div>
+      <div class="kind">Block 02 · shutter face</div>
+      <div class="tickmark" style="right:5mm; top:5mm;"><div class="a"></div><div class="b"></div></div>
+      <div class="label" style="position:absolute; right:5mm; top:11mm; font-size:3.6pt;">Approved</div>
+    </div>
+    <div class="swcell" style="left:18mm; top:112mm; width:82mm; height:50mm;">
+      <div class="im" style="background-image:url({{mat3Image}});"></div>
+      <div class="nm">{{mat3Name}}</div>
+      <div class="ul"></div>
+      <div class="kind">Block 03 · interior face</div>
+      <div class="tickmark" style="right:5mm; top:5mm;"><div class="a"></div><div class="b"></div></div>
+      <div class="label" style="position:absolute; right:5mm; top:11mm; font-size:3.6pt;">Approved</div>
+    </div>
+    <div class="swcell" style="left:110mm; top:112mm; width:82mm; height:50mm;">
+      <div class="im" style="background-image:url({{mat4Image}});"></div>
+      <div class="nm">{{mat4Name}}</div>
+      <div class="ul"></div>
+      <div class="kind">Block 04 · edge band</div>
+      <div class="tickmark" style="right:5mm; top:5mm;"><div class="a"></div><div class="b"></div></div>
+      <div class="label" style="position:absolute; right:5mm; top:11mm; font-size:3.6pt;">Approved</div>
+    </div>
+
+    <div class="abs ph" style="left:18mm; top:176mm; width:112mm; height:52mm; background-image:url({{detailImage}});"></div>
+    <div class="abs" style="left:18mm; top:176mm; width:112mm; height:52mm; border:0.25mm solid var(--ink);"></div>
+    <div class="mark thin" style="left:88mm; top:182mm; width:26mm; height:26mm;"></div>
+    <div class="mark-label" style="left:84mm; top:178mm;">C3</div>
+    <div class="abs micro" style="left:18mm; top:232mm;">Detail · handle and edge band · mark C3 checked against site</div>
+
+    <div class="abs" style="left:138mm; top:176mm; width:54mm;">
+      <div class="label">Exterior</div>
+      <div class="sans" style="font-size:5.8pt; line-height:1.45; color:var(--ink); margin-top:1mm;">{{finishExt}}</div>
+      <div class="label" style="margin-top:4.5mm;">Interior</div>
+      <div class="sans" style="font-size:5.8pt; line-height:1.45; color:var(--ink); margin-top:1mm;">{{finishInt}}</div>
+      <div class="micro" style="margin-top:5mm; font-size:3.9pt; line-height:1.8;">Site check complete<br>Rev B marked</div>
+    </div>
+
+    <div class="copy copy-body" style="left:18mm; top:236mm; width:174mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:6pt; line-height:1.55; color:var(--ink);">{{noteBody}}</div>
+
+    <div class="abs hair" style="left:18mm; top:258mm; width:174mm;"></div>
+    <div class="abs" style="left:18mm; top:263mm; width:52mm;">
+      <div class="label">Checked</div>
+      <div class="sans" style="font-size:4.9pt; color:var(--muted); margin-top:1mm;">Site check complete against the fan deck</div>
+    </div>
+    <div class="abs" style="left:79mm; top:263mm; width:52mm;">
+      <div class="label">Marked</div>
+      <div class="sans" style="font-size:4.9pt; color:var(--muted); margin-top:1mm;">Ticks initialled by the workshop</div>
+    </div>
+    <div class="abs" style="left:140mm; top:263mm; width:52mm;">
+      <div class="label">Released</div>
+      <div class="sans" style="font-size:4.9pt; color:var(--muted); margin-top:1mm;">Rev B, no outstanding changes</div>
+    </div>
+
+    <div class="abs hair" style="left:18mm; top:278mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:283mm;">Shades confirmed against physical samples · marks initialled on site</div>
+    <div class="abs micro" style="right:18mm; top:283mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE: photographs marked up, sign-off block -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:14mm;">04 Inside · marked up on site</div>
+    <div class="abs micro" style="right:18mm; top:14mm; text-align:right;">Sheet RD-04 · {{orderNo}}</div>
+    <div class="abs rule" style="left:18mm; top:23mm; width:174mm;"></div>
+    <div class="abs serif" style="left:18mm; top:28mm; width:150mm; font-size:24pt; line-height:1; color:var(--ink);">Marked up on site</div>
+    <div class="abs micro" style="right:18mm; top:37mm; text-align:right; width:60mm;">Every mark checked twice<br>before release to cutting</div>
+
+    <div class="abs ph" style="left:18mm; top:56mm; width:122mm; height:96mm; background-image:url({{insideImage}});"></div>
+    <div class="abs" style="left:18mm; top:56mm; width:122mm; height:96mm; border:0.25mm solid var(--ink);"></div>
+    <div class="mark" style="left:52mm; top:92mm; width:36mm; height:36mm;"></div>
+    <div class="mark-label" style="left:48mm; top:88mm;">A1</div>
+    <div class="arrow" style="left:92mm; top:144mm; width:34mm; transform:rotate(-52deg);"></div>
+    <div class="arrow-head" style="left:68mm; top:117mm; transform:rotate(128deg);"></div>
+    <div class="mark-label" style="left:96mm; top:142mm;">REV A</div>
+    <div class="abs micro" style="left:18mm; top:156mm;">Fig. 1 · wardrobe interior, {{room}}</div>
+
+    <div class="abs ph" style="left:148mm; top:56mm; width:44mm; height:56mm; background-image:url({{insideImage2}});"></div>
+    <div class="abs" style="left:148mm; top:56mm; width:44mm; height:56mm; border:0.25mm solid var(--ink);"></div>
+    <div class="mark thin" style="left:158mm; top:66mm; width:22mm; height:22mm;"></div>
+    <div class="mark-label" style="left:154mm; top:62mm; font-size:3.6pt;">B2</div>
+    <div class="abs micro" style="left:148mm; top:116mm;">Fig. 2 · shutter face</div>
+
+    <div class="abs" style="left:148mm; top:124mm; width:44mm;">
+      <div class="label">Site note</div>
+      <div class="sans" style="font-size:5pt; line-height:1.55; color:var(--muted); margin-top:1.2mm;">Skirting notched left of B2. Reveal checked, no filler strip required.</div>
+    </div>
+
+    <div class="sign" style="left:18mm; top:172mm; width:174mm; height:76mm;">
+      <div class="label">Sign-off · {{orderNo}}</div>
+      <div class="abs" style="left:6mm; top:22mm; width:150mm; height:0.2mm; background:var(--ink);"></div>
+      <div class="abs signl" style="left:6mm; top:25mm;">Grace Wood Industry · workshop</div>
+      <div class="abs" style="left:6mm; top:38mm; width:150mm; height:0.2mm; background:var(--ink);"></div>
+      <div class="abs signl" style="left:6mm; top:41mm;">Customer · {{customerName}}</div>
+      <div class="abs" style="left:6mm; top:54mm; width:70mm; height:0.2mm; background:var(--ink);"></div>
+      <div class="abs signl" style="left:6mm; top:57mm;">Date</div>
+      <div class="abs micro" style="left:6mm; top:66mm; font-size:3.9pt;">Signed after the final drawer was run and the last shutter hung.</div>
+      <div class="approved" style="right:8mm; top:48mm;">Approved</div>
+    </div>
+
+    <div class="copy copy-closing" style="left:18mm; top:256mm; width:174mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:7.2pt; line-height:1.25; color:var(--muted);">{{noteClosing}}</div>
+
+    <div class="abs hair" style="left:18mm; top:276mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:281mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:281mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

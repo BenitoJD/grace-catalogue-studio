@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.5pt; letter-spacing:.22em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.ink{ color:var(--ink); }
+  .micro.on{ color:var(--on-dark); }
+  .label{ font-family:"Barlow", sans-serif; font-size:4.3pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  .rule{ height:0.2mm; background:var(--ink); }
+  .hair{ height:0.14mm; background:var(--hair); }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.012em; color:var(--ink); }
+
+  .frame{ position:absolute; background:var(--paper); border:0.2mm solid var(--hair); box-shadow:1.6mm 2mm 0 var(--accent-soft); }
+  .scrim{ background-image:linear-gradient(180deg, var(--dark) 0%, var(--dark) 30%, rgba(255,255,255,0) 82%); }
+  .tape{ position:absolute; width:16mm; height:5.4mm; background:var(--accent-soft); border:0.18mm solid var(--faint); box-shadow:0.5mm 0.6mm 0 var(--hair); }
+  .tag{ position:absolute; background:var(--accent-soft); border:0.28mm solid var(--muted); box-shadow:0.9mm 1.1mm 0 var(--hair); }
+  .hole{ position:absolute; left:2.2mm; top:2.2mm; width:2.4mm; height:2.4mm; border-radius:50%; border:0.35mm solid var(--muted); background:var(--cover-paper); }
+
+  .ck{ font-family:"Barlow", sans-serif; font-size:3.4pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .cv{ font-family:"Barlow", sans-serif; font-size:5.3pt; line-height:1.2; color:var(--ink); margin-top:0.2mm; }
+
+  .chip{ position:absolute; background:var(--paper); border:0.2mm solid var(--hair); box-shadow:1.2mm 1.5mm 0 var(--accent-soft); }
+  .chip .im{ position:absolute; left:3mm; top:3mm; width:34mm; height:30mm; background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .chip .nm{ position:absolute; left:3mm; top:36mm; width:36mm; font-family:"Barlow", sans-serif; font-size:5.8pt; line-height:1.2; color:var(--ink); }
+  .chip .kd{ position:absolute; left:3mm; top:41.5mm; font-family:"Barlow", sans-serif; font-size:3.5pt; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+
+  .torn{ position:absolute; background:var(--cover-paper); box-shadow:0.6mm 0.8mm 0 var(--hair); }
+  .torn .teeth{ position:absolute; left:0; bottom:-3.6mm; width:100%; height:3.6mm;
+    background-image:linear-gradient(135deg, var(--cover-paper) 50%, rgba(255,255,255,0) 50%), linear-gradient(225deg, var(--cover-paper) 50%, rgba(255,255,255,0) 50%);
+    background-size:7mm 3.6mm; background-repeat:repeat-x; }
+
+  /* Optional brochure copy. The server injects plain text here, or an empty
+     string when no copy was generated. Empty blocks collapse completely. */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+
+</style>
+</head>
+<body>
+
+<!-- 01 COVER: taped photo collage -->
+<div class="page cover">
+  <div class="sheet">
+    <img class="abs" src="../assets/grace-logo.png" style="left:14mm; top:10mm; width:10mm;">
+    <div class="abs micro ink" style="left:27mm; top:12mm;">Grace Wood Industry<br>Collage · four pages</div>
+    <div class="abs micro" style="right:14mm; top:11mm; text-align:right;">{{date}}</div>
+
+    <!-- top-left photo: the title lives here -->
+    <div class="frame" style="left:14mm; top:26mm; width:120mm; height:100mm; transform:rotate(-2.5deg);">
+      <div class="abs ph" style="left:4mm; top:4mm; width:112mm; height:92mm; background-image:url({{coverImage}});"></div>
+      <div class="abs scrim" style="left:4mm; top:4mm; width:112mm; height:92mm; opacity:.72;"></div>
+      <div class="abs tape" style="left:-4mm; top:-2mm; transform:rotate(-44deg);"></div>
+      <div class="abs tape" style="right:-4mm; top:-2mm; transform:rotate(44deg);"></div>
+      <div class="abs micro on" style="left:10mm; top:10mm; font-size:3.9pt; background:var(--paper); color:var(--ink); padding:0.5mm 1.6mm;">Plate 01 · cover</div>
+      <div class="cover-title" style="left:10mm; top:16mm; width:96mm; color:var(--on-dark);">{{title}}</div>
+      <div class="copy copy-headline" style="left:8mm; top:61mm; width:100mm; background:var(--paper); box-shadow:0.6mm 0.8mm 0 var(--photo-label-shadow, var(--hair)); padding:2.2mm 2.6mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-weight:500; font-size:6.2pt; line-height:1.42; color:var(--ink);">{{noteHeadline}}</div>
+      <div class="abs micro" style="left:10mm; top:86mm; font-size:3.8pt; background:var(--paper); color:var(--ink); padding:0.5mm 1.6mm;">{{room}} · photographed on site</div>
+    </div>
+
+    <!-- right photo -->
+    <div class="frame" style="left:104mm; top:76mm; width:100mm; height:114mm; transform:rotate(3deg);">
+      <div class="abs ph" style="left:4mm; top:4mm; width:92mm; height:106mm; background-image:url({{coverImage}}); background-position:60% 80%;"></div>
+      <div class="abs tape" style="left:-5mm; top:-2.5mm; transform:rotate(-38deg);"></div>
+      <div class="abs tape" style="right:-4mm; bottom:-2mm; transform:rotate(-36deg);"></div>
+      <div class="abs micro" style="left:9mm; top:95mm; font-size:3.8pt; background:var(--paper); color:var(--ink); padding:0.5mm 1.6mm;">Plate 02 · the room</div>
+    </div>
+
+    <!-- lower photo -->
+    <div class="frame" style="left:44mm; top:176mm; width:92mm; height:62mm; transform:rotate(-4deg);">
+      <div class="abs ph" style="left:4mm; top:4mm; width:84mm; height:54mm; background-image:url({{coverImage}}); background-position:20% 30%;"></div>
+      <div class="abs tape" style="left:-4mm; top:-2mm; transform:rotate(-46deg);"></div>
+      <div class="abs micro" style="left:9mm; top:47mm; font-size:3.8pt; background:var(--paper); color:var(--ink); padding:0.5mm 1.6mm;">Plate 03 · shutters</div>
+    </div>
+
+    <!-- order tag -->
+    <div class="tag" style="left:150mm; top:38mm; width:48mm; height:22mm; transform:rotate(7deg);">
+      <div class="hole"></div>
+      <div class="abs micro" style="left:7mm; top:4mm; font-size:3.6pt;">Order</div>
+      <div class="abs sans" style="left:7mm; top:7.5mm; font-size:6.4pt; font-weight:500; color:var(--ink);">{{orderNo}}</div>
+      <div class="abs micro" style="left:7mm; top:14mm; font-size:3.5pt;">Collage folio · 01 / 04</div>
+    </div>
+
+    <div class="abs" style="left:14mm; top:248mm; width:120mm;">
+      <div class="label">Prepared for</div>
+      <div class="name" style="font-size:9pt; color:var(--ink); margin-top:1.2mm;">{{customerName}}</div>
+      <div class="sans" style="font-size:6pt; line-height:1.6; color:var(--muted); margin-top:2mm;">{{room}} · {{width}} x {{height}} x {{depth}}<br>{{shutters}} shutters in {{shuttersMat}}</div>
+    </div>
+
+    <div class="abs hair" style="left:14mm; top:280mm; width:182mm;"></div>
+    <div class="abs micro" style="left:14mm; top:284mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:14mm; top:284mm; text-align:right;">01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION: file card over the collage -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:16mm; top:14mm;">02 Specification · file card</div>
+    <div class="abs micro" style="right:16mm; top:14mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs rule" style="left:16mm; top:23mm; width:178mm;"></div>
+
+    <!-- scraps behind the card -->
+    <div class="frame" style="left:2mm; top:34mm; width:50mm; height:46mm; transform:rotate(6deg);">
+      <div class="abs ph" style="left:3mm; top:3mm; width:44mm; height:40mm; background-image:url({{coverImage}}); background-position:70% 20%;"></div>
+      <div class="abs tape" style="left:-3mm; top:-2mm; transform:rotate(-40deg); width:13mm; height:4.6mm;"></div>
+    </div>
+    <div class="frame" style="left:160mm; top:28mm; width:44mm; height:40mm; transform:rotate(-7deg);">
+      <div class="abs ph" style="left:3mm; top:3mm; width:38mm; height:34mm; background-image:url({{coverImage}}); background-position:20% 70%;"></div>
+      <div class="abs tape" style="right:-3mm; top:-2mm; transform:rotate(38deg); width:13mm; height:4.6mm;"></div>
+    </div>
+    <div class="frame" style="left:2mm; top:244mm; width:40mm; height:32mm; transform:rotate(-5deg);">
+      <div class="abs ph" style="left:3mm; top:3mm; width:34mm; height:26mm; background-image:url({{coverImage}}); background-position:50% 10%;"></div>
+    </div>
+
+    <!-- the paper card -->
+    <div class="abs" style="left:16mm; top:44mm; width:160mm; height:204mm; transform:rotate(-1.6deg); background:var(--paper); border:0.22mm solid var(--hair); box-shadow:2mm 2.4mm 0 var(--accent-soft);">
+      <div class="abs micro ink" style="left:10mm; top:9mm; font-size:4pt;">Specification · file card</div>
+      <div class="abs micro" style="right:10mm; top:9mm; text-align:right;">Card no. {{orderNo}}</div>
+      <div class="abs serif" style="left:10mm; top:14mm; font-size:16pt; line-height:1; color:var(--ink);">The particulars</div>
+      <div class="abs" style="left:10mm; top:28mm; width:140mm; height:0.35mm; background:var(--accent);"></div>
+
+      <!-- column 1 -->
+      <div class="abs label" style="left:10mm; top:34mm;">Room and size</div>
+      <div class="abs" style="left:10mm; top:40mm; width:42mm;">
+        <div class="ck">Space</div><div class="cv">{{room}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Prepared for</div><div class="cv">{{customerName}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Order</div><div class="cv">{{orderNo}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Width</div><div class="cv">{{width}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Height</div><div class="cv">{{height}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Depth</div><div class="cv">{{depth}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Shutters</div><div class="cv">{{shutters}}</div>
+      </div>
+      <div class="abs label" style="left:10mm; top:136mm;">Layout</div>
+      <div class="abs" style="left:10mm; top:142mm; width:42mm;">
+        <div class="ck">Left</div><div class="cv">{{layoutLeft}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Middle</div><div class="cv">{{layoutMiddle}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Right</div><div class="cv">{{layoutRight}}</div>
+      </div>
+
+      <!-- column 2 -->
+      <div class="abs label" style="left:58mm; top:34mm;">Material</div>
+      <div class="abs" style="left:58mm; top:40mm; width:44mm;">
+        <div class="ck">Carcass</div><div class="cv">{{carcass}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Back panel</div><div class="cv">{{backPanel}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Shutter material</div><div class="cv">{{shuttersMat}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Drawers</div><div class="cv">{{drawers}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Exterior</div><div class="cv">{{exterior}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Interior</div><div class="cv">{{interior}}</div>
+      </div>
+      <div class="abs label" style="left:58mm; top:118mm;">Edges</div>
+      <div class="abs" style="left:58mm; top:124mm; width:44mm;">
+        <div class="ck">Shutter edge</div><div class="cv">{{edgeShutter}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Carcass edge</div><div class="cv">{{edgeCarcass}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Edge note</div><div class="cv">{{edgeNote}} · {{mat4Name}}</div>
+      </div>
+
+      <!-- column 3 -->
+      <div class="abs label" style="left:108mm; top:34mm;">Fittings</div>
+      <div class="abs" style="left:108mm; top:40mm; width:44mm;">
+        <div class="ck">Hinges</div><div class="cv">{{hinges}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Channels</div><div class="cv">{{channels}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Handle</div><div class="cv">{{handle}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Handle note</div><div class="cv">{{handleNote}}</div>
+      </div>
+      <div class="abs label" style="left:108mm; top:88mm;">Finish</div>
+      <div class="abs" style="left:108mm; top:94mm; width:44mm;">
+        <div class="ck">Exterior</div><div class="cv">{{finishExt}}</div>
+        <div class="ck" style="margin-top:2.6mm;">Interior</div><div class="cv">{{finishInt}}</div>
+      </div>
+
+      <div class="abs" style="left:108mm; top:118mm; width:44mm;">
+        <div class="abs ph" style="left:0; top:0; width:44mm; height:34mm; background-image:url({{mat1Image}}); border:0.2mm solid var(--hair);"></div>
+        <div class="abs tape" style="left:14mm; top:-2mm; transform:rotate(-3deg); width:15mm; height:4.8mm;"></div>
+        <div class="micro" style="position:absolute; left:0; top:36mm; font-size:3.6pt;">Sample · {{mat1Name}}</div>
+      </div>
+
+      <div class="abs hair" style="left:10mm; top:166mm; width:140mm;"></div>
+      <div class="abs" style="left:10mm; top:171mm; width:88mm;">
+        <div class="label">File note</div>
+        <div class="sans" style="font-size:5pt; line-height:1.6; color:var(--muted); margin-top:1.2mm;">Sample card pinned to the file. Facts checked against the signed order before cutting; every change marked on the photograph.</div>
+      </div>
+      <div class="abs micro" style="right:10mm; top:171mm; text-align:right; font-size:3.8pt;">Order {{orderNo}}<br>{{date}}</div>
+      <div class="abs" style="left:10mm; top:192mm; width:60mm; height:0.2mm; background:var(--ink);"></div>
+      <div class="abs micro" style="left:10mm; top:195mm; font-size:3.7pt;">Prepared by</div>
+      <div class="abs" style="left:82mm; top:192mm; width:68mm; height:0.2mm; background:var(--ink);"></div>
+      <div class="abs micro" style="left:82mm; top:195mm; font-size:3.7pt;">Checked on site · {{customerName}}</div>
+    </div>
+
+    <div class="abs micro" style="left:52mm; top:264mm;">File card · pinned over the contact sheet</div>
+    <div class="abs micro" style="right:16mm; top:262mm; text-align:right;">02 / 04</div>
+    <div class="abs hair" style="left:16mm; top:281mm; width:178mm;"></div>
+    <div class="abs micro" style="left:16mm; top:285mm;">{{shopLine}}</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES: pinned sample chips -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:16mm; top:14mm;">03 Finishes · pinned samples</div>
+    <div class="abs micro" style="right:16mm; top:14mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs rule" style="left:16mm; top:23mm; width:178mm;"></div>
+    <div class="abs serif" style="left:16mm; top:28mm; width:150mm; font-size:24pt; line-height:1; color:var(--ink);">Pinned to the board</div>
+    <div class="abs micro" style="right:16mm; top:37mm; text-align:right;">Four chips, cut from<br>the sample batch</div>
+
+    <div class="chip" style="left:18mm; top:58mm; width:40mm; height:48mm; transform:rotate(-4deg);">
+      <div class="im" style="background-image:url({{mat1Image}});"></div>
+      <div class="nm">{{mat1Name}}</div>
+      <div class="kd">Chip 01 · laminate</div>
+      <div class="abs tape" style="left:11mm; top:-2.6mm; transform:rotate(-6deg); width:16mm; height:5mm;"></div>
+    </div>
+    <div class="chip" style="left:64mm; top:62mm; width:40mm; height:48mm; transform:rotate(3deg);">
+      <div class="im" style="background-image:url({{mat2Image}});"></div>
+      <div class="nm">{{mat2Name}}</div>
+      <div class="kd">Chip 02 · laminate</div>
+      <div class="abs tape" style="left:12mm; top:-2.6mm; transform:rotate(4deg); width:16mm; height:5mm;"></div>
+    </div>
+    <div class="chip" style="left:110mm; top:56mm; width:40mm; height:48mm; transform:rotate(-2deg);">
+      <div class="im" style="background-image:url({{mat3Image}});"></div>
+      <div class="nm">{{mat3Name}}</div>
+      <div class="kd">Chip 03 · interior</div>
+      <div class="abs tape" style="left:11mm; top:-2.6mm; transform:rotate(-3deg); width:16mm; height:5mm;"></div>
+    </div>
+    <div class="chip" style="left:156mm; top:64mm; width:40mm; height:48mm; transform:rotate(5deg);">
+      <div class="im" style="background-image:url({{mat4Image}});"></div>
+      <div class="nm">{{mat4Name}}</div>
+      <div class="kd">Chip 04 · edge band</div>
+      <div class="abs tape" style="left:12mm; top:-2.6mm; transform:rotate(7deg); width:16mm; height:5mm;"></div>
+    </div>
+
+    <div class="abs hair" style="left:16mm; top:130mm; width:178mm;"></div>
+    <div class="abs" style="left:16mm; top:136mm; width:84mm;">
+      <div class="label">Exterior finish</div>
+      <div class="sans" style="font-size:7pt; line-height:1.4; color:var(--ink); margin-top:1.4mm;">{{finishExt}}</div>
+    </div>
+    <div class="abs" style="left:110mm; top:136mm; width:84mm;">
+      <div class="label">Interior finish</div>
+      <div class="sans" style="font-size:7pt; line-height:1.4; color:var(--ink); margin-top:1.4mm;">{{finishInt}}</div>
+    </div>
+
+    <div class="frame" style="left:18mm; top:160mm; width:174mm; height:86mm; transform:rotate(-.7deg);">
+      <div class="abs ph" style="left:4mm; top:4mm; width:166mm; height:72mm; background-image:url({{detailImage}});"></div>
+      <div class="abs tape" style="left:-3mm; top:8mm; transform:rotate(-46deg);"></div>
+      <div class="abs tape" style="right:-3mm; top:8mm; transform:rotate(46deg);"></div>
+    </div>
+    <div class="abs micro" style="left:18mm; top:250mm;">Handle and edge band · photograph pinned with the chips</div>
+
+    <div class="abs hair" style="left:16mm; top:266mm; width:178mm;"></div>
+    <div class="abs micro" style="left:16mm; top:271mm;">{{customerName}}</div>
+    <div class="abs micro" style="right:16mm; top:271mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs micro" style="left:16mm; top:285mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:16mm; top:285mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE: collaged photographs, torn strip, copy blocks -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:16mm; top:14mm;">04 Inside · cut, taped and kept</div>
+    <div class="abs micro" style="right:16mm; top:14mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs rule" style="left:16mm; top:23mm; width:178mm;"></div>
+    <div class="abs serif" style="left:16mm; top:28mm; width:150mm; font-size:24pt; line-height:1; color:var(--ink);">Cut, taped and kept.</div>
+    <div class="abs micro" style="right:16mm; top:37mm; text-align:right;">{{room}}<br>Inside · 04</div>
+
+    <div class="frame" style="left:18mm; top:60mm; width:118mm; height:88mm; transform:rotate(-1.8deg);">
+      <div class="abs ph" style="left:4mm; top:4mm; width:110mm; height:80mm; background-image:url({{insideImage}});"></div>
+      <div class="abs tape" style="left:-4mm; top:-2mm; transform:rotate(-44deg);"></div>
+      <div class="abs tape" style="right:-4mm; top:-2mm; transform:rotate(44deg);"></div>
+      <div class="abs micro on" style="left:9mm; top:73mm; font-size:3.8pt; background:var(--paper); color:var(--ink); padding:0.5mm 1.6mm;">Plate 04 · wardrobe interior</div>
+    </div>
+
+    <div class="frame" style="left:112mm; top:118mm; width:70mm; height:64mm; transform:rotate(4deg);">
+      <div class="abs ph" style="left:4mm; top:4mm; width:62mm; height:56mm; background-image:url({{insideImage2}});"></div>
+      <div class="abs tape" style="left:20mm; top:-2.4mm; transform:rotate(3deg); width:17mm; height:5mm;"></div>
+      <div class="abs micro on" style="left:9mm; top:48mm; font-size:3.8pt; background:var(--paper); color:var(--ink); padding:0.5mm 1.6mm;">Plate 05 · shutter face</div>
+    </div>
+
+    <div class="torn" style="left:16mm; top:186mm; width:178mm; height:44mm; transform:rotate(-1deg);">
+      <div class="abs micro" style="left:8mm; top:5mm; font-size:3.9pt;">Torn from the file · the room, before the shutters went on</div>
+      <div class="copy copy-body" style="left:8mm; top:11mm; width:162mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:5.8pt; line-height:1.5; color:var(--ink);">{{noteBody}}</div>
+      <div class="teeth"></div>
+    </div>
+
+    <div class="copy copy-closing" style="left:18mm; top:240mm; width:150mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:8pt; line-height:1.25; color:var(--muted);">{{noteClosing}}</div>
+
+    <div class="abs micro" style="left:18mm; top:252mm; font-size:3.9pt;">Photographs pinned with the order file · paper scraps kept in the drawer</div>
+
+    <div class="abs hair" style="left:16mm; top:266mm; width:178mm;"></div>
+    <div class="abs micro" style="left:16mm; top:271mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:16mm; top:271mm; text-align:right;">{{customerName}} · {{orderNo}}</div>
+    <div class="abs micro" style="left:16mm; top:285mm;">Collage · photographs and paper kept with the order file</div>
+    <div class="abs micro" style="right:16mm; top:285mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

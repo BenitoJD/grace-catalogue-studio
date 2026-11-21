@@ -190,45 +190,16 @@ Image paths are relative to the template directory, i.e. `../assets/company/tex-
 
 ## Brochure templates
 
-The voucher has 30 selectable designs: ten complete document families, each with
-its own cover, specification, finishes and inside pages, crossed with three
-palettes per family. Families are not permutations of one layout: each one has
-its own page structure, typography treatment and page furniture.
+The voucher has 30 selectable designs: thirty complete document families, one
+palette each. Every family is a different document with its own cover,
+specification, finishes and inside pages; no two families share a page
+structure, and a palette swap can never create a second design.
 
-- `atelier`: editorial paper cover, labelled specification tables, four up finish grid, large inside photograph.
-- `swiss`: grotesque grid with numbered sections 01 02 03, hairline key value lists, a full width swatch band, full bleed inside page.
-- `gallery`: near empty pages with huge margins, small centred text, one photograph per page, a single centred specification column and no rules.
-- `index`: dense trade catalogue, small type, a three column specification, a coded finishes grid, cover with a photo band and a printed contents list.
-- `dark`: ink black cover and black section dividers, a reversed white on black specification page, light hairlines.
-- `blueprint`: technical drawing furniture, grid paper, tick marks, dimension lines, a specification table with a units column, annotated finish strips.
-- `lookbook`: full bleed photography on every page, text in corners over the images, a compressed overlay specification.
-- `poster`: one enormous title with almost nothing else, a six line specification, finishes as plain strips.
-- `card`: modular bordered cards, specification split into labelled boxes, finishes as bordered chips, cover built as one card on paper.
-- `folio`: classical folio with wide margins, centred title, small caps, thin double rules, one elegant specification list, numbered swatches.
+The families are: `atelier`, `swiss`, `gallery`, `index`, `dark`, `blueprint`, `lookbook`, `poster`, `card`, `folio`, `timeline`, `bluepaper`, `magazine`, `frame`, `ticket`, `axonometric`, `swatchbook`, `broadsheet`, `redline`, `collage`, `ledger`, `geometric`, `sketchbook`, `sleeve`, `envelope`, `accordion`, `split`, `specimen`, `contact`, `atlas`.
 
-Palettes: `copper` (`#A65E22`), `ink` (`#1C1A17`), `olive` (`#5C6B3C`),
-`indigo` (`#2F3E6B`), `sand` (`#B08A63`).
-
-Canonical assignment: atelier copper, ink, sand; swiss ink, indigo, olive;
-gallery copper, olive, indigo; index copper, olive, sand; dark ink, indigo,
-sand; blueprint ink, indigo, olive; lookbook copper, sand, indigo; poster ink,
-sand, olive; card copper, indigo, olive; folio copper, ink, sand. The first
-catalogue entry, `atelier-copper`, is the default when no `templateId` is sent.
-
-The catalogue is data, not files: `templates/variants.json` lists the palettes,
-the families and the 30 variants. One HTML file per family lives in
-`templates/voucher/families/<family>.html` and contains all four pages. The
-palette arrives through CSS variables; it is never a duplicated document.
-
-The cover title is the order `title`, split at word boundaries into at most
-three lines and sized to fit, so long titles shrink instead of clipping. The
-cover and the signature line show the customer name in sentence case.
-
-Thumbnails are page one at 96 dpi, cached at `data/previews/<templateId>.png`
-and served from `/previews/<templateId>.png`. They are generated once per
-template from a fixed sample order: in the background on boot, lazily when a
-missing preview is requested, or eagerly with
-`npm --prefix server run previews` (add `-- --force` to rebuild all 30).
+Each family is one HTML file under `templates/voucher/families/<family>.html`
+with four pages. `templates/variants.json` lists the families, their palettes
+and their fitted cover title boxes; a variant id is `<family>-<palette>`.
 
 ## Language model
 
@@ -239,7 +210,7 @@ The model is configured at runtime and stored in the `settings` table as `llm_en
 
 ## Catalogue rate card
 
-The trade rate card is a fourth document, separate from the ten voucher families.
+The trade rate card is a separate document from the thirty voucher families.
 It lists every material from the materials table: SKU, material name, finish or
 kind, unit and rate in INR, with a GST note. No price is calculated at render
 time; each row prints the stored `priceAmount`, `priceUnit` and `sku`.

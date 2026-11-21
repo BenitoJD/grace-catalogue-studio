@@ -276,7 +276,16 @@ try {
   const catalog = await (await fetch(`${API}/api/templates`)).json();
   check("design ids are unique", new Set(catalog.map((t) => t.id)).size === catalog.length, `${catalog.length} entries`);
   const families = new Set(catalog.map((t) => t.family ?? t.cover));
-  check("at least ten design families", families.size >= 10, `${families.size} families`);
+  check("thirty design families", families.size === 30, `${families.size} families`);
+  const familyVariants = new Map();
+  for (const template of catalog) {
+    familyVariants.set(template.family, (familyVariants.get(template.family) ?? 0) + 1);
+  }
+  check(
+    "each family is its own design, not a palette twin",
+    [...familyVariants.values()].every((count) => count === 1),
+    `${catalog.length} designs`
+  );
   check("every design has its own preview", new Set(catalog.map((t) => t.previewUrl)).size === catalog.length);
   const previewsLoaded = await page
     .waitForFunction(

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .hand{ font-family:'Instrument Serif', Georgia, serif; font-style:italic; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.26em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.on{ color:var(--on-dark); opacity:.72; }
+  .micro.acc{ color:var(--accent); }
+  .micro.accd{ color:var(--accent-on-dark); }
+  .hair{ height:0.14mm; background:var(--hair); }
+  .v{ position:absolute; transform:rotate(-90deg); transform-origin:0 0; white-space:nowrap; line-height:1; }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.012em; color:var(--on-dark); }
+
+  /* 35 mm film strip: a dark band with a row of punched sprocket holes */
+  .strip{ position:absolute; background:var(--dark); }
+  .perf{ position:absolute; height:3.2mm; background-image:repeating-linear-gradient(90deg, transparent 0, transparent 2.1mm, rgba(255,255,255,0.86) 2.1mm, rgba(255,255,255,0.86) 4.2mm); }
+  .frame{ position:absolute; background:rgba(255,255,255,0.06); border:0.16mm solid rgba(255,255,255,0.22); }
+  .frame .ph{ position:absolute; left:1.5mm; right:1.5mm; top:1.5mm; bottom:1.5mm; }
+  .frame .fno{ position:absolute; left:2.2mm; bottom:1.2mm; font-family:"Barlow", sans-serif; font-size:3.8pt; letter-spacing:.2em; color:rgba(255,255,255,0.55); }
+  .print{ position:absolute; background:var(--paper); border:0.35mm solid var(--ink); padding:1.6mm; }
+  .print .ph{ position:absolute; left:1.6mm; right:1.6mm; top:1.6mm; bottom:1.6mm; }
+
+  .mark{ position:absolute; border:0.62mm solid var(--accent-on-dark); border-radius:50%; transform:rotate(-7deg); }
+  .mark.dark{ border-color:var(--accent); }
+
+  /* page 2: the camera notes pad */
+  .pad{ position:absolute; left:12mm; top:54mm; width:186mm; height:202mm; background:var(--cover-paper); border:0.16mm solid var(--hair); }
+  .cn{ position:absolute; left:0; width:186mm; height:7.4mm; border-bottom:0.12mm solid var(--hair); }
+  .cn .fr{ position:absolute; left:6mm; top:2.1mm; font-family:"Barlow", sans-serif; font-size:4.2pt; font-weight:600; letter-spacing:.18em; color:var(--accent); }
+  .cn .k{ position:absolute; left:20mm; top:2.5mm; width:30mm; font-family:"Barlow", sans-serif; font-size:4.1pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+  .cn .v2{ position:absolute; left:52mm; top:1.7mm; width:124mm; font-family:"Barlow", sans-serif; font-size:5.8pt; line-height:1.2; color:var(--ink); }
+
+  /* optional brochure copy: same rule in every family */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline{ white-space:nowrap; }
+  .copy-closing{ white-space:nowrap; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+  .copy-panel{ background:rgba(10,9,8,0.55); padding:3.5mm; }
+</style>
+</head>
+<body>
+
+<!-- 01 COVER : contact sheet cover -->
+<div class="page cover">
+  <div class="copy copy-headline" style="left:12mm; top:121mm; width:186mm; font-family:'Instrument Serif', Georgia, serif; font-size:7pt; line-height:1.25; color:var(--muted);">{{noteHeadline}}</div>
+
+  <div class="strip" style="left:0; top:34mm; width:216mm; height:70mm;"></div>
+  <div class="perf" style="left:4mm; top:36.5mm; width:208mm;"></div>
+  <div class="perf" style="left:4mm; top:98.5mm; width:208mm;"></div>
+  <div class="frame" style="left:6mm; top:42mm; width:48mm; height:54mm;"><div class="fno">FR 01</div></div>
+  <div class="frame" style="left:60mm; top:42mm; width:48mm; height:54mm;"><div class="ph" style="background-image:url({{coverImage}});"></div><div class="fno">FR 02</div></div>
+  <div class="frame" style="left:114mm; top:42mm; width:48mm; height:54mm;"><div class="fno">FR 03</div></div>
+  <div class="frame" style="left:168mm; top:42mm; width:48mm; height:54mm;"><div class="fno">FR 04</div></div>
+
+  <div class="mark" style="left:59mm; top:40mm; width:50mm; height:58mm;"></div>
+  <div class="abs hand" style="left:63mm; top:108mm; font-size:9pt; color:var(--accent); transform:rotate(-4deg);">Select · walnut + cream</div>
+  <div class="abs micro acc" style="left:63mm; top:114mm;">Circle in grease pencil</div>
+
+  <div class="strip" style="left:0; top:136mm; width:216mm; height:70mm;"></div>
+  <div class="perf" style="left:4mm; top:138.5mm; width:208mm;"></div>
+  <div class="perf" style="left:4mm; top:200.5mm; width:208mm;"></div>
+  <div class="frame" style="left:6mm; top:144mm; width:48mm; height:54mm;"><div class="fno">FR 05</div></div>
+  <div class="frame" style="left:60mm; top:144mm; width:48mm; height:54mm;"><div class="fno">FR 06</div></div>
+  <div class="frame" style="left:114mm; top:144mm; width:48mm; height:54mm;"><div class="fno">FR 07</div></div>
+  <div class="frame" style="left:168mm; top:144mm; width:48mm; height:54mm;"><div class="fno">FR 08</div></div>
+
+  <div class="abs" style="left:12mm; top:152mm; width:190mm; height:27mm; background:var(--dark);"></div>
+
+  <div class="sheet">
+    <img class="abs" src="../assets/grace-logo.png" style="left:12mm; top:12mm; width:11mm;">
+    <div class="abs micro" style="left:27mm; top:14mm;">Grace Wood Industry</div>
+    <div class="abs micro" style="left:27mm; top:20mm;">Contact sheet · 35 mm</div>
+    <div class="abs micro" style="left:111mm; top:12mm; width:87mm; text-align:right;">Roll {{orderNo}}</div>
+    <div class="abs micro" style="left:111mm; top:18mm; width:87mm; text-align:right;">{{date}} · 400 ISO</div>
+
+    <div class="cover-title" style="left:14mm; top:154mm; width:150mm;">{{title}}</div>
+    <div class="abs micro on" style="left:14mm; top:192mm;">Written across the second strip</div>
+
+    <div class="abs hair" style="left:12mm; top:216mm; width:186mm;"></div>
+    <div class="abs micro" style="left:12mm; top:222mm;">Prepared for</div>
+    <div class="abs serif" style="left:12mm; top:228mm; width:90mm; font-size:12pt; line-height:1.05; color:var(--ink);">{{customerName}}</div>
+    <div class="abs micro" style="left:112mm; top:222mm;">Room</div>
+    <div class="abs sans" style="left:112mm; top:228mm; width:86mm; font-size:8pt; color:var(--ink);">{{room}}</div>
+
+    <div class="abs micro" style="left:12mm; top:248mm;">Shutters</div>
+    <div class="abs sans" style="left:12mm; top:253mm; width:86mm; font-size:7.4pt; color:var(--ink);">{{shutters}}</div>
+    <div class="abs micro" style="left:112mm; top:248mm;">Dimensions</div>
+    <div class="abs sans" style="left:112mm; top:253mm; width:86mm; font-size:7pt; color:var(--ink);">{{width}} · {{height}} · {{depth}}</div>
+
+    <div class="abs hand" style="left:12mm; top:266mm; font-size:11pt; color:var(--accent);">Four pages, one roll.</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:186mm; text-align:right;">01 / 04</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION : camera notes pad -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">02 · Specification</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:186mm; text-align:right;">Roll {{orderNo}}</div>
+    <div class="abs serif" style="left:12mm; top:18mm; width:150mm; font-size:23pt; line-height:1.02; color:var(--ink); letter-spacing:-.01em;">Camera notes.</div>
+    <div class="abs micro acc" style="left:12mm; top:31mm;">Twenty five frames · one shot each</div>
+    <div class="abs micro" style="left:112mm; top:32mm; width:86mm; text-align:right; line-height:1.7;">Exposed for {{room}}<br>{{date}}</div>
+
+    <div class="pad">
+      <div class="abs cn" style="top:0; border-bottom:0.2mm solid var(--ink);">
+        <div class="abs micro" style="left:6mm; top:2.4mm;">Frame</div>
+        <div class="abs micro" style="left:20mm; top:2.4mm;">Shot note</div>
+        <div class="abs micro" style="left:52mm; top:2.4mm;">Detail</div>
+      </div>
+      <div class="cn" style="top:7.4mm;"><div class="fr">01</div><div class="k">Room</div><div class="v2">{{room}}</div></div>
+      <div class="cn" style="top:14.8mm;"><div class="fr">02</div><div class="k">Width</div><div class="v2">{{width}}</div></div>
+      <div class="cn" style="top:22.2mm;"><div class="fr">03</div><div class="k">Height</div><div class="v2">{{height}}</div></div>
+      <div class="cn" style="top:29.6mm;"><div class="fr">04</div><div class="k">Depth</div><div class="v2">{{depth}}</div></div>
+      <div class="cn" style="top:37mm;"><div class="fr">05</div><div class="k">Shutters</div><div class="v2">{{shutters}}</div></div>
+      <div class="cn" style="top:44.4mm;"><div class="fr">06</div><div class="k">Carcass</div><div class="v2">{{carcass}}</div></div>
+      <div class="cn" style="top:51.8mm;"><div class="fr">07</div><div class="k">Back panel</div><div class="v2">{{backPanel}}</div></div>
+      <div class="cn" style="top:59.2mm;"><div class="fr">08</div><div class="k">Shutter material</div><div class="v2">{{shuttersMat}}</div></div>
+      <div class="cn" style="top:66.6mm;"><div class="fr">09</div><div class="k">Drawers</div><div class="v2">{{drawers}}</div></div>
+      <div class="cn" style="top:74mm;"><div class="fr">10</div><div class="k">Exterior</div><div class="v2">{{exterior}}</div></div>
+      <div class="cn" style="top:81.4mm;"><div class="fr">11</div><div class="k">Interior</div><div class="v2">{{interior}}</div></div>
+      <div class="cn" style="top:88.8mm;"><div class="fr">12</div><div class="k">Hinges</div><div class="v2">{{hinges}}</div></div>
+      <div class="cn" style="top:96.2mm;"><div class="fr">13</div><div class="k">Channels</div><div class="v2">{{channels}}</div></div>
+      <div class="cn" style="top:103.6mm;"><div class="fr">14</div><div class="k">Layout · left</div><div class="v2">{{layoutLeft}}</div></div>
+      <div class="cn" style="top:111mm;"><div class="fr">15</div><div class="k">Layout · middle</div><div class="v2">{{layoutMiddle}}</div></div>
+      <div class="cn" style="top:118.4mm;"><div class="fr">16</div><div class="k">Layout · right</div><div class="v2">{{layoutRight}}</div></div>
+      <div class="cn" style="top:125.8mm;"><div class="fr">17</div><div class="k">Shutter edge</div><div class="v2">{{edgeShutter}}</div></div>
+      <div class="cn" style="top:133.2mm;"><div class="fr">18</div><div class="k">Carcass edge</div><div class="v2">{{edgeCarcass}}</div></div>
+      <div class="cn" style="top:140.6mm;"><div class="fr">19</div><div class="k">Edge note</div><div class="v2">{{edgeNote}}</div></div>
+      <div class="cn" style="top:148mm;"><div class="fr">20</div><div class="k">Handle</div><div class="v2">{{handle}}</div></div>
+      <div class="cn" style="top:155.4mm;"><div class="fr">21</div><div class="k">Handle note</div><div class="v2">{{handleNote}}</div></div>
+      <div class="cn" style="top:162.8mm;"><div class="fr">22</div><div class="k">Exterior finish</div><div class="v2">{{finishExt}}</div></div>
+      <div class="cn" style="top:170.2mm;"><div class="fr">23</div><div class="k">Interior finish</div><div class="v2">{{finishInt}}</div></div>
+      <div class="cn" style="top:177.6mm;"><div class="fr">24</div><div class="k">Prepared for</div><div class="v2">{{customerName}}</div></div>
+      <div class="cn" style="top:185mm; border-bottom:none;"><div class="fr">25</div><div class="k">Order</div><div class="v2">{{orderNo}}</div></div>
+    </div>
+
+    <div class="abs v micro" style="left:202mm; top:262mm;">Camera 01 · 35 mm · f/8 · grey card at frame 02</div>
+
+    <div class="abs micro" style="left:12mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:186mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES : a strip of four frames, hand marked -->
+<div class="page">
+  <div class="strip" style="left:0; top:44mm; width:216mm; height:132mm;"></div>
+  <div class="perf" style="left:4mm; top:47mm; width:208mm;"></div>
+  <div class="perf" style="left:4mm; top:170mm; width:208mm;"></div>
+  <div class="frame" style="left:6mm; top:53mm; width:48mm; height:114mm;"><div class="ph" style="background-image:url({{mat1Image}});"></div><div class="fno">FR 01</div></div>
+  <div class="frame" style="left:60mm; top:53mm; width:48mm; height:114mm;"><div class="ph" style="background-image:url({{mat2Image}});"></div><div class="fno">FR 02</div></div>
+  <div class="frame" style="left:114mm; top:53mm; width:48mm; height:114mm;"><div class="ph" style="background-image:url({{mat3Image}});"></div><div class="fno">FR 03</div></div>
+  <div class="frame" style="left:168mm; top:53mm; width:48mm; height:114mm;"><div class="ph" style="background-image:url({{mat4Image}});"></div><div class="fno">FR 04</div></div>
+
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">03 · Finishes</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:186mm; text-align:right;">Roll {{orderNo}}</div>
+    <div class="abs serif" style="left:12mm; top:18mm; width:150mm; font-size:23pt; line-height:1.02; color:var(--ink); letter-spacing:-.01em;">Contact strip.</div>
+    <div class="abs micro acc" style="left:12mm; top:31mm;">Four frames · hand marked</div>
+
+    <div class="abs hair" style="left:14mm; top:200mm; width:44mm;"></div>
+    <div class="abs serif" style="left:14mm; top:189mm; width:46mm; font-size:9.4pt; line-height:1.1; color:var(--ink);">{{mat1Name}}</div>
+    <div class="abs micro" style="left:14mm; top:204mm;">01 · Laminate</div>
+
+    <div class="abs hair" style="left:68mm; top:200mm; width:44mm;"></div>
+    <div class="abs serif" style="left:68mm; top:189mm; width:46mm; font-size:9.4pt; line-height:1.1; color:var(--ink);">{{mat2Name}}</div>
+    <div class="abs micro" style="left:68mm; top:204mm;">02 · Laminate</div>
+
+    <div class="abs hair" style="left:122mm; top:200mm; width:44mm;"></div>
+    <div class="abs serif" style="left:122mm; top:189mm; width:46mm; font-size:9.4pt; line-height:1.1; color:var(--ink);">{{mat3Name}}</div>
+    <div class="abs micro" style="left:122mm; top:204mm;">03 · Laminate</div>
+
+    <div class="abs hair" style="left:176mm; top:200mm; width:44mm;"></div>
+    <div class="abs serif" style="left:176mm; top:189mm; width:34mm; font-size:9.4pt; line-height:1.1; color:var(--ink);">{{mat4Name}}</div>
+    <div class="abs micro" style="left:176mm; top:204mm;">04 · Edge</div>
+
+    <div class="abs print" style="left:12mm; top:212mm; width:96mm; height:42mm;"><div class="ph" style="background-image:url({{detailImage}});"></div></div>
+    <div class="abs micro" style="left:12mm; top:257mm; width:96mm;">Enlargement · handle detail</div>
+
+    <div class="abs" style="left:116mm; top:212mm; width:82mm;">
+      <div class="micro acc">Exterior finish</div>
+      <div class="sans" style="margin-top:2mm; font-size:6.2pt; line-height:1.4; color:var(--ink);">{{finishExt}}</div>
+      <div class="micro acc" style="margin-top:7mm;">Interior finish</div>
+      <div class="sans" style="margin-top:2mm; font-size:6.2pt; line-height:1.4; color:var(--ink);">{{finishInt}}</div>
+    </div>
+
+    <div class="abs hand" style="left:132mm; top:250mm; font-size:9pt; color:var(--accent);">Check against the real sample.</div>
+    <div class="abs mark dark" style="left:172mm; top:186mm; width:32mm; height:18mm;"></div>
+    
+
+    <div class="abs micro" style="left:12mm; top:284mm;">Shades confirmed against physical samples</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:186mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE : one enlarged frame, a second beside it, a sign-off -->
+<div class="page">
+  <div class="copy copy-body" style="left:12mm; top:210mm; width:100mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:5.4pt; line-height:1.6; color:var(--ink);">{{noteBody}}</div>
+  <div class="copy copy-closing" style="left:12mm; top:260mm; width:100mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:6.4pt; line-height:1.3; color:var(--muted);">{{noteClosing}}</div>
+
+  <div class="sheet">
+    <div class="abs micro" style="left:12mm; top:12mm;">04 · Inside</div>
+    <div class="abs micro" style="left:12mm; top:12mm; width:186mm; text-align:right;">Roll {{orderNo}}</div>
+
+    <div class="abs print" style="left:12mm; top:36mm; width:134mm; height:122mm;"><div class="ph" style="background-image:url({{insideImage}});"></div></div>
+    <div class="abs micro" style="left:12mm; top:160mm; width:134mm;">Enlargement · {{room}} · frame 05</div>
+
+    <div class="abs print" style="left:156mm; top:36mm; width:52mm; height:66mm;"><div class="ph" style="background-image:url({{insideImage2}});"></div></div>
+    <div class="abs micro" style="left:156mm; top:104mm; width:52mm; line-height:1.7;">Frame 06 · shutter detail</div>
+
+    <div class="abs micro" style="left:156mm; top:120mm;">Sign-off frame</div>
+    <div class="abs mark dark" style="left:154mm; top:126mm; width:22mm; height:22mm;"></div>
+    <div class="abs micro acc" style="left:161mm; top:136mm;">GWI</div>
+    <div class="abs hand" style="left:180mm; top:132mm; width:26mm; font-size:8pt; color:var(--accent); transform:rotate(-4deg);">keep</div>
+    <div class="abs sans" style="left:156mm; top:152mm; width:52mm; font-size:5.6pt; line-height:1.5; color:var(--muted);">Approved on site by {{customerName}}. File with {{orderNo}}.</div>
+
+    <div class="abs serif" style="left:12mm; top:174mm; width:186mm; font-size:21pt; line-height:1.05; color:var(--ink); letter-spacing:-.01em;">The roll, signed off.</div>
+    <div class="abs hair" style="left:12mm; top:198mm; width:186mm;"></div>
+    <div class="abs micro" style="left:12mm; top:204mm;">Contact sheet · {{room}} · frames 01–08</div>
+
+    <div class="abs" style="left:124mm; top:214mm; width:74mm;">
+      <div class="micro acc">Roll notes</div>
+      <div class="sans" style="margin-top:2mm; font-size:5.8pt; line-height:1.55; color:var(--muted);">Frames 01–04 are the finish samples; 05–08 the interior. The signed enlargement stays with the order and matches the second frame one to one.</div>
+    </div>
+
+    <div class="abs micro" style="left:12mm; top:284mm; width:80mm;">{{shopLine}}</div>
+    <div class="abs micro" style="left:12mm; top:284mm; width:186mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>

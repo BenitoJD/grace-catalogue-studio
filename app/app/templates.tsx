@@ -65,7 +65,7 @@ export default function TemplatesScreen() {
       <View style={styles.header}>
         <ScreenHeader
           title="Designs"
-          subtitle="Ten document styles in three tones. Every design carries the same information in its own layout."
+          subtitle="Thirty different documents. Every design carries the same information in its own layout."
           onBack={() => {
             if (orderId) {
               router.replace({ pathname: '/orders/[id]', params: { id: orderId } });

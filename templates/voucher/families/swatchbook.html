@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, {{orderNo}}</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .page.cover{ background:var(--cover-paper); }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:'Barlow', Helvetica, Arial, sans-serif; }
+  .serif{ font-family:'Instrument Serif', Georgia, serif; font-weight:400; }
+  .name{ font-family:"Barlow","Noto Sans Tamil",Helvetica,Arial,sans-serif; font-weight:500; text-transform:none; letter-spacing:.01em; }
+  .ph{ background-size:cover; background-position:center; background-repeat:no-repeat; }
+  .micro{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.22em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.ink{ color:var(--ink); }
+  .label{ font-family:"Barlow", sans-serif; font-size:4.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  .rule{ height:0.2mm; background:var(--ink); }
+  .hair{ height:0.14mm; background:var(--hair); }
+  .cover-title{ position:absolute; font-family:'Instrument Serif', Georgia, serif; font-weight:400; letter-spacing:-.012em; color:var(--ink); }
+
+  .deckcard{ position:absolute; border-radius:7mm; border:0.35mm solid var(--hair); background:var(--paper); box-shadow:1.8mm 2.2mm 0 var(--accent-soft); }
+  .deckcard.plain{ box-shadow:1.2mm 1.5mm 0 var(--accent-soft); }
+
+  .tab{ position:absolute; border-radius:0 3mm 3mm 0; background:var(--accent-soft); border:0.25mm solid var(--faint); border-left:none;
+        font-family:"Barlow", sans-serif; font-size:3.6pt; letter-spacing:.14em; text-transform:uppercase; font-weight:600; color:var(--ink); text-align:center; line-height:11mm; }
+  .card{ position:absolute; background:var(--paper); border:0.3mm solid var(--ink); }
+  .card-ruled{ background-image:repeating-linear-gradient(0deg, var(--hair) 0, var(--hair) 0.1mm, transparent 0.1mm, transparent 9mm);
+               background-position:0 40mm; }
+  .ck{ font-family:"Barlow", sans-serif; font-size:3.6pt; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .cv{ font-family:"Barlow", sans-serif; font-size:5.5pt; line-height:1.25; color:var(--ink); margin-top:0.3mm; }
+
+  .swcard{ position:absolute; background:var(--paper); border:0.28mm solid var(--faint); border-radius:4mm; box-shadow:1.5mm 1.7mm 0 var(--accent-soft); }
+  .swthumb{ position:absolute; left:4mm; top:4mm; width:42mm; height:42mm; border-radius:2mm; background-size:cover; background-position:center; background-repeat:no-repeat; }
+
+  /* Optional brochure copy. The server injects plain text here, or an empty
+     string when no copy was generated. Empty blocks collapse completely. */
+  .copy{ position:absolute; z-index:9; }
+  .copy-headline:empty, .copy-body:empty, .copy-closing:empty{ display:none; }
+
+</style>
+</head>
+<body>
+
+<!-- 01 COVER: fan deck -->
+<div class="page cover">
+  <div class="sheet">
+    <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:15mm; width:11mm;">
+    <div class="abs micro ink" style="left:32mm; top:17mm;">Grace Wood Industry<br>Swatchbook · finishes</div>
+    <div class="abs micro" style="right:18mm; top:16mm; text-align:right;">{{orderNo}}<br>{{date}}<br>01 / 04</div>
+    <div class="abs label" style="left:18mm; top:52mm;">01 Cover · fan of four cards</div>
+
+    <!-- the deck: photograph card, colour card, title card -->
+    <div class="deckcard" style="left:74mm; top:92mm; width:138mm; height:168mm; transform:rotate(11deg); background-image:url({{coverImage}}); background-size:cover; background-position:center;"></div>
+    <div class="deckcard plain" style="left:46mm; top:80mm; width:120mm; height:158mm; transform:rotate(4deg); background:var(--accent-soft);"></div>
+    <div class="deckcard" style="left:24mm; top:66mm; width:128mm; height:174mm; transform:rotate(-2deg);">
+      <div class="abs micro ink" style="left:12mm; top:12mm;">Grace Wood Industry</div>
+      <div class="abs micro" style="right:12mm; top:12mm; text-align:right;">Fan deck 01</div>
+      <div class="abs label" style="left:12mm; top:23mm;">Cover · {{room}}</div>
+      <div class="cover-title" style="left:12mm; top:32mm; width:104mm;">{{title}}</div>
+      <div class="copy copy-headline" style="left:12mm; top:68mm; width:102mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-weight:500; font-size:7pt; line-height:1.4; color:var(--ink);">{{noteHeadline}}</div>
+      <div class="abs hair" style="left:12mm; top:86mm; width:104mm;"></div>
+      <div class="abs ck" style="left:12mm; top:90mm;">Prepared for</div>
+      <div class="abs name" style="left:12mm; top:95mm; font-size:8pt; color:var(--ink);">{{customerName}}</div>
+      <div class="abs ck" style="left:12mm; top:108mm;">Order</div>
+      <div class="abs cv" style="left:12mm; top:112mm;">{{orderNo}} · {{date}}</div>
+      <div class="abs hair" style="left:12mm; top:130mm; width:104mm;"></div>
+      <div class="abs micro" style="left:12mm; top:135mm; font-size:3.9pt; line-height:1.9;">Four finishes, one palette.<br>Cards cut to sample size.</div>
+      <div class="abs" style="left:12mm; top:156mm; width:104mm; text-align:right;">
+        <span class="micro" style="font-size:3.8pt;">GWI · Swatchbook</span>
+      </div>
+    </div>
+
+    <div class="abs" style="left:18mm; top:266mm; width:74mm;">
+      <div class="abs rule" style="left:0; top:0; width:60mm;"></div>
+      <div class="abs micro" style="left:0; top:5mm;">{{shopLine}}</div>
+    </div>
+    <div class="abs micro" style="left:18mm; top:288mm;">Cut, stacked and fanned in the workshop</div>
+  </div>
+</div>
+
+<!-- 02 SPECIFICATION: index card with tabs -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:15mm;">02 Specification · index card</div>
+    <div class="abs micro" style="right:18mm; top:15mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs rule" style="left:18mm; top:24mm; width:174mm;"></div>
+
+    <div class="card card-ruled" style="left:14mm; top:44mm; width:172mm; height:218mm; border-radius:2.5mm;">
+      <div class="abs micro ink" style="left:10mm; top:8mm; font-size:4pt;">Index card · specification</div>
+      <div class="abs micro" style="right:10mm; top:8mm; text-align:right;">Card no. {{orderNo}}</div>
+      <div class="abs serif" style="left:10mm; top:13mm; font-size:15pt; line-height:1; color:var(--ink);">Wardrobe specification</div>
+      <div class="abs" style="left:10mm; top:28mm; width:152mm; height:0.4mm; background:var(--accent);"></div>
+      <div class="abs micro" style="right:10mm; top:31mm; text-align:right; font-size:3.8pt;">{{date}}</div>
+
+      <div class="abs label" style="left:10mm; top:41.5mm;">Room</div>
+      <div class="abs" style="left:10mm; top:50.5mm; width:42mm;"><div class="ck">Space</div><div class="cv">{{room}}</div></div>
+      <div class="abs" style="left:62mm; top:50.5mm; width:46mm;"><div class="ck">Prepared for</div><div class="cv">{{customerName}}</div></div>
+      <div class="abs" style="left:114mm; top:50.5mm; width:48mm;"><div class="ck">Card issued</div><div class="cv">{{orderNo}}</div></div>
+
+      <div class="abs label" style="left:10mm; top:59.5mm;">Size and fit</div>
+      <div class="abs" style="left:10mm; top:68.5mm; width:46mm;"><div class="ck">Width</div><div class="cv">{{width}}</div></div>
+      <div class="abs" style="left:62mm; top:68.5mm; width:46mm;"><div class="ck">Height</div><div class="cv">{{height}}</div></div>
+      <div class="abs" style="left:114mm; top:68.5mm; width:48mm;"><div class="ck">Depth</div><div class="cv">{{depth}}</div></div>
+      <div class="abs" style="left:10mm; top:77.5mm; width:46mm;"><div class="ck">Shutters</div><div class="cv">{{shutters}}</div></div>
+      <div class="abs" style="left:62mm; top:77.5mm; width:46mm;"><div class="ck">Drawers</div><div class="cv">{{drawers}}</div></div>
+      <div class="abs" style="left:114mm; top:77.5mm; width:48mm;"><div class="ck">Back panel</div><div class="cv">{{backPanel}}</div></div>
+
+      <div class="abs label" style="left:10mm; top:86.5mm;">Material</div>
+      <div class="abs" style="left:10mm; top:95.5mm; width:46mm;"><div class="ck">Carcass</div><div class="cv">{{carcass}}</div></div>
+      <div class="abs" style="left:62mm; top:95.5mm; width:46mm;"><div class="ck">Shutter material</div><div class="cv">{{shuttersMat}}</div></div>
+      <div class="abs" style="left:114mm; top:95.5mm; width:48mm;"><div class="ck">Exterior</div><div class="cv">{{exterior}}</div></div>
+      <div class="abs" style="left:10mm; top:104.5mm; width:46mm;"><div class="ck">Interior</div><div class="cv">{{interior}}</div></div>
+      <div class="abs" style="left:62mm; top:104.5mm; width:46mm;"><div class="ck">Edge · shutter</div><div class="cv">{{edgeShutter}}</div></div>
+      <div class="abs" style="left:114mm; top:104.5mm; width:48mm;"><div class="ck">Edge · carcass</div><div class="cv">{{edgeCarcass}}</div></div>
+
+      <div class="abs label" style="left:10mm; top:113.5mm;">Hardware and layout</div>
+      <div class="abs" style="left:10mm; top:122.5mm; width:46mm;"><div class="ck">Hinges</div><div class="cv">{{hinges}}</div></div>
+      <div class="abs" style="left:62mm; top:122.5mm; width:46mm;"><div class="ck">Channels</div><div class="cv">{{channels}}</div></div>
+      <div class="abs" style="left:114mm; top:122.5mm; width:48mm;"><div class="ck">Handle</div><div class="cv">{{handle}}</div></div>
+      <div class="abs" style="left:10mm; top:131.5mm; width:46mm;"><div class="ck">Handle note</div><div class="cv">{{handleNote}}</div></div>
+      <div class="abs" style="left:62mm; top:131.5mm; width:46mm;"><div class="ck">Layout left</div><div class="cv">{{layoutLeft}}</div></div>
+      <div class="abs" style="left:114mm; top:131.5mm; width:48mm;"><div class="ck">Layout middle</div><div class="cv">{{layoutMiddle}}</div></div>
+      <div class="abs" style="left:10mm; top:140.5mm; width:46mm;"><div class="ck">Layout right</div><div class="cv">{{layoutRight}}</div></div>
+      <div class="abs" style="left:62mm; top:140.5mm; width:46mm;"><div class="ck">Edge note</div><div class="cv">{{edgeNote}}</div></div>
+      <div class="abs" style="left:114mm; top:140.5mm; width:48mm;"><div class="ck">Finish exterior</div><div class="cv">{{finishExt}}</div></div>
+      <div class="abs" style="left:10mm; top:149.5mm; width:46mm;"><div class="ck">Finish interior</div><div class="cv">{{finishInt}}</div></div>
+      <div class="abs" style="left:62mm; top:149.5mm; width:46mm;"><div class="ck">Edge band</div><div class="cv">{{mat4Name}}</div></div>
+      <div class="abs" style="left:114mm; top:149.5mm; width:48mm;"><div class="ck">Samples</div><div class="cv">Fan deck 01 · four cards</div></div>
+
+      <div class="abs label" style="left:10mm; top:158.5mm;">Sign-off</div>
+      <div class="abs" style="left:10mm; top:168mm; width:74mm; height:0.2mm; background:var(--ink);"></div>
+      <div class="abs micro" style="left:10mm; top:171mm; font-size:3.8pt;">Grace Wood Industry</div>
+      <div class="abs" style="left:88mm; top:168mm; width:74mm; height:0.2mm; background:var(--ink);"></div>
+      <div class="abs micro" style="left:88mm; top:171mm; font-size:3.8pt;">Customer</div>
+      <div class="abs" style="left:10mm; top:190mm; width:50mm; height:0.2mm; background:var(--ink);"></div>
+      <div class="abs micro" style="left:10mm; top:193mm; font-size:3.8pt;">Date</div>
+      <div class="abs micro" style="left:76mm; top:190mm; font-size:3.8pt;">Sample checked against the fan deck</div>
+      <div class="abs micro" style="left:10mm; top:207mm; font-size:3.8pt;">Site notes</div>
+      <div class="abs micro" style="left:76mm; top:207mm; font-size:3.8pt;">Delivery</div>
+    </div>
+
+    <!-- protruding tabs -->
+    <div class="tab" style="left:185mm; top:82mm; width:15mm; height:11mm;">Room</div>
+    <div class="tab" style="left:185mm; top:100mm; width:15mm; height:11mm;">Size</div>
+    <div class="tab" style="left:185mm; top:127mm; width:15mm; height:11mm;">Material</div>
+    <div class="tab" style="left:185mm; top:154mm; width:15mm; height:11mm;">Hardware</div>
+
+    <div class="abs micro" style="left:18mm; top:278mm;">Index card · kept in the sample drawer</div>
+    <div class="abs micro" style="right:18mm; top:278mm; text-align:right;">02 / 04</div>
+  </div>
+</div>
+
+<!-- 03 FINISHES: stacked swatch cards -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:15mm;">03 Finishes · the fan, opened</div>
+    <div class="abs micro" style="right:18mm; top:15mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs rule" style="left:18mm; top:24mm; width:174mm;"></div>
+    <div class="abs serif" style="left:18mm; top:30mm; width:150mm; font-size:23pt; line-height:1; letter-spacing:-.01em; color:var(--ink);">Open the fan</div>
+    <div class="abs micro" style="left:150mm; top:40mm; text-align:right;">Four cards<br>printed both sides</div>
+
+    <div class="swcard" style="left:18mm; top:60mm; width:108mm; height:50mm; z-index:4;">
+      <div class="swthumb" style="background-image:url({{mat1Image}});"></div>
+      <div class="abs" style="left:50mm; top:8mm; width:56mm;">
+        <div class="micro" style="font-size:4pt;">Card 01</div>
+        <div class="sans" style="font-size:7.6pt; line-height:1.2; color:var(--ink); margin-top:1.2mm;">{{mat1Name}}</div>
+        <div class="micro" style="font-size:4pt; margin-top:2.2mm;">Laminate · shutter face</div>
+      </div>
+    </div>
+    <div class="swcard" style="left:20mm; top:104mm; width:108mm; height:50mm; z-index:5;">
+      <div class="swthumb" style="background-image:url({{mat2Image}});"></div>
+      <div class="abs" style="left:50mm; top:8mm; width:56mm;">
+        <div class="micro" style="font-size:4pt;">Card 02</div>
+        <div class="sans" style="font-size:7.6pt; line-height:1.2; color:var(--ink); margin-top:1.2mm;">{{mat2Name}}</div>
+        <div class="micro" style="font-size:4pt; margin-top:2.2mm;">Laminate · shutter face</div>
+      </div>
+    </div>
+    <div class="swcard" style="left:22mm; top:148mm; width:108mm; height:50mm; z-index:6;">
+      <div class="swthumb" style="background-image:url({{mat3Image}});"></div>
+      <div class="abs" style="left:50mm; top:8mm; width:56mm;">
+        <div class="micro" style="font-size:4pt;">Card 03</div>
+        <div class="sans" style="font-size:7.6pt; line-height:1.2; color:var(--ink); margin-top:1.2mm;">{{mat3Name}}</div>
+        <div class="micro" style="font-size:4pt; margin-top:2.2mm;">Laminate · interior face</div>
+      </div>
+    </div>
+    <div class="swcard" style="left:24mm; top:192mm; width:108mm; height:50mm; z-index:7;">
+      <div class="swthumb" style="background-image:url({{mat4Image}});"></div>
+      <div class="abs" style="left:50mm; top:8mm; width:56mm;">
+        <div class="micro" style="font-size:4pt;">Card 04</div>
+        <div class="sans" style="font-size:7.6pt; line-height:1.2; color:var(--ink); margin-top:1.2mm;">{{mat4Name}}</div>
+        <div class="micro" style="font-size:4pt; margin-top:2.2mm;">Edge band · 2 mm</div>
+      </div>
+    </div>
+
+    <div class="abs ph" style="left:138mm; top:62mm; width:54mm; height:66mm; background-image:url({{detailImage}});"></div>
+    <div class="abs" style="left:138mm; top:62mm; width:54mm; height:66mm; border:0.28mm solid var(--ink); border-radius:2mm;"></div>
+    <div class="abs micro" style="left:138mm; top:132mm;">Handle detail · sample bench</div>
+
+    <div class="abs" style="left:138mm; top:142mm; width:54mm;">
+      <div class="label">Exterior</div>
+      <div class="sans" style="font-size:5.8pt; line-height:1.5; color:var(--ink); margin-top:1mm;">{{finishExt}}</div>
+      <div class="label" style="margin-top:5mm;">Interior</div>
+      <div class="sans" style="font-size:5.8pt; line-height:1.5; color:var(--ink); margin-top:1mm;">{{finishInt}}</div>
+      <div class="micro" style="margin-top:7mm; font-size:3.9pt; line-height:1.9;">Cards are cut oversize<br>and trimmed square</div>
+    </div>
+
+    <div class="abs hair" style="left:18mm; top:246mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:250mm; font-size:3.9pt;">Notes on the finish · sample bench</div>
+    <div class="abs micro" style="right:18mm; top:250mm; text-align:right; font-size:3.9pt;">Physical samples sent with the brochure</div>
+    <div class="copy copy-body" style="left:18mm; top:254mm; width:174mm; font-family:'Barlow', Helvetica, Arial, sans-serif; font-size:6pt; line-height:1.55; color:var(--ink);">{{noteBody}}</div>
+
+    <div class="abs micro" style="left:18mm; top:278mm;">Shades checked under daylight and lamp light</div>
+    <div class="abs micro" style="right:18mm; top:278mm; text-align:right;">03 / 04</div>
+  </div>
+</div>
+
+<!-- 04 INSIDE: photograph on a paper card with swatch strip -->
+<div class="page">
+  <div class="sheet">
+    <div class="abs micro ink" style="left:18mm; top:15mm;">04 Inside · photographed, printed, taped</div>
+    <div class="abs micro" style="right:18mm; top:15mm; text-align:right;">{{orderNo}}</div>
+    <div class="abs rule" style="left:18mm; top:24mm; width:174mm;"></div>
+    <div class="abs serif" style="left:18mm; top:30mm; width:150mm; font-size:23pt; line-height:1.04; letter-spacing:-.01em; color:var(--ink);">Inside, on paper.</div>
+
+    <div class="abs" style="left:16mm; top:62mm; width:180mm; height:166mm; transform:rotate(-1.2deg); background:var(--paper); border:0.3mm solid var(--hair); border-radius:2.5mm; box-shadow:2.2mm 2.6mm 0 var(--accent-soft);">
+      <div class="abs ph" style="left:10mm; top:10mm; width:160mm; height:100mm; background-image:url({{insideImage}});"></div>
+      <div class="abs" style="left:10mm; top:10mm; width:160mm; height:100mm; border:0.2mm solid var(--faint);"></div>
+      <div class="abs micro" style="left:10mm; top:114mm;">Walk-in wardrobe · {{room}}</div>
+      <div class="abs hair" style="left:10mm; top:121mm; width:160mm;"></div>
+      <div class="abs" style="left:10mm; top:127mm; width:37mm;">
+        <div class="abs ph" style="left:0; top:0; width:37mm; height:18mm; background-image:url({{mat1Image}}); border-radius:1.4mm;"></div>
+        <div class="sans" style="position:absolute; left:0; top:20mm; font-size:5.4pt; color:var(--ink);">{{mat1Name}}</div>
+      </div>
+      <div class="abs" style="left:51mm; top:127mm; width:37mm;">
+        <div class="abs ph" style="left:0; top:0; width:37mm; height:18mm; background-image:url({{mat2Image}}); border-radius:1.4mm;"></div>
+        <div class="sans" style="position:absolute; left:0; top:20mm; font-size:5.4pt; color:var(--ink);">{{mat2Name}}</div>
+      </div>
+      <div class="abs" style="left:92mm; top:127mm; width:37mm;">
+        <div class="abs ph" style="left:0; top:0; width:37mm; height:18mm; background-image:url({{mat3Image}}); border-radius:1.4mm;"></div>
+        <div class="sans" style="position:absolute; left:0; top:20mm; font-size:5.4pt; color:var(--ink);">{{mat3Name}}</div>
+      </div>
+      <div class="abs" style="left:133mm; top:127mm; width:37mm;">
+        <div class="abs ph" style="left:0; top:0; width:37mm; height:18mm; background-image:url({{mat4Image}}); border-radius:1.4mm;"></div>
+        <div class="sans" style="position:absolute; left:0; top:20mm; font-size:5.4pt; color:var(--ink);">{{mat4Name}}</div>
+      </div>
+      <div class="abs micro" style="left:10mm; top:153mm; font-size:3.9pt;">Swatch strip · fan deck 01</div>
+    </div>
+
+    <div class="abs serif" style="left:18mm; top:240mm; width:104mm; font-size:15pt; line-height:1.1; letter-spacing:-.01em; color:var(--ink);">Every finish,<br>checked by hand.</div>
+    <div class="copy copy-closing" style="left:18mm; top:258mm; width:104mm; font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-size:7.2pt; line-height:1.3; color:var(--muted);">{{noteClosing}}</div>
+
+    <div class="abs" style="left:146mm; top:214mm; width:50mm; height:52mm; transform:rotate(3deg); background:var(--paper); border:0.3mm solid var(--hair); box-shadow:1.4mm 1.7mm 0 var(--accent-soft); padding:2.4mm;">
+      <div class="abs ph" style="left:2.4mm; top:2.4mm; width:45.2mm; height:47.2mm; background-image:url({{insideImage2}});"></div>
+    </div>
+    <div class="abs micro" style="left:146mm; top:270mm;">Shutter face · taped card</div>
+
+    <div class="abs hair" style="left:18mm; top:274mm; width:174mm;"></div>
+    <div class="abs micro" style="left:18mm; top:279mm;">{{shopLine}}</div>
+    <div class="abs micro" style="right:18mm; top:279mm; text-align:right;">{{customerName}} · {{orderNo}}</div>
+    <div class="abs micro" style="left:18mm; top:288mm;">Swatchbook · four cards, one wardrobe</div>
+    <div class="abs micro" style="right:18mm; top:288mm; text-align:right;">04 / 04</div>
+  </div>
+</div>
+
+</body>
+</html>
