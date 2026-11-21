@@ -87,6 +87,7 @@ const COPY_SYSTEM_PROMPT = [
   'British Indian English. Plain words, mostly short sentences, one longer sentence is enough.',
   'Banned words: elevate, seamless, luxurious, luxury, bespoke, premium, crafted, timeless, oasis, dream, transform, nestled, boasts, state of the art, cutting edge, game changer, must have.',
   'Do not name the carcass, the back panel or the plywood thickness. Those belong in the specification table, not in the story.',
+  'A thickness is not a count: "12 mm plywood" is a material, not twelve drawers. Never turn a material figure into a number of drawers, shelves or shutters.',
   'Only mention a component the order actually includes. If there are no shutters, do not mention hinges or handles. If there are no drawers, do not mention channels.',
   'Never mention the order, the brief, the specification or the document, not even to say what the brief asked for. The customer is reading copy, not a note about the process.',
   'No prose, markdown, code fences or explanation around the JSON object.',
@@ -371,6 +372,22 @@ export function providerHeaders(endpoint, apiKey) {
 }
 
 const COPY_META_WORDS = ['the specification', 'the order', 'the brief', 'this document', 'the document'];
+
+const NUMBER_WORDS = {
+  one: '1', two: '2', three: '3', four: '4', five: '5', six: '6',
+  seven: '7', eight: '8', nine: '9', ten: '10', eleven: '11', twelve: '12',
+};
+
+function countPhrases(text) {
+  const found = new Set();
+  const pattern = /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})\s+(drawers?|shelves?|shutters?)\b/gi;
+  for (const match of String(text).matchAll(pattern)) {
+    const number = NUMBER_WORDS[match[1].toLowerCase()] ?? match[1];
+    const noun = match[2].toLowerCase().replace(/^shelves$/, 'shelf').replace(/s$/, '');
+    found.add(`${number} ${noun}`);
+  }
+  return found;
+}
 const COPY_MIN_WORDS = 80;
 const COPY_MAX_WORDS = 175;
 
@@ -394,6 +411,17 @@ export function copyQualityIssues(copy, order = null) {
     if (uses > 1) issues.push(`repeats "${verb}" ${uses} times`);
   }
   if (order) {
+    // Counts are only allowed when the order itself contains them. A material
+    // like "12 mm plywood" must never become twelve drawers.
+    const allowedCounts = countPhrases(JSON.stringify(order));
+    if (clean(order.shutters) !== '') {
+      allowedCounts.add(`${clean(order.shutters).replace(/\D.*$/, '')} shutter`);
+    }
+    const statedCounts = countPhrases(body);
+    for (const phrase of statedCounts) {
+      if (!allowedCounts.has(phrase)) issues.push(`invents a count ("${phrase}")`);
+    }
+
     const fields = ['carcass', 'backPanel', 'shuttersMat', 'drawers', 'exterior', 'interior', 'edgeShutter', 'edgeCarcass', 'handle'];
     const echoed = fields.filter((field) => {
       const value = clean(order[field]).split(',')[0].trim().toLowerCase();

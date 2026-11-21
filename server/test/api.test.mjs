@@ -39,6 +39,7 @@ import {
 } from '../src/db.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
+import { normaliseDimension, normaliseFieldValue, scrubBrief } from '../src/intake.mjs';
 import {
   COPY_BODY_MAX_CHARS,
   COPY_CLOSING_MAX_CHARS,
@@ -3041,4 +3042,59 @@ test('conversational intake validates its input and failures', async () => {
   const failure = await unreadable.json();
   assert.equal(failure.error.type, 'invalid_reply');
   assert.match(failure.error.message, /intake reply/i);
+});
+
+
+test('intake dimensions land in millimetres without guessing', async () => {
+  assert.equal(normaliseDimension('2400'), '2400 mm');
+  assert.equal(normaliseDimension('2400 mm'), '2400 mm');
+  assert.equal(normaliseDimension('5 feet'), '1525 mm');
+  assert.equal(normaliseDimension("5'"), '1525 mm');
+  assert.equal(normaliseDimension("5'6\""), '1675 mm');
+  assert.equal(normaliseDimension('60 inches'), '1525 mm');
+  assert.equal(normaliseDimension('240 cm'), '2400 mm');
+  assert.equal(normaliseDimension('about two feet'), 'about two feet', 'no arithmetic on words');
+  assert.equal(normaliseFieldValue('shutters', '3 shutters'), '3');
+  assert.equal(normaliseFieldValue('shutters', 'Three'), '3');
+  assert.equal(normaliseFieldValue('shutters', 'sliding'), 'sliding');
+});
+
+
+test('the brief never carries money, dates or deadlines', async () => {
+  assert.equal(scrubBrief('Mirror inside the door. Budget 45000.'), 'Mirror inside the door.');
+  assert.equal(scrubBrief('Wants it before Deepavali. Lighter oak.'), 'Lighter oak.');
+  assert.equal(scrubBrief('Keep under one lakh. Two locking drawers.'), 'Two locking drawers.');
+  assert.equal(scrubBrief('Delivery by 15/12/2026. Sliding shutters.'), 'Sliding shutters.');
+  assert.equal(scrubBrief('Loft on top and a mirror inside the door.'), 'Loft on top and a mirror inside the door.');
+  assert.equal(scrubBrief('Budget 45000 only.'), '');
+});
+
+
+test('the copy gate catches a material thickness turned into a count', async () => {
+  const order = {
+    shutters: '3',
+    drawers: '12 mm plywood',
+    carcass: '18 mm BWP plywood',
+    backPanel: '6 mm plywood',
+  };
+  const base = {
+    headline: 'Cream shutters for the guest room wall',
+    closing: 'Made for the room.',
+  };
+  const body = Array.from({ length: 100 }, (_, index) => `word${index}`).join(' ');
+
+  const invented = copyQualityIssues(
+    { ...base, body: `${body} Twelve drawers sit behind the shutters.` },
+    order,
+  );
+  assert.ok(
+    invented.some((issue) => /invents a count/.test(issue)),
+    'twelve drawers from a 12 mm material must be flagged',
+  );
+
+  const honest = copyQualityIssues(
+    { ...base, body: `${body} Three shutters close over the hanging space.` },
+    order,
+  );
+  assert.equal(honest.some((issue) => /invents a count/.test(issue)), false);
 });

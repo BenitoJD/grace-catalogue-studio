@@ -287,7 +287,9 @@ export default function ChatScreen() {
             <Text style={[styles.cookHint, ready ? styles.cookHintReady : null]}>
               {ready
                 ? 'Creates the order, writes the copy and renders the voucher'
-                : 'Send the missing details first'}
+                : fieldCount === 0
+                  ? 'Paste a requirement first'
+                  : 'Send the missing details first'}
             </Text>
           </Pressable>
         </View>

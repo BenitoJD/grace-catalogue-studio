@@ -21,7 +21,7 @@ export const ORDER_DEFAULTS = Object.freeze({
   edgeCarcass: '0.8 mm PVC',
   edgeNote: 'Colour matched',
   handle: 'Matte black aluminium',
-  handleNote: 'Vertical, three sets',
+  handleNote: 'Vertical, one set per shutter',
   finishExt: 'Matte outside, white inside',
   finishInt: 'No painting',
 });

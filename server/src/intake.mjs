@@ -36,8 +36,8 @@ const INTAKE_SYSTEM_PROMPT = [
   '- Copy numbers with their unit as written, for example "2400 mm". If a dimension is a bare number, write it as "N mm", the workshop works in millimetres.',
   '- Write counts as digits, for example 3 shutters, 2 drawers.',
   '- title is the piece, for example "Master Bedroom Wardrobe". room is where it goes.',
-  '- brief is a short summary of anything else useful the customer said, in their words where possible.',
-  '- Never put a price, budget, date or deadline in order or in reply.',
+  '- brief is a short summary of anything else useful the customer said, in their words where possible. It must describe the piece, never the deal.',
+  '- Never put a price, budget, discount, date, festival or deadline in any field, including brief, or in reply. Leave those words out entirely.',
   'Rules for reply:',
   '- One to three short sentences, warm and plain, British Indian English. No em dashes, no exclamation marks, no questions other than the ones allowed below.',
   '- Ask at most two questions, and only about essentials that are still empty in the draft: customer name, the piece, the room, width, height, depth, number of shutters.',
@@ -55,10 +55,54 @@ function limit(value, field) {
 
 const DIMENSION_FIELDS = new Set(['width', 'height', 'depth']);
 
+const MONEY_OR_DATE = /(₹|\brs\.?\b|\brupees?\b|\blakhs?\b|\bcrores?\b|\bbudget\b|\bprice\b|\bcost\b|\bquote\b|\bdiscount\b|deepavali|diwali|pongal|\bfestival\b|\bdeadline\b|before\s+\w+day|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\b|\bweek(end)?\b)/i;
+
+/** The brief describes the piece, never the deal or the deadline. */
+export function scrubBrief(text) {
+  const sentences = String(text ?? '')
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence !== '' && !MONEY_OR_DATE.test(sentence));
+  return sentences.join(' ').trim();
+}
+
+/**
+ * The workshop works in millimetres, so a dimension given in feet, inches or
+ * centimetres is converted with plain arithmetic and rounded to 5 mm. This is a
+ * unit change, not a guess: the customer's number is kept exactly, only the
+ * unit is made consistent for the printed specification.
+ */
+function normaliseDimension(text) {
+  const value = text.replace(',', '.').trim();
+  if (/^\d+(\.\d+)?$/.test(value)) return `${value} mm`;
+
+  const feetInches = /^(\d+)\s*(?:'|ft|feet|foot)\s*(?:(\d+)\s*(?:"|in|inch|inches)?)?$/i.exec(value);
+  if (feetInches) {
+    const decimal = Number(feetInches[1]) + Number(feetInches[2] ?? 0) / 12;
+    return `${roundToFive(decimal * 304.8)} mm`;
+  }
+  const feet = /^(\d+(?:\.\d+)?)\s*(?:ft|feet|foot)$/i.exec(value);
+  if (feet) return `${roundToFive(Number(feet[1]) * 304.8)} mm`;
+  const inches = /^(\d+(?:\.\d+)?)\s*(?:in|inch|inches)$/i.exec(value);
+  if (inches) return `${roundToFive(Number(inches[1]) * 25.4)} mm`;
+  const cm = /^(\d+(?:\.\d+)?)\s*(?:cm|cms|centimetres?|centimeters?)$/i.exec(value);
+  if (cm) return `${roundToFive(Number(cm[1]) * 10)} mm`;
+  return text;
+}
+
+function roundToFive(value) {
+  return Math.round(value / 5) * 5;
+}
+
+export { normaliseDimension, roundToFive };
+
 /** House formatting so the printed specification always reads correctly. */
 export function normaliseFieldValue(field, value) {
   const text = limit(value, field);
   if (text === '') return '';
+  if (field === 'brief') {
+    return scrubBrief(text);
+  }
   if (field === 'shutters') {
     // "3 shutters" and "three" both become "3": the table supplies the noun.
     const digits = /^(\d+)\s*shutters?$/i.exec(text);
@@ -67,8 +111,8 @@ export function normaliseFieldValue(field, value) {
     if (words[text.toLowerCase()]) return words[text.toLowerCase()];
     return text;
   }
-  if (DIMENSION_FIELDS.has(field) && /^\d+([.,]\d+)?$/.test(text)) {
-    return `${text.replace(',', '.')} mm`;
+  if (DIMENSION_FIELDS.has(field)) {
+    return normaliseDimension(text);
   }
   return text;
 }
