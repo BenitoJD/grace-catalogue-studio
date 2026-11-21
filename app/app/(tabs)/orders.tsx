@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     paddingBottom: space.md,
   },
   itemGap: {
-    height: space.md,
+    marginBottom: space.md,
   },
   card: {
     borderWidth: StyleSheet.hairlineWidth,

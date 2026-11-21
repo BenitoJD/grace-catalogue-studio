@@ -1,4 +1,5 @@
-import { readdirSync, rmSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -38,7 +39,7 @@ import {
   parseCorsOrigins,
   parsePositiveInt,
 } from './config.mjs';
-import { installHttpHardening, isExecutable } from './http.mjs';
+import { installHttpHardening, isExecutable, uploadBodyLimit } from './http.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
   INTAKE_MAX_MESSAGE_CHARS,
@@ -117,6 +118,30 @@ function orderFieldMaxLength(field) {
 // Only these fields must be present on create. The rest start empty and can be
 // filled in with PATCH, which keeps the mobile form forgiving.
 const REQUIRED_ORDER_FIELDS = new Set(['title', 'room', 'width', 'height', 'depth', 'shutters']);
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const UPLOAD_TYPES = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/webp', 'webp'],
+]);
+
+function matchesImageType(bytes, contentType) {
+  if (contentType === 'image/png') {
+    return bytes.length > 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (contentType === 'image/jpeg') {
+    return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (contentType === 'image/webp') {
+    return (
+      bytes.length > 12 &&
+      bytes.toString('ascii', 0, 4) === 'RIFF' &&
+      bytes.toString('ascii', 8, 12) === 'WEBP'
+    );
+  }
+  return false;
+}
 
 const IMAGE_TYPES = new Map([
   ['png', 'image/png'],
@@ -1180,6 +1205,44 @@ export function createApp(options) {
       return fail(c, 404, 'Page not found.');
     }
     return sendFile(c, path.join(rendersDir, `${renderId}-${page}.png`), 'image/png');
+  });
+
+  // Image upload for colour swatches and photographs. The client sends JSON
+  // with base64 data so one simple parser covers web and native; the bytes are
+  // checked against the declared type before they reach disk.
+  app.post('/api/media', uploadBodyLimit, async (c) => {
+    const parsed = await readJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const body = parsed.body ?? {};
+
+    const contentType = typeof body.contentType === 'string' ? body.contentType.trim().toLowerCase() : '';
+    const extension = UPLOAD_TYPES.get(contentType);
+    if (!extension) {
+      return fail(c, 400, 'Field "contentType" must be image/png, image/jpeg or image/webp.');
+    }
+    let data = typeof body.data === 'string' ? body.data.trim() : '';
+    if (data.startsWith('data:')) {
+      const comma = data.indexOf(',');
+      if (comma === -1) return fail(c, 400, 'The image data is not a valid data URL.');
+      data = data.slice(comma + 1);
+    }
+    if (data === '' || !/^[A-Za-z0-9+/=\s]+$/.test(data)) {
+      return fail(c, 400, 'Field "data" must be base64 image data.');
+    }
+    const bytes = Buffer.from(data, 'base64');
+    if (bytes.length === 0) return fail(c, 400, 'The image is empty.');
+    if (bytes.length > MAX_UPLOAD_BYTES) {
+      return fail(c, 413, `The image is too large. The limit is ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.`);
+    }
+    if (!matchesImageType(bytes, contentType)) {
+      return fail(c, 400, 'The file content does not match the declared image type.');
+    }
+
+    const name = `${randomUUID()}.${extension}`;
+    const mediaDir = path.join(dataDir, 'media');
+    mkdirSync(mediaDir, { recursive: true });
+    writeFileSync(path.join(mediaDir, name), bytes);
+    return c.json({ url: `/media/${name}`, contentType, bytes: bytes.length }, 201);
   });
 
   app.get('/media/:name', (c) => {

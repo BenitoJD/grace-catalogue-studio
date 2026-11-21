@@ -15,6 +15,19 @@ import { createLogger } from './logger.mjs';
 import { RenderError } from './render.mjs';
 
 export const BODY_LIMIT_BYTES = 64 * 1024;
+// Image uploads are the one route that legitimately carries a large body.
+export const UPLOAD_BODY_LIMIT_BYTES = 8 * 1024 * 1024;
+export const uploadBodyLimit = bodyLimit({
+  maxSize: UPLOAD_BODY_LIMIT_BYTES,
+  onError: (c) =>
+    c.json(
+      {
+        error: `The image is too large. The limit is ${UPLOAD_BODY_LIMIT_BYTES / (1024 * 1024)} MB.`,
+        requestId: c.get('requestId'),
+      },
+      413,
+    ),
+});
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 export const RENDER_ROUTE_PATTERN = /^\/api\/(?:orders\/[^/]+|catalogue)\/render\/?$/;
 // Note and brochure copy drafting call a paid model, so they get their own
@@ -351,20 +364,24 @@ export function installHttpHardening(app, options = {}) {
     return next();
   });
 
-  app.use(
-    '*',
-    bodyLimit({
-      maxSize: BODY_LIMIT_BYTES,
-      onError: (c) =>
-        c.json(
-          {
-            error: `Request body is too large. The limit is ${BODY_LIMIT_BYTES / 1024} KB.`,
-            requestId: c.get('requestId'),
-          },
-          413,
-        ),
-    }),
-  );
+  const defaultBodyLimit = bodyLimit({
+    maxSize: BODY_LIMIT_BYTES,
+    onError: (c) =>
+      c.json(
+        {
+          error: `Request body is too large. The limit is ${BODY_LIMIT_BYTES / 1024} KB.`,
+          requestId: c.get('requestId'),
+        },
+        413,
+      ),
+  });
+  // The upload route has its own larger cap and registers the middleware on the
+  // route itself, so the default limit skips it.
+  app.use('*', (c, next) => {
+    if (c.req.method === 'POST' && c.req.path === '/api/media') return next();
+    return defaultBodyLimit(c, next);
+  });
+
 
   app.notFound((c) => c.json({ error: 'Not found.', requestId: c.get('requestId') ?? null }, 404));
 

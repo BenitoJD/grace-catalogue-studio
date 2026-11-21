@@ -3204,3 +3204,54 @@ test('a malformed intake reply is retried once before it fails', async () => {
   assert.equal(failed.status, 502);
   assert.equal(mockProviderState.requests.length, 2, 'only one retry, then the failure is surfaced');
 });
+
+
+test('images can be uploaded and served back', async () => {
+  const tinyPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const response = await postJson(`${baseUrl}/api/media`, {
+    contentType: 'image/png',
+    data: tinyPng,
+  });
+  assert.equal(response.status, 201);
+  const uploaded = await response.json();
+  assert.match(uploaded.url, /^\/media\/[0-9a-f-]+\.png$/);
+  assert.equal(uploaded.contentType, 'image/png');
+  assert.ok(uploaded.bytes > 0);
+
+  const served = await fetch(`${baseUrl}${uploaded.url}`);
+  assert.equal(served.status, 200);
+  assert.match(served.headers.get('content-type') ?? '', /image\/png/);
+  const bytes = Buffer.from(await served.arrayBuffer());
+  assert.deepEqual(bytes, Buffer.from(tinyPng, 'base64'));
+  assert.ok(existsSync(path.join(dataDir, 'media', path.basename(uploaded.url))));
+
+  // A data URL prefix is accepted as well.
+  const dataUrl = await postJson(`${baseUrl}/api/media`, {
+    contentType: 'image/png',
+    data: `data:image/png;base64,${tinyPng}`,
+  });
+  assert.equal(dataUrl.status, 201);
+});
+
+test('uploads reject unsupported types, bad data and mismatched content', async () => {
+  const tinyPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const badType = await postJson(`${baseUrl}/api/media`, {
+    contentType: 'text/plain',
+    data: tinyPng,
+  });
+  assert.equal(badType.status, 400);
+
+  const empty = await postJson(`${baseUrl}/api/media`, { contentType: 'image/png', data: '' });
+  assert.equal(empty.status, 400);
+
+  // JPEG magic bytes declared as PNG must be refused.
+  const jpegBase64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]).toString('base64');
+  const mismatch = await postJson(`${baseUrl}/api/media`, {
+    contentType: 'image/png',
+    data: jpegBase64,
+  });
+  assert.equal(mismatch.status, 400);
+  assert.match((await mismatch.json()).error, /does not match/i);
+});

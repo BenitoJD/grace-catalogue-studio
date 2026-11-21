@@ -74,6 +74,29 @@ async function waitForBodyText(page, needle, timeout = 30000) {
   return false;
 }
 
+async function waitForUploadedImage(page, timeout = 30000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    try {
+      const found = await page.evaluate(() => {
+        for (const element of document.querySelectorAll("img,div")) {
+          const source =
+            element.tagName === "IMG"
+              ? element.src
+              : getComputedStyle(element).backgroundImage || "";
+          if (/\/media\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp)/.test(source)) return true;
+        }
+        return false;
+      });
+      if (found) return true;
+    } catch {
+      // The page was mid render, poll again.
+    }
+    await sleep(300);
+  }
+  return false;
+}
+
 async function clickText(page, text) {
   const clicked = await page.evaluate((needle) => {
     const nodes = [...document.querySelectorAll("div,span,a,button")].filter(
@@ -468,28 +491,55 @@ try {
     { timeout: 15000 }
   ).then(() => true).catch(() => false);
   check("material images load", swatchesLoaded);
-  const rateShown = await page.evaluate(() => document.body.innerText.includes("per sheet"));
-  check("materials show their rates", rateShown);
-  check("print rate card button present", await clickText(page, "Print rate card"));
-  const rateOpened = await page
-    .waitForFunction(() => window.__rateOpen === undefined || true, { timeout: 1000 })
-    .then(() => true)
-    .catch(() => true);
-  await sleep(4000);
-  const rateRender = (await (await fetch(`${API}/api/catalogue/templates`)).json()).length;
-  check("rate card templates available", rateRender >= 1, `${rateRender} templates`);
-  const catalogueRenders = await (await fetch(`${API}/api/renders`)).json();
+  const priceShown = await page.evaluate(
+    () => document.body.innerText.includes("per sheet") || document.body.innerText.includes("₹")
+  );
+  check("prices are not shown in the catalogue", !priceShown);
   check(
-    "rate card rendered a document",
-    catalogueRenders.some((item) => item.kind === "catalogue" && item.pageCount >= 1)
+    "rate card action is gone",
+    await page.evaluate(() => !document.body.innerText.includes("Print rate card"))
   );
 
   // 5b. adding a colour from the studio, the form the workshop asked for
   check("add colour button present", await clickText(page, "Add colour"));
   check("add colour sheet opens", await hasText(page, "Add a colour"));
+  const uploadButton = await page.$('[aria-label="Upload image"]');
+  check("upload image button present", Boolean(uploadButton));
+  let uploaded = false;
+  if (uploadButton) {
+    const uploadBox = await uploadButton.boundingBox();
+    const uploadPromise = page.waitForFileChooser({ timeout: 15000 });
+    await page.mouse.click(uploadBox.x + uploadBox.width / 2, uploadBox.y + uploadBox.height / 2);
+    const chooser = await uploadPromise;
+    await chooser.accept([`${root}templates/assets/company/tex-cream.jpg`]);
+    uploaded = await waitForUploadedImage(page);
+  }
+  let uploadDetail = "";
+  if (!uploaded) {
+    uploadDetail = await page.evaluate(() => {
+      const text = document.body.innerText;
+      const error = text.includes("could not be uploaded")
+        ? "upload error shown"
+        : text.includes("image could not be read")
+          ? "image read error"
+          : "no visible error";
+      const sources = [];
+      for (const element of document.querySelectorAll("img,div")) {
+        const source =
+          element.tagName === "IMG" ? element.src : getComputedStyle(element).backgroundImage || "";
+        if (source.includes("/media/")) sources.push(source);
+      }
+      const predicate = [...document.querySelectorAll("img,div")].some((element) => {
+        const source =
+          element.tagName === "IMG" ? element.src : getComputedStyle(element).backgroundImage || "";
+        return /\/media\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp)/.test(source);
+      });
+      return `${error}; media ${sources.length}; predicate ${predicate}; last ${sources.slice(-2).join(" | ")}`;
+    });
+  }
+  check("swatch image uploads from the file picker", uploaded, uploadDetail);
   check("colour name accepts input", await setValueByPlaceholder(page, "e.g. Teak Natural", "Teak Natural"));
   check("colour code accepts input", await setValueByPlaceholder(page, "#A65E22", "#B08A63"));
-  check("colour rate accepts input", await setValueByPlaceholder(page, "1240", "1350"));
   check("colour code accepts a code", await setValueByPlaceholder(page, "GW-WAL-06", "GW-TEK-01"));
   await page.screenshot({ path: `${shots}/06h-add-colour.png` });
   check("colour saves", await clickText(page, "Save colour"));
@@ -497,9 +547,13 @@ try {
   check("new colour appears in the grid", colourAdded);
   const materialsAfter = await (await fetch(`${API}/api/materials`)).json();
   check(
-    "api stored the new colour with its rate",
+    "api stored the new colour with its image",
     materialsAfter.length === 5 &&
-      materialsAfter.some((material) => material.sku === "GW-TEK-01" && material.priceAmount === 1350),
+      materialsAfter.some(
+        (material) =>
+          material.sku === "GW-TEK-01" &&
+          /^\/media\/[0-9a-f-]+\.(jpg|jpeg|png|webp)$/.test(material.imageUrl ?? "")
+      ),
     `${materialsAfter.length} materials`,
   );
   await page.screenshot({ path: `${shots}/06i-colour-added.png` });

@@ -208,7 +208,11 @@ The model is configured at runtime and stored in the `settings` table as `llm_en
 `POST /api/orders/:id/copy` builds a prompt from the order plus the customer brief and asks for strict JSON `{ headline, body, closing }`. The reply is parsed defensively, capped, stored in `orders.copy_json`, and passed to the templates as `noteHeadline`, `noteBody` and `noteClosing`. When an order has no copy the three placeholders are empty strings and every template hides the block.
 
 
-## Catalogue rate card
+## Catalogue rate card (not exposed in the studio)
+
+The studio app does not show the rate card while trade rates are unpublished.
+The endpoint stays in the API for when they are, and the server tests keep it
+working.
 
 The trade rate card is a separate document from the thirty voucher families.
 It lists every material from the materials table: SKU, material name, finish or

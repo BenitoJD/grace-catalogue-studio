@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useState } from 'react';
 import {
   Image,
   Modal,
@@ -17,7 +18,6 @@ import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { ErrorState, LoadingState } from '@/components/StateViews';
 import { api, errorMessage, fileUrl, type Material } from '@/lib/api';
-import { openUrl } from '@/lib/actions';
 import { useBootstrap } from '@/lib/bootstrap';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
@@ -29,29 +29,11 @@ const KINDS = ['laminate', 'edge band', 'veneer', 'acrylic', 'plywood'];
 /** Web only: the modal card takes focus on open, remove the browser ring. */
 const webFocusReset: ViewStyle | undefined =
   Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as ViewStyle) : undefined;
-const UNITS = ['sheet', 'metre', 'piece'];
 
 export default function MaterialsScreen() {
   const { data, loading, error, reload } = useBootstrap();
-  const [rateLoading, setRateLoading] = useState(false);
-  const [rateError, setRateError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
-  const printRateCard = useCallback(async () => {
-    if (rateLoading) {
-      return;
-    }
-    setRateLoading(true);
-    setRateError(null);
-    try {
-      const rendered = await api.renderCatalogue();
-      await openUrl(fileUrl(rendered.pdfUrl));
-    } catch (failure) {
-      setRateError(errorMessage(failure, 'The rate card could not be rendered. Try again.'));
-    } finally {
-      setRateLoading(false);
-    }
-  }, [rateLoading]);
   const { width } = useWindowDimensions();
   const materials = data?.materials ?? [];
   const columns = width >= 900 ? 4 : width >= 600 ? 3 : 2;
@@ -70,17 +52,7 @@ export default function MaterialsScreen() {
         <View style={styles.actionItem}>
           <Button label="Add colour" onPress={() => setAddOpen(true)} />
         </View>
-        <View style={styles.actionItem}>
-          <Button
-            label="Print rate card"
-            variant="secondary"
-            onPress={() => void printRateCard()}
-            loading={rateLoading}
-            loadingLabel="Rendering"
-          />
-        </View>
       </View>
-      {rateError ? <Text style={[text.caption, styles.rateError]}>{rateError}</Text> : null}
       <View style={styles.gridHeading}>
         <Text style={text.sectionLabel}>Colours</Text>
         {data ? <Text style={text.caption}>{materialCountLabel(materials.length)}</Text> : null}
@@ -167,10 +139,9 @@ function AddMaterialSheet({
   const [kind, setKind] = useState(KINDS[0]);
   const [hex, setHex] = useState('#A65E22');
   const [imageUrl, setImageUrl] = useState('');
-  const [priceAmount, setPriceAmount] = useState('');
-  const [priceUnit, setPriceUnit] = useState(UNITS[0]);
   const [sku, setSku] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // The web modal moves focus to its wrapper, which paints the browser's blue
@@ -191,8 +162,6 @@ function AddMaterialSheet({
     setKind(KINDS[0]);
     setHex('#A65E22');
     setImageUrl('');
-    setPriceAmount('');
-    setPriceUnit(UNITS[0]);
     setSku('');
     setError(null);
   };
@@ -205,6 +174,32 @@ function AddMaterialSheet({
     onClose();
   };
 
+  const uploadImage = async () => {
+    if (uploading) return;
+    setError(null);
+    try {
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        base64: true,
+        quality: 0.9,
+        allowsMultipleSelection: false,
+      });
+      if (picked.canceled || !picked.assets?.length) return;
+      const asset = picked.assets[0];
+      if (!asset.base64) {
+        setError('That image could not be read. Try another one.');
+        return;
+      }
+      setUploading(true);
+      const uploaded = await api.uploadImage(asset.base64, asset.mimeType ?? 'image/png');
+      setImageUrl(uploaded.url);
+    } catch (failure) {
+      setError(errorMessage(failure, 'The image could not be uploaded. Try again.'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const save = async () => {
     const trimmedName = name.trim();
     if (trimmedName === '') {
@@ -215,11 +210,6 @@ function AddMaterialSheet({
       setError('The colour code must look like #A65E22.');
       return;
     }
-    const amount = priceAmount.trim() === '' ? 0 : Number(priceAmount.replace(/[^\d.]/g, ''));
-    if (!Number.isFinite(amount) || amount < 0) {
-      setError('The rate must be a number, zero or more.');
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
@@ -228,8 +218,6 @@ function AddMaterialSheet({
         kind: kind.trim() === '' ? 'laminate' : kind.trim(),
         hex: hex.trim(),
         imageUrl: imageUrl.trim() === '' ? undefined : imageUrl.trim(),
-        priceAmount: amount,
-        priceUnit: priceUnit.trim(),
         sku: sku.trim(),
       });
       reset();
@@ -252,7 +240,7 @@ function AddMaterialSheet({
             showsVerticalScrollIndicator={false}>
             <Text style={text.cardTitle}>Add a colour</Text>
             <Text style={[text.muted, styles.sheetIntro]}>
-              It appears in the catalogue and on the printed rate card.
+              It appears in the catalogue and in the finishes page of every voucher.
             </Text>
 
             <Field
@@ -293,32 +281,40 @@ function AddMaterialSheet({
               </Text>
             </View>
 
+            <Text style={[text.sectionLabel, styles.fieldLabel]}>Swatch image</Text>
+            <View style={styles.uploadRow}>
+              <View style={styles.uploadPreview}>
+                {imageUrl.trim() === '' ? (
+                  <Text style={[text.caption, styles.uploadEmpty]}>No image</Text>
+                ) : (
+                  <Image
+                    source={{ uri: fileUrl(imageUrl.trim()) }}
+                    style={styles.uploadThumb}
+                    resizeMode="cover"
+                    accessibilityLabel="Swatch image preview"
+                  />
+                )}
+              </View>
+              <View style={styles.uploadActions}>
+                <Button
+                  label="Upload image"
+                  variant="secondary"
+                  onPress={() => void uploadImage()}
+                  loading={uploading}
+                  loadingLabel="Uploading"
+                />
+                <Text style={[text.caption, styles.uploadHint]}>
+                  From the photo library, or paste an address below.
+                </Text>
+              </View>
+            </View>
             <Field
-              label="Swatch image"
+              label="Image address"
               value={imageUrl}
               onChangeText={setImageUrl}
               placeholder="/media/tex-walnut.jpg"
               autoCapitalize="none"
             />
-
-            <Field
-              label="Rate"
-              value={priceAmount}
-              onChangeText={setPriceAmount}
-              placeholder="1240"
-              autoCapitalize="none"
-            />
-            <Text style={[text.sectionLabel, styles.fieldLabel]}>Rate unit</Text>
-            <View style={styles.chipRow}>
-              {UNITS.map((option) => (
-                <Chip
-                  key={option}
-                  label={option}
-                  active={priceUnit === option}
-                  onPress={() => setPriceUnit(option)}
-                />
-              ))}
-            </View>
 
             <Field
               label="Code"
@@ -371,11 +367,7 @@ function MaterialTile({ material, width }: { material: Material; width: number }
           {material.kind}
         </Text>
       ) : null}
-      {typeof material.priceAmount === 'number' && material.priceAmount > 0 ? (
-        <Text style={[text.caption, styles.materialRate]} numberOfLines={1}>
-          {`₹${material.priceAmount.toLocaleString('en-IN')} per ${material.priceUnit || 'unit'}`}
-        </Text>
-      ) : null}
+
     </View>
   );
 }
@@ -456,9 +448,6 @@ const styles = StyleSheet.create({
   materialName: {
     marginTop: space.md,
   },
-  materialRate: {
-    color: colors.copper,
-  },
   actionsRow: {
     marginTop: space.lg,
     flexDirection: 'row',
@@ -538,6 +527,38 @@ const styles = StyleSheet.create({
     color: colors.faint,
     flex: 1,
   },
+  uploadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    marginTop: space.xs,
+    marginBottom: space.sm,
+  },
+  uploadPreview: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    backgroundColor: colors.paperDeep,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  uploadThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  uploadEmpty: {
+    color: colors.faint,
+  },
+  uploadActions: {
+    flex: 1,
+    gap: space.xs,
+  },
+  uploadHint: {
+    color: colors.faint,
+  },
   sheetError: {
     color: '#8C2F24',
     marginTop: space.xs,
@@ -545,9 +566,6 @@ const styles = StyleSheet.create({
   sheetActions: {
     marginTop: space.md,
     gap: space.sm,
-  },
-  rateError: {
-    color: '#8C2F24',
   },
   materialKind: {
     marginTop: 2,

@@ -375,6 +375,13 @@ export const api = {
       timeoutMs: 45000,
     });
   },
+  uploadImage(data: string, contentType: string): Promise<{ url: string; contentType: string; bytes: number }> {
+    return request('/api/media', {
+      method: 'POST',
+      body: { data, contentType },
+      timeoutMs: 60000,
+    });
+  },
   createMaterial(input: MaterialInput): Promise<Material> {
     return request<Material>('/api/materials', { method: 'POST', body: input });
   },
