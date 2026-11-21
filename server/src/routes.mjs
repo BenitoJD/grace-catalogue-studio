@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'nod
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 
 import { Hono } from 'hono';
 
@@ -49,6 +50,7 @@ import {
   INTAKE_MAX_TOKENS,
   INTAKE_TEMPERATURE,
   buildIntakeMessages,
+  cleanReadyReply,
   ensureMissingMentioned,
   mergeDraft,
   missingEssentials,
@@ -165,6 +167,26 @@ function orderPayload(order) {
 const MAX_ORDER_ATTACHMENTS = 20;
 const MAX_ATTACHMENT_TEXT = 2500;
 const execFileAsync = promisify(execFile);
+
+// Local file URLs for the images a customer uploaded with the order, so the
+// voucher can print their own photographs instead of the house shots.
+function voucherPhotoFiles(order, mediaDir) {
+  const attachments = Array.isArray(order?.attachments) ? order.attachments : [];
+  return attachments
+    .filter((file) =>
+      /^image\//i.test(String(file.contentType ?? '')) ||
+      /\.(jpe?g|png|webp)$/i.test(String(file.url ?? '')),
+    )
+    .map((file) => path.join(mediaDir, path.basename(file.url)))
+    .filter((filePath) => {
+      try {
+        return readFileSync(filePath).length > 0;
+      } catch {
+        return false;
+      }
+    })
+    .map((filePath) => pathToFileURL(filePath).href);
+}
 
 /**
  * Text the model can read from the files the customer attached: PDF text and
@@ -1155,7 +1177,11 @@ export function createApp(options) {
       const missing = missingEssentials(draft);
       // Never let a vague "more details" reach the client: the reply names the
       // exact fields that are still empty.
-      const reply = ensureMissingMentioned(intake.reply, missingFields(draft));
+      const missingFieldsList = missingFields(draft);
+      const reply =
+        missingFieldsList.length === 0
+          ? cleanReadyReply(intake.reply)
+          : ensureMissingMentioned(intake.reply, missingFieldsList);
       return c.json({
         reply,
         draft,
@@ -1231,6 +1257,7 @@ export function createApp(options) {
                 variants,
                 templateId,
                 logger,
+                attachmentImages: voucherPhotoFiles(order, path.join(dataDir, 'media')),
               })
             : buildKitValues();
         const renderId = newRenderId();

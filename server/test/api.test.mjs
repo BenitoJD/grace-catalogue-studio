@@ -40,6 +40,7 @@ import {
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import {
+  cleanReadyReply,
   ensureMissingMentioned,
   humanList,
   normaliseDimension,
@@ -3317,4 +3318,58 @@ test('orders keep their attachments and the intake reads text files', async () =
   const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
   assert.match(prompt, /client-note\.txt/, 'the attachment name reaches the model');
   assert.match(prompt, /width 2500 mm/, 'the text of the attached file reaches the model');
+});
+
+
+test('customer photos replace the house photography in the voucher', async () => {
+  const values = buildVoucherValues({
+    order: { ...DEMO_ORDER, customerName: 'Ravi', title: 'Master Bedroom Wardrobe' },
+    materials: [],
+    templatesDir,
+    logger: createLogger({ level: 'error' }),
+    attachmentImages: ['file:///tmp/one.jpg', 'file:///tmp/two.jpg', 'file:///tmp/three.jpg'],
+  });
+  assert.equal(values.coverImage, 'file:///tmp/one.jpg');
+  assert.equal(values.insideImage, 'file:///tmp/two.jpg');
+  assert.equal(values.insideImage2, 'file:///tmp/three.jpg');
+  assert.match(values.detailImage, /assets\/company/, 'missing slots keep the house shot');
+});
+
+
+test('a ready intake reply never asks for more', async () => {
+  assert.equal(
+    cleanReadyReply('Thank you Ravi. I have the size noted. I still need the carcass material and the back panel.'),
+    'Thank you Ravi. I have the size noted.',
+  );
+  assert.equal(
+    cleanReadyReply('Everything is in place. The brochure can be made.'),
+    'Everything is in place. The brochure can be made.',
+  );
+  assert.equal(cleanReadyReply('I still need the width.'), '');
+  assert.equal(cleanReadyReply('Noted. Is the carcass plywood?'), 'Noted.');
+
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'Noted. What is the carcass material?',
+      order: {
+        customerName: 'Ravi',
+        title: 'Wardrobe',
+        room: 'Bedroom',
+        width: '2400 mm',
+        height: '2100 mm',
+        depth: '600 mm',
+        shutters: '3',
+      },
+      ready: true,
+    }),
+  });
+  const response = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'Complete order with all the sizes and the name.' }],
+  });
+  const body = await response.json();
+  assert.equal(body.ready, true);
+  assert.doesNotMatch(body.reply, /carcass/i);
+  assert.doesNotMatch(body.reply, /\?/);
 });

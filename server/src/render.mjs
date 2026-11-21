@@ -159,7 +159,7 @@ export function noteCopyValues(order, logger) {
   };
 }
 
-export function buildVoucherValues({ order, materials = [], templatesDir, logger }) {
+export function buildVoucherValues({ order, materials = [], templatesDir, logger, attachmentImages = [] }) {
   const materialSlots = FALLBACK_MATERIALS.map((fallback, index) => {
     const material = materials[index];
     const image = materialImagePath(material?.imageUrl, templatesDir);
@@ -168,6 +168,14 @@ export function buildVoucherValues({ order, materials = [], templatesDir, logger
       image: image ?? fallback.image,
     };
   });
+
+  // Customer photos uploaded in the chat stand in for the house photography:
+  // first image is the cover, then interior and detail shots.
+  const photos = Array.isArray(attachmentImages) ? attachmentImages.filter(Boolean) : [];
+  const coverImage = photos[0] ?? VOUCHER_IMAGES.coverImage;
+  const insideImage = photos[1] ?? VOUCHER_IMAGES.insideImage;
+  const insideImage2 = photos[2] ?? VOUCHER_IMAGES.insideImage2;
+  const detailImage = photos[3] ?? VOUCHER_IMAGES.detailImage;
 
   const widthMeasure = splitMeasure(order.width);
   const heightMeasure = splitMeasure(order.height);
@@ -208,7 +216,10 @@ export function buildVoucherValues({ order, materials = [], templatesDir, logger
     finishExt: order.finishExt,
     finishInt: order.finishInt,
     shopLine: COMPANY.shopLine,
-    ...VOUCHER_IMAGES,
+    coverImage,
+    detailImage,
+    insideImage,
+    insideImage2,
     mat1Name: materialSlots[0].name,
     mat2Name: materialSlots[1].name,
     mat3Name: materialSlots[2].name,

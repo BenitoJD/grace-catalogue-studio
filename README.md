@@ -38,7 +38,11 @@ There is no manual order form anywhere. An order exists only after the chat has 
 
 The **+** button in the chat attaches anything the customer sends: photographs, drawings, PDFs, spreadsheets, archives. There is no file type filter. PDF and text files are read into the model's context so dimensions on a plan are used, and every uploaded file is kept on the order and listed with it afterwards.
 
+When an order carries photographs, they replace the house photography in the voucher: the first photo becomes the cover, the next two the inside pages.
+
 ![Files in the chat](docs/screenshots/chat-files.png)
+
+![Brochure made from customer photos](docs/screenshots/chat-internet-demo.png)
 
 ![Brochure from the chat](docs/screenshots/chat-brochure.png)
 

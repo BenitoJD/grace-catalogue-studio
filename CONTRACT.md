@@ -257,6 +257,11 @@ An order accepts an `attachments` array of `{ url, name, contentType, bytes }`
 that array: PDF text (`pdftotext`) and text file contents are added to the prompt,
 other types are named only.
 
+Image attachments are used by the voucher: the first becomes `coverImage`, the
+next two `insideImage` and `insideImage2`, and the fourth `detailImage`. Missing
+slots keep the house photography. The renderer resolves these as local file URLs
+so WeasyPrint embeds them in the PDF.
+
 ## Model cache
 
 Copy and notes are cached in the `llm_cache` table, keyed by a SHA-256 of the provider endpoint, the model and every prompt message. A repeated request returns the stored reply with `cached: true` and `latencyMs: 0`, and never calls the provider. `regenerate: true` bypasses the lookup and replaces the cached entry with the new copy.

@@ -273,12 +273,13 @@ export function buildVoucherDocumentValues({
   variants,
   templateId,
   logger,
+  attachmentImages = [],
 }) {
   const selection = resolveTemplateSelection(variants, templateId);
   if (!selection) {
     throw new Error(`Unknown template "${templateId}".`);
   }
-  const values = buildVoucherValues({ order, materials, templatesDir, logger });
+  const values = buildVoucherValues({ order, materials, templatesDir, logger, attachmentImages });
 
   return {
     ...values,

@@ -156,14 +156,14 @@ export default function ChatScreen() {
   // One chat is one order. As soon as the intake says it has enough, the order
   // is created, the copy is written and the voucher is rendered.
   const createOrderFor = useCallback(
-    async (orderDraft: Record<string, string>) => {
+    async (orderDraft: Record<string, string>, files: OrderAttachment[] = orderFiles) => {
       setCooking(true);
       setCreateFailed(false);
       try {
         const customer = await api.createCustomer({ name: orderDraft.customerName });
         const order = await api.createOrder({
           customerId: customer.id,
-          attachments: orderFiles,
+          attachments: files,
           title: orderDraft.title,
           room: orderDraft.room,
           width: orderDraft.width,
@@ -212,6 +212,8 @@ export default function ChatScreen() {
         setMissing([]);
         setReady(false);
         setCreateFailed(false);
+        setOrderFiles([]);
+        setPendingFiles([]);
       } catch (error) {
         setCreateFailed(true);
         setBubbles((current) => [
@@ -285,7 +287,7 @@ export default function ChatScreen() {
         { id: nextId(), role: 'assistant', kind: 'text', content: result.reply },
       ]);
       if (result.ready) {
-        await createOrderFor(result.draft);
+        await createOrderFor(result.draft, allFiles);
       }
     } catch (error) {
       setBubbles((current) => [
@@ -305,8 +307,8 @@ export default function ChatScreen() {
 
   const retryCreate = useCallback(async () => {
     if (cooking || sending || !createFailed) return;
-    await createOrderFor(draft);
-  }, [cooking, createFailed, createOrderFor, draft, sending]);
+    await createOrderFor(draft, orderFiles);
+  }, [cooking, createFailed, createOrderFor, draft, orderFiles, sending]);
 
   const fieldCount = Object.keys(draft).length;
   const busy = sending || cooking;

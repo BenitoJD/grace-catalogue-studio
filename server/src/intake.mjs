@@ -65,7 +65,7 @@ const INTAKE_SYSTEM_PROMPT = [
   '- When any essential is missing, say exactly what is missing and leave nothing out, in one short sentence, for example "I still need the width and the number of shutters."',
   '- You may put at most two questions to the customer. If more than two things are missing, state the full list instead of asking question after question.',
   '- Never say "more information", "more details", "a few details", "some details" or "additional information". Name the fields.',
-  '- When ready is true, do not ask a question at all.',
+  '- When ready is true, confirm what you have and stop. Never ask for anything, and never ask for materials or finishes.',
   '- Never ask about materials or finishes. The workshop has standard choices for those.',
   '- If nothing essential is missing, set ready true and say the brochure can be made.',
   'No prose, markdown or code fences around the JSON.',
@@ -156,6 +156,16 @@ export function missingFields(order) {
   return INTAKE_ESSENTIALS.filter(([field]) => clean(order?.[field]) === '').map(
     ([field]) => field,
   );
+}
+
+/** When everything is present, never ask for anything on top of it. */
+export function cleanReadyReply(reply) {
+  const asked = /\b(still need|please also share|please share|more details|more information|can you (?:share|provide|send)|what is the|how many)\b/i;
+  const kept = String(reply ?? '')
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence !== '' && !sentence.includes('?') && !asked.test(sentence));
+  return kept.join(' ').trim();
 }
 
 /** "a, b and c" so the sentence reads like a person wrote it. */
