@@ -230,7 +230,20 @@ An order screen can also draft a short customer note for WhatsApp from the same 
 
 ![Customer note](docs/screenshots/e2e/06c-customer-note.png)
 
-Verified against `https://opencode.ai/zen/v1` with `deepseek-v4.1-flash`: the endpoint authenticates and lists models, and this account currently returns `402 Insufficient balance` for paid models and `429 Free usage limit reached` for free ones. The studio surfaces those messages unchanged, which is exactly what the test button is for. The success path is proven end to end against the bundled mock provider:
+Verified live against OpenCode Go:
+
+| Setting | Value |
+|---|---|
+| Endpoint | `https://opencode.ai/zen/go/v1` |
+| Model | `deepseek-v4.1-flash` |
+
+The Go endpoint requires an `x-opencode-session` header, which the server adds automatically for OpenCode hosts. It is also a reasoning model: left alone it can spend the whole token budget thinking and return nothing, so for OpenCode hosts the request asks for a direct answer with `reasoning_effort: none`. Other providers get a plain OpenAI compatible request, so no unknown field can break them.
+
+A real generation on this machine produced a 133 word body in 4.7 seconds, using only the order facts and the brief, and the text printed into the voucher:
+
+![AI written body in the voucher](docs/screenshots/ai-brochure-body.png)
+
+The standalone `https://opencode.ai/zen/v1` endpoint behaves differently: this account gets `402 Insufficient balance` on paid models there and `429 Free usage limit reached` on free ones. The studio surfaces those messages unchanged, which is what the test button is for. The offline success path also works against the bundled mock provider:
 
 ```bash
 node scripts/mock-llm.mjs 8793   # then point Settings at http://127.0.0.1:8793/v1

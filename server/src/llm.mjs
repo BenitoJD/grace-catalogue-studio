@@ -8,6 +8,8 @@
 // request: it is never logged, never returned to a client and never put in an
 // error message.
 
+import { randomUUID } from 'node:crypto';
+
 import { listSettings } from './db.mjs';
 
 export const LLM_SETTING_KEYS = Object.freeze({
@@ -27,8 +29,8 @@ export const MODEL_MAX_CHARS = 120;
 export const API_KEY_MAX_CHARS = 400;
 
 export const DEFAULT_LLM_TIMEOUT_MS = 20_000;
-export const TEST_MAX_TOKENS = 16;
-export const NOTE_MAX_TOKENS = 220;
+export const TEST_MAX_TOKENS = 64;
+export const NOTE_MAX_TOKENS = 900;
 export const NOTE_TEMPERATURE = 0.4;
 export const SAMPLE_MAX_CHARS = 200;
 export const PROVIDER_ERROR_MAX_CHARS = 300;
@@ -41,7 +43,7 @@ const PROVIDER_TYPE_MAX_CHARS = 80;
 export const COPY_HEADLINE_MAX_CHARS = 80;
 export const COPY_BODY_MAX_CHARS = 1200;
 export const COPY_CLOSING_MAX_CHARS = 140;
-export const COPY_MAX_TOKENS = 700;
+export const COPY_MAX_TOKENS = 4000;
 export const COPY_TEMPERATURE = 0.5;
 export const COPY_READ_ERROR_MESSAGE =
   'The model reply could not be read. Generate the copy again.';
@@ -332,6 +334,52 @@ async function readResponseText(response, timeoutMs) {
  * assistant reply. `fetchImpl` is injectable for unit tests; the server uses
  * the global fetch and AbortSignal.timeout for the 20 second budget.
  */
+let openCodeSessionId = null;
+
+/**
+ * Some providers need a routing header on every call. OpenCode Go requires an
+ * x-opencode-session id, which also lets it route a conversation sensibly. The
+ * header is only added for OpenCode endpoints, so other providers get a clean
+ * OpenAI compatible request.
+ */
+export function providerHeaders(endpoint, apiKey) {
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${clean(apiKey)}`,
+  };
+  let host = '';
+  try {
+    host = new URL(trimEndpoint(endpoint)).hostname.toLowerCase();
+  } catch {
+    host = '';
+  }
+  if (host === 'opencode.ai' || host.endsWith('.opencode.ai')) {
+    openCodeSessionId ??= `studio-${randomUUID()}`;
+    headers['x-opencode-session'] = openCodeSessionId;
+  }
+  return headers;
+}
+
+/**
+ * Some providers accept extra request fields. DeepSeek on OpenCode Go is a
+ * reasoning model: left alone it can spend the entire token budget thinking and
+ * return no content at all. For writing work we ask it to answer directly.
+ * Other providers get a plain OpenAI compatible body so an unknown field can
+ * never make their request fail.
+ */
+export function providerBodyExtras(endpoint) {
+  let host = '';
+  try {
+    host = new URL(trimEndpoint(endpoint)).hostname.toLowerCase();
+  } catch {
+    host = '';
+  }
+  if (host === 'opencode.ai' || host.endsWith('.opencode.ai')) {
+    return { reasoning_effort: 'none' };
+  }
+  return {};
+}
+
 export async function requestChat({
   endpoint,
   model,
@@ -361,16 +409,14 @@ export async function requestChat({
     messages,
     max_tokens: maxTokens,
     temperature,
+    ...providerBodyExtras(base),
   };
   const startedAt = performance.now();
   let response;
   try {
     response = await fetchImpl(`${base}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${clean(apiKey)}`,
-      },
+      headers: providerHeaders(base, apiKey),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });

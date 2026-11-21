@@ -39,10 +39,13 @@ import {
   COPY_BODY_MAX_CHARS,
   COPY_CLOSING_MAX_CHARS,
   COPY_HEADLINE_MAX_CHARS,
+  TEST_MAX_TOKENS,
   LlmError,
   buildCopyMessages,
   buildNoteMessages,
   parseCopyReply,
+  providerBodyExtras,
+  providerHeaders,
   requestChat,
   resolveLlmConfig,
 } from '../src/llm.mjs';
@@ -1493,7 +1496,7 @@ test('the connection test calls the provider with the bearer key and configured 
   assert.equal(request.url, '/chat/completions', 'requests go to <endpoint>/chat/completions');
   assert.equal(request.headers.authorization, `Bearer ${LLM_KEY}`);
   assert.equal(request.json.model, LLM_MODEL);
-  assert.equal(request.json.max_tokens, 16);
+  assert.equal(request.json.max_tokens, TEST_MAX_TOKENS);
   assert.equal(request.json.temperature, 0);
   assert.deepEqual(request.json.messages, [
     { role: 'system', content: 'You are a connection test.' },
@@ -2710,4 +2713,30 @@ test('the catalogue render fails when a placeholder is unfilled', async () => {
   } finally {
     await stopServer({ server: started.server });
   }
+});
+
+
+test('openCode endpoints get a routing session header, other providers do not', async () => {
+  const goHeaders = providerHeaders('https://opencode.ai/zen/go/v1', 'secret-key');
+  assert.match(goHeaders['x-opencode-session'], /^studio-[0-9a-f-]{36}$/);
+  assert.equal(goHeaders.Authorization, 'Bearer secret-key');
+  assert.equal(goHeaders['Content-Type'], 'application/json');
+
+  const second = providerHeaders('https://opencode.ai/zen/go/v1', 'secret-key');
+  assert.equal(second['x-opencode-session'], goHeaders['x-opencode-session'], 'session stays stable');
+
+  for (const endpoint of ['http://127.0.0.1:9999/v1', 'https://api.openai.com/v1', 'not a url']) {
+    const headers = providerHeaders(endpoint, 'secret-key');
+    assert.equal(headers['x-opencode-session'], undefined, `no session header for ${endpoint}`);
+    assert.equal(headers.Authorization, 'Bearer secret-key');
+  }
+});
+
+
+test('openCode providers are asked for direct answers, other providers get a plain body', async () => {
+  assert.deepEqual(providerBodyExtras('https://opencode.ai/zen/go/v1'), { reasoning_effort: 'none' });
+  assert.deepEqual(providerBodyExtras('https://opencode.ai/zen/v1'), { reasoning_effort: 'none' });
+  assert.deepEqual(providerBodyExtras('https://api.openai.com/v1'), {});
+  assert.deepEqual(providerBodyExtras('http://127.0.0.1:9999/v1'), {});
+  assert.deepEqual(providerBodyExtras('not a url'), {});
 });

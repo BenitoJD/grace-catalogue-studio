@@ -146,6 +146,9 @@ export default function SettingsScreen() {
                   autoCapitalize="none"
                   maxLength={300}
                 />
+                <Text style={[text.caption, styles.hint]}>
+                  OpenCode Go: endpoint https://opencode.ai/zen/go/v1 with model deepseek-v4.1-flash.
+                </Text>
                 <Field
                   label="Model"
                   value={model}
