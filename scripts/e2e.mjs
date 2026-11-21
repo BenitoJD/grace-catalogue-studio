@@ -17,6 +17,10 @@ const shots = `${root}docs/screenshots/e2e`;
 mkdirSync(shots, { recursive: true });
 if (existsSync(e2eDir)) rmSync(e2eDir, { recursive: true, force: true });
 mkdirSync(e2eDir, { recursive: true });
+writeFileSync(
+  `${e2eDir}/plan.txt`,
+  "Customer plan. Width 2600 mm, height 2100 mm, three shutters. Loft on top."
+);
 
 let failures = 0;
 const results = [];
@@ -418,10 +422,22 @@ try {
   await page.goto(WEB, { waitUntil: "networkidle2" });
   await sleep(2500);
   const chatInput = "Paste the customer's requirement";
+  const attachButton = await page.$('[aria-label="Attach files"]');
+  check("chat has an attach button", Boolean(attachButton));
+  let attachedFile = false;
+  if (attachButton) {
+    const attachBox = await attachButton.boundingBox();
+    const attachPromise = page.waitForFileChooser({ timeout: 15000 });
+    await page.mouse.click(attachBox.x + attachBox.width / 2, attachBox.y + attachBox.height / 2);
+    const attachChooser = await attachPromise;
+    await attachChooser.accept([`${e2eDir}/plan.txt`]);
+    attachedFile = await waitForBodyText(page, "plan.txt", 30000);
+  }
+  check("chat accepts an uploaded file of any type", attachedFile);
   await setValueByPlaceholder(
     page,
     chatInput,
-    "Need a wardrobe for Anita in the master bedroom, 2400 wide. She wants a loft on top and lighter oak."
+    "Need a wardrobe for Anita in the master bedroom, 2400 wide. She wants a loft on top and lighter oak. The plan I attached has the rest."
   );
   check("chat accepts the dump", await clickText(page, "Send"));
   check("chat asks for the missing details", await waitForBodyText(page, "what is the height", 90000));
@@ -436,8 +452,19 @@ try {
     )
   );
   check("chat shows the first page", chatPageOk);
-  const ordersAfterChat = (await (await fetch(`${API}/api/orders`)).json()).length;
-  check("one chat made one order", ordersAfterChat === ordersBeforeChat + 1, `${ordersBeforeChat} to ${ordersAfterChat}`);
+  const ordersAfterChatList = await (await fetch(`${API}/api/orders`)).json();
+  check(
+    "one chat made one order",
+    ordersAfterChatList.length === ordersBeforeChat + 1,
+    `${ordersBeforeChat} to ${ordersAfterChatList.length}`
+  );
+  const chatCreatedOrder = await (await fetch(`${API}/api/orders/${ordersAfterChatList[0].id}`)).json();
+  check(
+    "the order keeps the uploaded file",
+    Array.isArray(chatCreatedOrder.attachments) &&
+      chatCreatedOrder.attachments.some((file) => file.name === "plan.txt"),
+    `${chatCreatedOrder.attachments?.length ?? 0} files`
+  );
   await page.screenshot({ path: `${shots}/06g-chat-brochure.png` });
 
   // The next message belongs to a new order, so the old conversation is cleared.

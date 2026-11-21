@@ -57,7 +57,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -251,6 +251,15 @@ export const MIGRATIONS = Object.freeze([
         );
       `);
       db.exec('CREATE INDEX IF NOT EXISTS llm_cache_created_idx ON llm_cache (created_at)');
+    },
+  },
+  {
+    version: 6,
+    name: 'order attachments',
+    up(db) {
+      // Customer photos, drawings and documents uploaded in the chat stay with
+      // the order as metadata: [{ url, name, contentType, bytes }].
+      addColumnIfMissing(db, 'orders', 'attachments_json', 'TEXT');
     },
   },
 ]);
@@ -454,6 +463,16 @@ export function parseOrderCopy(value) {
   }
 }
 
+export function parseOrderAttachments(value) {
+  if (typeof value !== 'string' || value.trim() === '') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 // Internal order shape: every database column plus the parsed copy and the raw
 // copy_json (so the renderer can warn about a value that did not parse). Json
 // responses strip copy_json; see orderPayload in routes.mjs.
@@ -461,6 +480,7 @@ function orderFromRow(row) {
   const order = plain(row);
   if (!order) return null;
   order.copy = parseOrderCopy(order.copy_json);
+  order.attachments = parseOrderAttachments(order.attachments_json);
   return order;
 }
 
@@ -493,10 +513,17 @@ export function createOrder(db, input) {
     order[field] = withDefault(field, input[field]);
   }
 
-  const columns = ['id', 'orderNo', 'customerId', ...ORDER_TEXT_FIELDS, 'status', 'createdAt'];
+  const attachments = Array.isArray(input.attachments) ? input.attachments : [];
+  const columns = ['id', 'orderNo', 'customerId', ...ORDER_TEXT_FIELDS, 'status', 'createdAt', 'attachments_json'];
   const placeholders = columns.map(() => '?').join(', ');
   db.prepare(`INSERT INTO orders (${columns.join(', ')}) VALUES (${placeholders})`).run(
-    ...columns.map((column) => order[column]),
+    ...columns.map((column) =>
+      column === 'attachments_json'
+        ? attachments.length > 0
+          ? JSON.stringify(attachments)
+          : null
+        : order[column],
+    ),
   );
   return getOrder(db, order.id);
 }

@@ -1,3 +1,5 @@
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
@@ -14,12 +16,26 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api, errorMessage, fileUrl, type IntakeMessage, type Render } from '@/lib/api';
+import {
+  api,
+  errorMessage,
+  fileUrl,
+  type IntakeMessage,
+  type OrderAttachment,
+  type Render,
+} from '@/lib/api';
 import { openUrl } from '@/lib/actions';
 import { colors, layout, space, text } from '@/lib/theme';
 
 type Bubble =
-  | { id: string; role: 'user' | 'assistant'; kind: 'text'; content: string; failed?: boolean }
+  | {
+      id: string;
+      role: 'user' | 'assistant';
+      kind: 'text';
+      content: string;
+      failed?: boolean;
+      attachments?: OrderAttachment[];
+    }
   | {
       id: string;
       role: 'assistant';
@@ -55,6 +71,9 @@ export default function ChatScreen() {
   const [cooking, setCooking] = useState(false);
   const [orderCreated, setOrderCreated] = useState(false);
   const [createFailed, setCreateFailed] = useState(false);
+  const [orderFiles, setOrderFiles] = useState<OrderAttachment[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<OrderAttachment[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 80);
@@ -75,8 +94,64 @@ export default function ChatScreen() {
     setReady(false);
     setOrderCreated(false);
     setCreateFailed(false);
+    setOrderFiles([]);
+    setPendingFiles([]);
     setInput('');
   }, [cooking, sending]);
+
+  // Attach anything: photos, plans, PDFs, spreadsheets. There is no type filter
+  // and no client side size limit; the server stores the file as it is.
+  const pickFiles = useCallback(async () => {
+    if (sending || cooking || uploadingFiles) return;
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        multiple: true,
+        base64: true,
+        copyToCacheDirectory: true,
+      });
+      if (picked.canceled || !picked.assets || picked.assets.length === 0) return;
+      setUploadingFiles(true);
+      const uploaded: OrderAttachment[] = [];
+      for (const asset of picked.assets) {
+        let data = asset.base64 ?? '';
+        if (data === '') {
+          if (Platform.OS === 'web') {
+            data = asset.uri.includes(',') ? asset.uri.slice(asset.uri.indexOf(',') + 1) : asset.uri;
+          } else {
+            data = await FileSystem.readAsStringAsync(asset.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+          }
+        }
+        const stored = await api.uploadFile(
+          data,
+          asset.name ?? 'attachment',
+          asset.mimeType ?? 'application/octet-stream'
+        );
+        uploaded.push({
+          url: stored.url,
+          name: stored.name ?? asset.name ?? 'attachment',
+          contentType: stored.contentType,
+          bytes: stored.bytes,
+        });
+      }
+      setPendingFiles((current) => [...current, ...uploaded]);
+    } catch (error) {
+      setBubbles((current) => [
+        ...current,
+        {
+          id: nextId(),
+          role: 'assistant',
+          kind: 'text',
+          content: errorMessage(error, 'The file could not be uploaded. Try again.'),
+          failed: true,
+        },
+      ]);
+    } finally {
+      setUploadingFiles(false);
+    }
+  }, [cooking, sending, uploadingFiles]);
 
   // One chat is one order. As soon as the intake says it has enough, the order
   // is created, the copy is written and the voucher is rendered.
@@ -88,6 +163,7 @@ export default function ChatScreen() {
         const customer = await api.createCustomer({ name: orderDraft.customerName });
         const order = await api.createOrder({
           customerId: customer.id,
+          attachments: orderFiles,
           title: orderDraft.title,
           room: orderDraft.room,
           width: orderDraft.width,
@@ -152,12 +228,12 @@ export default function ChatScreen() {
         setCooking(false);
       }
     },
-    [history],
+    [history, orderFiles],
   );
 
   const send = useCallback(async () => {
     const content = input.trim();
-    if (content === '' || sending || cooking) return;
+    if ((content === '' && pendingFiles.length === 0) || sending || cooking) return;
 
     // A finished order closes the chat. The next message starts a new one, so
     // one conversation never mixes two orders.
@@ -173,16 +249,34 @@ export default function ChatScreen() {
       setCreateFailed(false);
     }
 
-    const userBubble: Bubble = { id: nextId(), role: 'user', kind: 'text', content };
+    const attached = pendingFiles;
+    const textContent =
+      content !== ''
+        ? content
+        : `Attached: ${attached.map((file) => file.name).join(', ')}`;
+    const userBubble: Bubble = {
+      id: nextId(),
+      role: 'user',
+      kind: 'text',
+      content: textContent,
+      attachments: attached.length > 0 ? attached : undefined,
+    };
     const nextBubbles = [...base, userBubble];
+    const allFiles = startingFresh ? attached : [...orderFiles, ...attached];
     setBubbles(nextBubbles);
     setInput('');
+    setPendingFiles([]);
+    setOrderFiles(allFiles);
     setSending(true);
     try {
       const messages = nextBubbles
         .filter((bubble) => bubble.kind === 'text')
         .map((bubble) => ({ role: bubble.role, content: bubble.content }));
-      const result = await api.intake(messages, startingFresh ? {} : draft);
+      const result = await api.intake(
+        messages,
+        startingFresh ? {} : draft,
+        allFiles.length > 0 ? allFiles : undefined
+      );
       setDraft(result.draft);
       setMissing(result.missing);
       setReady(result.ready);
@@ -207,7 +301,7 @@ export default function ChatScreen() {
     } finally {
       setSending(false);
     }
-  }, [bubbles, cooking, createOrderFor, draft, input, orderCreated, sending]);
+  }, [bubbles, cooking, createOrderFor, draft, input, orderCreated, orderFiles, pendingFiles, sending]);
 
   const retryCreate = useCallback(async () => {
     if (cooking || sending || !createFailed) return;
@@ -288,7 +382,43 @@ export default function ChatScreen() {
             ) : null}
           </View>
 
+          {pendingFiles.length > 0 ? (
+            <View style={styles.pendingRow}>
+              {pendingFiles.map((file) => (
+                <Pressable
+                  key={file.url}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${file.name}`}
+                  onPress={() =>
+                    setPendingFiles((current) => current.filter((entry) => entry.url !== file.url))
+                  }
+                  style={styles.pendingChip}>
+                  <Text numberOfLines={1} style={styles.pendingName}>
+                    {file.name}
+                  </Text>
+                  <Text style={styles.pendingRemove}>×</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
           <View style={styles.composer}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Attach files"
+              onPress={() => void pickFiles()}
+              disabled={busy || uploadingFiles}
+              style={({ pressed }) => [
+                styles.plus,
+                (busy || uploadingFiles) && styles.sendDisabled,
+                pressed && styles.sendPressed,
+              ]}>
+              {uploadingFiles ? (
+                <ActivityIndicator size="small" color={colors.copper} />
+              ) : (
+                <Text style={styles.plusLabel}>+</Text>
+              )}
+            </Pressable>
             <TextInput
               value={input}
               onChangeText={setInput}
@@ -303,10 +433,10 @@ export default function ChatScreen() {
               accessibilityRole="button"
               accessibilityLabel="Send message"
               onPress={() => void send()}
-              disabled={busy || input.trim() === ''}
+              disabled={busy || (input.trim() === '' && pendingFiles.length === 0)}
               style={({ pressed }) => [
                 styles.send,
-                (busy || input.trim() === '') && styles.sendDisabled,
+                (busy || (input.trim() === '' && pendingFiles.length === 0)) && styles.sendDisabled,
                 pressed && styles.sendPressed,
               ]}>
               <Text style={styles.sendLabel}>Send</Text>
@@ -390,6 +520,31 @@ function BubbleView({ bubble }: { bubble: Bubble }) {
         <Text style={[text.body, isUser ? styles.userText : styles.assistantText]}>
           {bubble.content}
         </Text>
+        {bubble.attachments && bubble.attachments.length > 0 ? (
+          <View style={styles.bubbleFiles}>
+            {bubble.attachments.map((file) => (
+              <Pressable
+                key={file.url}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${file.name}`}
+                onPress={() => void openUrl(fileUrl(file.url))}
+                style={[styles.fileChip, isUser && styles.fileChipUser]}>
+                {file.contentType.startsWith('image/') ? (
+                  <Image
+                    source={{ uri: fileUrl(file.url) }}
+                    style={styles.fileThumb}
+                    resizeMode="cover"
+                  />
+                ) : null}
+                <Text
+                  numberOfLines={1}
+                  style={[styles.fileChipName, isUser && styles.fileChipNameUser]}>
+                  {file.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
       {isUser ? <Avatar role="user" /> : null}
     </View>
@@ -570,6 +725,82 @@ const styles = StyleSheet.create({
   },
   draftReady: {
     color: '#2F6B45',
+  },
+  plus: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  plusLabel: {
+    fontSize: 22,
+    lineHeight: 24,
+    color: colors.ink,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.xs,
+  },
+  pendingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    borderRadius: 8,
+    paddingHorizontal: space.sm,
+    paddingVertical: 5,
+    maxWidth: 260,
+    backgroundColor: colors.paperDeep,
+  },
+  pendingName: {
+    fontSize: 12,
+    color: colors.ink,
+    flexShrink: 1,
+  },
+  pendingRemove: {
+    fontSize: 14,
+    color: colors.muted,
+  },
+  bubbleFiles: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.xs,
+    marginTop: space.sm,
+  },
+  fileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    borderRadius: 8,
+    paddingHorizontal: space.sm,
+    paddingVertical: 5,
+    maxWidth: 260,
+    backgroundColor: colors.paper,
+  },
+  fileChipUser: {
+    borderColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  fileThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+  },
+  fileChipName: {
+    fontSize: 12,
+    color: colors.ink,
+    flexShrink: 1,
+  },
+  fileChipNameUser: {
+    color: colors.paper,
   },
   composer: {
     flexDirection: 'row',

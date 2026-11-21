@@ -237,6 +237,21 @@ same tone sets used by the voucher templates.
 
 `POST /api/intake` takes the chat transcript and the order captured so far. The reply is strict JSON `{ reply, order, ready }`; only known order fields are kept, dimensions get their unit, counts become digits, and `ready` is only true when the server sees every essential field in the merged draft. Failures are 400 for bad input, 400 when no model is configured, and 502 when the reply cannot be read.
 
+## Uploads and attachments
+
+`POST /api/media` takes `{ data, name?, contentType? }` with base64 data and has no
+type restriction: any file is stored under `data/media` with a sidecar JSON that
+keeps its original name and content type. The default body limit for other routes
+does not apply to this one; the upload limit is 70 MB of JSON.
+
+`GET /media/<name>` serves the file with its stored type. Images, PDFs and text
+still open inline; everything else downloads with its original filename.
+
+An order accepts an `attachments` array of `{ url, name, contentType, bytes }`
+(max 20), and returns it on the detail endpoint. `POST /api/intake` also accepts
+that array: PDF text (`pdftotext`) and text file contents are added to the prompt,
+other types are named only.
+
 ## Model cache
 
 Copy and notes are cached in the `llm_cache` table, keyed by a SHA-256 of the provider endpoint, the model and every prompt message. A repeated request returns the stored reply with `cached: true` and `latencyMs: 0`, and never calls the provider. `regenerate: true` bypasses the lookup and replaces the cached entry with the new copy.

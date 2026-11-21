@@ -16,7 +16,7 @@ import { RenderError } from './render.mjs';
 
 export const BODY_LIMIT_BYTES = 64 * 1024;
 // Image uploads are the one route that legitimately carries a large body.
-export const UPLOAD_BODY_LIMIT_BYTES = 8 * 1024 * 1024;
+export const UPLOAD_BODY_LIMIT_BYTES = 70 * 1024 * 1024;
 export const uploadBodyLimit = bodyLimit({
   maxSize: UPLOAD_BODY_LIMIT_BYTES,
   onError: (c) =>

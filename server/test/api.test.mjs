@@ -3234,24 +3234,87 @@ test('images can be uploaded and served back', async () => {
   assert.equal(dataUrl.status, 201);
 });
 
-test('uploads reject unsupported types, bad data and mismatched content', async () => {
-  const tinyPng =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-  const badType = await postJson(`${baseUrl}/api/media`, {
+test('uploads accept any file type and keep the original name', async () => {
+  const text = Buffer.from('Kumar wardrobe plan: width 2500 mm, height 2100 mm.', 'utf8').toString('base64');
+  const uploaded = await postJson(`${baseUrl}/api/media`, {
     contentType: 'text/plain',
-    data: tinyPng,
+    name: 'plan.txt',
+    data: text,
   });
-  assert.equal(badType.status, 400);
+  assert.equal(uploaded.status, 201);
+  const file = await uploaded.json();
+  assert.match(file.url, /^\/media\/[0-9a-f-]+\.txt$/);
+  assert.equal(file.name, 'plan.txt');
+  assert.equal(file.contentType, 'text/plain');
 
-  const empty = await postJson(`${baseUrl}/api/media`, { contentType: 'image/png', data: '' });
+  const served = await fetch(`${baseUrl}${file.url}`);
+  assert.equal(served.status, 200);
+  assert.match(served.headers.get('content-type') ?? '', /text\/plain/);
+  assert.equal(await served.text(), 'Kumar wardrobe plan: width 2500 mm, height 2100 mm.');
+
+  // Binary types are accepted as sent, with a download disposition.
+  const archive = Buffer.from('PK\u0003\u0004 not really a zip', 'latin1').toString('base64');
+  const binary = await postJson(`${baseUrl}/api/media`, {
+    contentType: 'application/zip',
+    name: 'drawings.zip',
+    data: archive,
+  });
+  assert.equal(binary.status, 201);
+  const stored = await binary.json();
+  const download = await fetch(`${baseUrl}${stored.url}`);
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get('content-disposition') ?? '', /attachment; filename="drawings.zip"/);
+
+  const empty = await postJson(`${baseUrl}/api/media`, { contentType: 'text/plain', data: '' });
   assert.equal(empty.status, 400);
+  const bad = await postJson(`${baseUrl}/api/media`, { contentType: 'text/plain', data: '***' });
+  assert.equal(bad.status, 400);
+});
 
-  // JPEG magic bytes declared as PNG must be refused.
-  const jpegBase64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]).toString('base64');
-  const mismatch = await postJson(`${baseUrl}/api/media`, {
-    contentType: 'image/png',
-    data: jpegBase64,
+test('orders keep their attachments and the intake reads text files', async () => {
+  const text = Buffer.from('Client note: width 2500 mm, height 2100 mm, three shutters.', 'utf8').toString('base64');
+  const uploadResponse = await postJson(`${baseUrl}/api/media`, {
+    contentType: 'text/plain',
+    name: 'client-note.txt',
+    data: text,
   });
-  assert.equal(mismatch.status, 400);
-  assert.match((await mismatch.json()).error, /does not match/i);
+  assert.equal(uploadResponse.status, 201);
+  const file = await uploadResponse.json();
+
+  const created = await postJson(`${baseUrl}/api/orders`, {
+    ...DEMO_ORDER,
+    customerId,
+    attachments: [file],
+  });
+  assert.equal(created.status, 201);
+  const order = await created.json();
+  assert.equal(order.attachments.length, 1);
+  assert.equal(order.attachments[0].name, 'client-note.txt');
+  assert.equal(order.attachments[0].url, file.url);
+  assert.equal(Object.hasOwn(order, 'attachments_json'), false, 'the raw column is not exposed');
+
+  const detail = await (await fetch(`${baseUrl}/api/orders/${order.id}`)).json();
+  assert.equal(detail.attachments[0].name, 'client-note.txt');
+
+  const badAttachment = await postJson(`${baseUrl}/api/orders`, {
+    ...DEMO_ORDER,
+    customerId,
+    attachments: [{ url: 'https://example.com/file.jpg', name: 'x.jpg', contentType: 'image/jpeg', bytes: 10 }],
+  });
+  assert.equal(badAttachment.status, 400);
+
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({
+    reply: JSON.stringify({ reply: 'Noted.', order: { title: 'Wardrobe' }, ready: false }),
+  });
+  const intake = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'The plan is attached.' }],
+    attachments: [file],
+  });
+  const intakeRaw = await intake.text();
+  assert.equal(intake.status, 200, intakeRaw);
+  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
+  assert.match(prompt, /client-note\.txt/, 'the attachment name reaches the model');
+  assert.match(prompt, /width 2500 mm/, 'the text of the attached file reaches the model');
 });

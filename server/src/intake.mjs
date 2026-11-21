@@ -228,7 +228,7 @@ export function mergeDraft(previous, next) {
   return { ...normaliseIntakeOrder(previous), ...normaliseIntakeOrder(next) };
 }
 
-export function buildIntakeMessages(messages, draft = {}) {
+export function buildIntakeMessages(messages, draft = {}, attachmentContext = '') {
   const history = (messages ?? []).map((message) => ({
     role: message.role === 'assistant' ? 'assistant' : 'user',
     content: clean(message.content).slice(0, 4000),
@@ -241,6 +241,14 @@ export function buildIntakeMessages(messages, draft = {}) {
   return [
     { role: 'system', content: INTAKE_SYSTEM_PROMPT },
     ...history,
+    ...(attachmentContext.trim() === ''
+      ? []
+      : [
+          {
+            role: 'user',
+            content: `Files the customer attached from the chat. Read them and use any order facts in them:\n${attachmentContext}`,
+          },
+        ]),
     { role: 'user', content: draftLine },
   ];
 }

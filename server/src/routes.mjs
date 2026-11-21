@@ -1,7 +1,9 @@
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import { Hono } from 'hono';
 
@@ -119,28 +121,24 @@ function orderFieldMaxLength(field) {
 // filled in with PATCH, which keeps the mobile form forgiving.
 const REQUIRED_ORDER_FIELDS = new Set(['title', 'room', 'width', 'height', 'depth', 'shutters']);
 
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const UPLOAD_TYPES = new Map([
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const UPLOAD_EXTENSIONS = new Map([
   ['image/png', 'png'],
   ['image/jpeg', 'jpg'],
   ['image/webp', 'webp'],
+  ['image/gif', 'gif'],
+  ['image/heic', 'heic'],
+  ['application/pdf', 'pdf'],
+  ['text/plain', 'txt'],
+  ['text/csv', 'csv'],
+  ['application/zip', 'zip'],
 ]);
 
-function matchesImageType(bytes, contentType) {
-  if (contentType === 'image/png') {
-    return bytes.length > 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  }
-  if (contentType === 'image/jpeg') {
-    return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  }
-  if (contentType === 'image/webp') {
-    return (
-      bytes.length > 12 &&
-      bytes.toString('ascii', 0, 4) === 'RIFF' &&
-      bytes.toString('ascii', 8, 12) === 'WEBP'
-    );
-  }
-  return false;
+/** Keep the customer's own extension when it is safe, otherwise derive one. */
+function uploadExtension(originalName, contentType) {
+  const fromName = /\.([A-Za-z0-9]{1,10})$/.exec(originalName)?.[1];
+  if (fromName) return fromName.toLowerCase();
+  return UPLOAD_EXTENSIONS.get(contentType) ?? 'bin';
 }
 
 const IMAGE_TYPES = new Map([
@@ -160,8 +158,77 @@ function fail(c, status, message) {
 // expose the parsed copy only; the raw column never leaves the server.
 function orderPayload(order) {
   if (!order) return order;
-  const { copy_json: _copyJson, ...payload } = order;
+  const { copy_json: _copyJson, attachments_json: _attachmentsJson, ...payload } = order;
   return payload;
+}
+
+const MAX_ORDER_ATTACHMENTS = 20;
+const MAX_ATTACHMENT_TEXT = 2500;
+const execFileAsync = promisify(execFile);
+
+/**
+ * Text the model can read from the files the customer attached: PDF text and
+ * plain text files are included, anything else is named but not guessed at.
+ */
+async function describeAttachments(attachments, mediaDir) {
+  if (!attachments || attachments.length === 0) return '';
+  const parts = [];
+  for (const attachment of attachments.slice(0, 10)) {
+    const filePath = path.join(mediaDir, path.basename(attachment.url));
+    let note = `${attachment.name} (${attachment.contentType})`;
+    try {
+      const isPdf =
+        attachment.contentType.includes('pdf') || attachment.url.toLowerCase().endsWith('.pdf');
+      const isText =
+        attachment.contentType.startsWith('text/') ||
+        /\.(txt|csv|md|json)$/i.test(attachment.url);
+      if (isPdf) {
+        const { stdout } = await execFileAsync('pdftotext', [filePath, '-'], {
+          timeout: 15000,
+          maxBuffer: 8 * 1024 * 1024,
+        });
+        note += `\n${capText(stdout, MAX_ATTACHMENT_TEXT)}`;
+      } else if (isText) {
+        note += `\n${capText(await readFile(filePath, 'utf8'), MAX_ATTACHMENT_TEXT)}`;
+      } else {
+        note += ' (file attached, content is not text)';
+      }
+    } catch {
+      note += ' (file attached)';
+    }
+    parts.push(note);
+  }
+  return parts.join('\n---\n').slice(0, 6000);
+}
+
+/** Files uploaded from the chat, validated lightly and kept as metadata. */
+function readAttachments(body) {
+  if (body.attachments === undefined || body.attachments === null) return { value: [] };
+  if (!Array.isArray(body.attachments)) {
+    return { error: 'Field "attachments" must be an array.' };
+  }
+  if (body.attachments.length > MAX_ORDER_ATTACHMENTS) {
+    return { error: `An order may hold at most ${MAX_ORDER_ATTACHMENTS} attachments.` };
+  }
+  const value = [];
+  for (const item of body.attachments) {
+    if (!item || typeof item !== 'object') {
+      return { error: 'Every attachment must be an object.' };
+    }
+    const url = typeof item.url === 'string' ? item.url.trim() : '';
+    if (!/^\/media\/[A-Za-z0-9._-]+$/.test(url)) {
+      return { error: 'Attachment "url" must point at an uploaded file.' };
+    }
+    const name = typeof item.name === 'string' ? item.name.trim().slice(0, 200) : '';
+    if (name === '') return { error: 'Attachment "name" is required.' };
+    const contentType =
+      typeof item.contentType === 'string' && item.contentType.trim() !== ''
+        ? item.contentType.trim().slice(0, 100)
+        : 'application/octet-stream';
+    const bytes = Number.isFinite(item.bytes) ? Math.max(0, Math.floor(item.bytes)) : 0;
+    value.push({ url, name, contentType, bytes });
+  }
+  return { value };
 }
 
 async function readJsonObject(c) {
@@ -268,12 +335,13 @@ function readPriceAmount(body) {
   return { present: true, value: raw };
 }
 
-async function sendFile(c, filePath, contentType) {
+async function sendFile(c, filePath, contentType, extraHeaders = {}) {
   try {
     const data = await readFile(filePath);
     return c.body(data, 200, {
       'Content-Type': contentType,
       'Content-Length': String(data.length),
+      ...extraHeaders,
     });
   } catch {
     return fail(c, 404, 'File not found.');
@@ -564,7 +632,14 @@ export function createApp(options) {
       fields[field] = result.value;
     }
 
-    const order = createOrder(db, { ...fields, customerId: customerId.value });
+    const attachments = readAttachments(parsed.body);
+    if (attachments.error) return fail(c, 400, attachments.error);
+
+    const order = createOrder(db, {
+      ...fields,
+      customerId: customerId.value,
+      attachments: attachments.value,
+    });
     return c.json(orderPayload(order), 201);
   });
 
@@ -1029,7 +1104,17 @@ export function createApp(options) {
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
 
     try {
-      const intakeMessages = buildIntakeMessages(cleanMessages, body.draft ?? {});
+      const attachments = readAttachments(body);
+      if (attachments.error) return fail(c, 400, attachments.error);
+      const attachmentContext = await describeAttachments(
+        attachments.value,
+        path.join(dataDir, 'media'),
+      );
+      const intakeMessages = buildIntakeMessages(
+        cleanMessages,
+        body.draft ?? {},
+        attachmentContext,
+      );
       let result = await requestChat({
         endpoint: config.endpoint,
         model: config.model,
@@ -1207,42 +1292,79 @@ export function createApp(options) {
     return sendFile(c, path.join(rendersDir, `${renderId}-${page}.png`), 'image/png');
   });
 
-  // Image upload for colour swatches and photographs. The client sends JSON
-  // with base64 data so one simple parser covers web and native; the bytes are
-  // checked against the declared type before they reach disk.
+  // File upload. There is no type restriction: photographs, drawings, PDFs,
+  // spreadsheets and anything else the customer sends are stored as sent. A
+  // sidecar JSON keeps the original name and content type for serving.
   app.post('/api/media', uploadBodyLimit, async (c) => {
     const parsed = await readJsonObject(c);
     if (parsed.error) return fail(c, 400, parsed.error);
     const body = parsed.body ?? {};
 
-    const contentType = typeof body.contentType === 'string' ? body.contentType.trim().toLowerCase() : '';
-    const extension = UPLOAD_TYPES.get(contentType);
-    if (!extension) {
-      return fail(c, 400, 'Field "contentType" must be image/png, image/jpeg or image/webp.');
-    }
     let data = typeof body.data === 'string' ? body.data.trim() : '';
     if (data.startsWith('data:')) {
       const comma = data.indexOf(',');
-      if (comma === -1) return fail(c, 400, 'The image data is not a valid data URL.');
+      if (comma === -1) return fail(c, 400, 'The file data is not a valid data URL.');
       data = data.slice(comma + 1);
     }
     if (data === '' || !/^[A-Za-z0-9+/=\s]+$/.test(data)) {
-      return fail(c, 400, 'Field "data" must be base64 image data.');
+      return fail(c, 400, 'Field "data" must be base64 file data.');
     }
     const bytes = Buffer.from(data, 'base64');
-    if (bytes.length === 0) return fail(c, 400, 'The image is empty.');
+    if (bytes.length === 0) return fail(c, 400, 'The file is empty.');
     if (bytes.length > MAX_UPLOAD_BYTES) {
-      return fail(c, 413, `The image is too large. The limit is ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.`);
-    }
-    if (!matchesImageType(bytes, contentType)) {
-      return fail(c, 400, 'The file content does not match the declared image type.');
+      return fail(c, 413, `The file is too large. The limit is ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.`);
     }
 
-    const name = `${randomUUID()}.${extension}`;
+    const originalName =
+      typeof body.name === 'string' && body.name.trim() !== ''
+        ? body.name.trim().slice(0, 200)
+        : 'attachment';
+    const contentType =
+      typeof body.contentType === 'string' && body.contentType.trim() !== ''
+        ? body.contentType.trim().toLowerCase().slice(0, 100)
+        : 'application/octet-stream';
+
     const mediaDir = path.join(dataDir, 'media');
     mkdirSync(mediaDir, { recursive: true });
+    const id = randomUUID();
+    const extension = uploadExtension(originalName, contentType);
+    const name = `${id}.${extension}`;
     writeFileSync(path.join(mediaDir, name), bytes);
-    return c.json({ url: `/media/${name}`, contentType, bytes: bytes.length }, 201);
+    writeFileSync(
+      path.join(mediaDir, `${id}.json`),
+      JSON.stringify({ name: originalName, contentType, bytes: bytes.length }),
+    );
+    return c.json({ url: `/media/${name}`, contentType, bytes: bytes.length, name: originalName }, 201);
+  });
+
+  // Any uploaded file is served back with the type it was uploaded with. Images,
+  // PDFs and text open inline, everything else downloads with its own name.
+  app.get('/media/:name', (c) => {
+    const name = c.req.param('name');
+    if (!/^[A-Za-z0-9._-]+$/.test(name) || name.includes('..')) {
+      return fail(c, 404, 'File not found.');
+    }
+    const mediaDir = path.join(dataDir, 'media');
+    const extension = path.extname(name).slice(1).toLowerCase();
+    const knownType = IMAGE_TYPES.get(extension);
+    const sidecarPath = path.join(mediaDir, `${path.basename(name, path.extname(name))}.json`);
+    let meta = null;
+    try {
+      meta = JSON.parse(readFileSync(sidecarPath, 'utf8'));
+    } catch {
+      meta = null;
+    }
+    const contentType = knownType ?? meta?.contentType ?? 'application/octet-stream';
+    const inline =
+      contentType.startsWith('image/') ||
+      contentType === 'application/pdf' ||
+      contentType.startsWith('text/');
+    const headers = inline
+      ? {}
+      : {
+          'Content-Disposition': `attachment; filename="${String(meta?.name ?? name).replace(/["\\\r\n]/g, '_')}"`,
+        };
+    return sendFile(c, path.join(mediaDir, name), contentType, headers);
   });
 
   app.get('/media/:name', (c) => {

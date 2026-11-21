@@ -36,6 +36,10 @@ One chat is one order. Once the brochure is in the conversation, the next messag
 
 There is no manual order form anywhere. An order exists only after the chat has asked for every missing detail and finalised it. History is read only: it lists each order with the documents it produced, the brochure cover, the page count and a direct Open PDF, so every generated file stays reachable.
 
+The **+** button in the chat attaches anything the customer sends: photographs, drawings, PDFs, spreadsheets, archives. There is no file type filter. PDF and text files are read into the model's context so dimensions on a plan are used, and every uploaded file is kept on the order and listed with it afterwards.
+
+![Files in the chat](docs/screenshots/chat-files.png)
+
 ![Brochure from the chat](docs/screenshots/chat-brochure.png)
 
 The extraction rules matter as much as the conversation. Bare dimensions become millimetres, counts become digits, unknown fields are dropped, and a reply without usable JSON is rejected with a readable error. A field is only ready when the customer actually said it, never guessed.

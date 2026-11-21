@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -542,6 +543,35 @@ export default function OrderDetailScreen() {
                 ) : null}
               </View>
 
+              {order.attachments && order.attachments.length > 0 ? (
+                <View style={styles.voucherSection}>
+                  <View style={shared.rowBetween}>
+                    <Text style={text.sectionLabel}>Customer files</Text>
+                    <Text style={text.caption}>
+                      {order.attachments.length === 1
+                        ? '1 file'
+                        : `${order.attachments.length} files`}
+                    </Text>
+                  </View>
+                  <Text style={[text.muted, styles.voucherIntro]}>
+                    Uploaded in the chat with this order.
+                  </Text>
+                  {order.attachments.map((file) => (
+                    <Pressable
+                      key={file.url}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${file.name}`}
+                      onPress={() => void openUrl(fileUrl(file.url))}
+                      style={({ pressed }) => [styles.fileRow, pressed && styles.fileRowPressed]}>
+                      <Text style={[text.bodySmall, styles.fileName]} numberOfLines={1}>
+                        {file.name}
+                      </Text>
+                      <Text style={text.caption}>{formatFileSize(file.bytes)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
               <View style={styles.voucherSection}>
                 <View style={shared.rowBetween}>
                   <Text style={text.sectionLabel}>Customer note</Text>
@@ -731,6 +761,13 @@ function PageImage({ uri, label }: { uri: string; label: string }) {
   );
 }
 
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const styles = StyleSheet.create({
   kitRow: {
     flexDirection: 'row',
@@ -835,6 +872,22 @@ const styles = StyleSheet.create({
   },
   voucherSection: {
     marginTop: space.xxl,
+  },
+  fileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.md,
+    paddingVertical: space.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hair,
+  },
+  fileRowPressed: {
+    opacity: 0.65,
+  },
+  fileName: {
+    flexShrink: 1,
+    color: colors.ink,
   },
   voucherIntro: {
     marginTop: space.md,

@@ -74,6 +74,7 @@ export interface Order {
   status: OrderStatus;
   brief?: string;
   copy?: BrochureCopy | null;
+  attachments?: OrderAttachment[];
   createdAt: string;
 }
 
@@ -148,6 +149,13 @@ export interface LlmTestResult {
   error?: { message?: string; status?: number; type?: string };
 }
 
+export interface OrderAttachment {
+  url: string;
+  name: string;
+  contentType: string;
+  bytes: number;
+}
+
 export interface IntakeMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -204,6 +212,8 @@ export interface NewOrderInput {
   handleNote: string;
   finishExt: string;
   finishInt: string;
+  brief?: string;
+  attachments?: OrderAttachment[];
 }
 
 export interface HealthResponse {
@@ -351,11 +361,15 @@ export const api = {
   saveLlmSettings(input: { endpoint?: string; model?: string; apiKey?: string }): Promise<LlmSettings> {
     return request<LlmSettings>('/api/llm/settings', { method: 'PUT', body: input });
   },
-  intake(messages: IntakeMessage[], draft?: Record<string, string>): Promise<IntakeResult> {
+  intake(
+    messages: IntakeMessage[],
+    draft?: Record<string, string>,
+    attachments?: OrderAttachment[]
+  ): Promise<IntakeResult> {
     return request<IntakeResult>('/api/intake', {
       method: 'POST',
-      body: { messages, draft },
-      timeoutMs: 60000,
+      body: { messages, draft, attachments },
+      timeoutMs: 120000,
     });
   },
   generateOrderCopy(
@@ -373,6 +387,17 @@ export const api = {
       method: 'POST',
       body: {},
       timeoutMs: 45000,
+    });
+  },
+  uploadFile(
+    data: string,
+    name: string,
+    contentType: string
+  ): Promise<{ url: string; contentType: string; bytes: number; name: string }> {
+    return request('/api/media', {
+      method: 'POST',
+      body: { data, name, contentType },
+      timeoutMs: 120000,
     });
   },
   uploadImage(data: string, contentType: string): Promise<{ url: string; contentType: string; bytes: number }> {
