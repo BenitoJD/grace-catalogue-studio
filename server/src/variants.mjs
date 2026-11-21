@@ -255,7 +255,9 @@ export function templateCatalog(variants) {
   });
 }
 
-function paletteVariables(palette) {
+// Raw CSS custom properties for one palette. The voucher families and the
+// catalogue rate card share the same tone sets.
+export function paletteVariables(palette) {
   const lines = PALETTE_COLOR_KEYS.map((key) => {
     const cssKey = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
     return `--${cssKey}: ${palette[key]};`;

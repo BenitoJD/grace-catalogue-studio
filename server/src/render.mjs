@@ -228,6 +228,7 @@ export function buildKitValues() {
     cityLine: COMPANY.cityLine,
     phone: COMPANY.phone,
     email: COMPANY.email,
+    shopLine: COMPANY.shopLine,
   };
 }
 
@@ -434,7 +435,7 @@ export function createRenderer({
   }
 
   async function renderOnce({ kind, values, renderId, templateFile, builtDir }) {
-    if (kind !== 'voucher' && kind !== 'kit') {
+    if (kind !== 'voucher' && kind !== 'kit' && kind !== 'catalogue') {
       throw new RenderError(`Unknown template kind "${kind}".`, 400);
     }
 

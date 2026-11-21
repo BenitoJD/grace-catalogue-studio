@@ -112,6 +112,9 @@ export default function OrderDetailScreen() {
   const [copyModel, setCopyModel] = useState<string | null>(null);
   const [copyLoading, setCopyLoading] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [kitRender, setKitRender] = useState<Render | null>(null);
+  const [kitLoading, setKitLoading] = useState(false);
+  const [kitError, setKitError] = useState<string | null>(null);
   const [note, setNote] = useState<OrderNote | null>(null);
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -261,6 +264,22 @@ export default function OrderDetailScreen() {
       setNoteLoading(false);
     }
   }, [noteLoading, orderId]);
+
+  const renderKit = useCallback(async () => {
+    if (!orderId || kitLoading) {
+      return;
+    }
+    setKitLoading(true);
+    setKitError(null);
+    try {
+      const next = await api.renderOrder(orderId, 'kit');
+      setKitRender(next);
+    } catch (error) {
+      setKitError(errorMessage(error, 'The info kit could not be rendered. Try again.'));
+    } finally {
+      setKitLoading(false);
+    }
+  }, [kitLoading, orderId]);
 
   const copyNote = useCallback(async () => {
     if (!note) {
@@ -559,6 +578,46 @@ export default function OrderDetailScreen() {
                 </View>
               </View>
 
+              <View style={styles.voucherSection}>
+                <View style={shared.rowBetween}>
+                  <Text style={text.sectionLabel}>Info kit</Text>
+                  {kitRender ? (
+                    <Text style={text.caption}>{pageCountLabel(kitRender.pageCount)}</Text>
+                  ) : null}
+                </View>
+                <Text style={[text.muted, styles.voucherIntro]}>
+                  The company brochure: workshop, materials and process, printed on A4.
+                </Text>
+                {kitError ? <Text style={[text.muted, styles.noteError]}>{kitError}</Text> : null}
+                {kitRender ? (
+                  <View style={styles.kitRow}>
+                    <Image
+                      source={{ uri: fileUrl(kitRender.pageUrls[0]) }}
+                      style={styles.kitThumb}
+                      resizeMode="cover"
+                      accessibilityLabel="Info kit first page"
+                    />
+                    <View style={styles.kitActions}>
+                      <Button
+                        label="Open PDF"
+                        variant="secondary"
+                        onPress={() => {
+                          void openUrl(fileUrl(kitRender.pdfUrl));
+                        }}
+                      />
+                    </View>
+                  </View>
+                ) : null}
+                <View style={styles.generateAction}>
+                  <Button
+                    label={kitRender ? 'Render again' : 'Render info kit'}
+                    loading={kitLoading}
+                    loadingLabel="Rendering kit"
+                    onPress={() => void renderKit()}
+                  />
+                </View>
+              </View>
+
               <View style={[shared.hairline, styles.footerRule]} />
               <Text style={[text.caption, styles.footerNote]}>
                 Grace Wood Industry · Catalogue Studio
@@ -673,6 +732,21 @@ function PageImage({ uri, label }: { uri: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  kitRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.md,
+    marginTop: space.md,
+  },
+  kitThumb: {
+    width: 96,
+    height: 136,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+  },
+  kitActions: {
+    gap: space.sm,
+  },
   briefField: {
     marginTop: space.md,
     maxWidth: 640,

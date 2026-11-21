@@ -13,6 +13,7 @@ import {
   deleteOrder,
   deleteSetting,
   getCustomer,
+  getMaterial,
   getOrder,
   getRender,
   listCustomers,
@@ -22,6 +23,7 @@ import {
   listRendersForOrder,
   setOrderCopy,
   setSetting,
+  updateMaterial,
   updateOrder,
 } from './db.mjs';
 import {
@@ -56,6 +58,12 @@ import {
 } from './llm.mjs';
 import { createLogger, parseLogLevel } from './logger.mjs';
 import { buildKitValues, createRenderer, newRenderId } from './render.mjs';
+import {
+  RATE_CARD_TEMPLATE,
+  buildRateCardValues,
+  rateCardCatalog,
+  resolveRateCardVariant,
+} from './catalogue.mjs';
 import { createPreviewStore } from './previews.mjs';
 import {
   buildVoucherDocumentValues,
@@ -75,6 +83,10 @@ const TEMPLATE_ID_MAX_LENGTH = 64;
 // The customer brief is loose prose, so it gets a much larger cap than the
 // short specification fields.
 const BRIEF_MAX_LENGTH = 2000;
+// Trade rate card fields.
+const PRICE_UNIT_MAX_LENGTH = 20;
+const SKU_MAX_LENGTH = 40;
+const PRICE_AMOUNT_ERROR = 'Field "priceAmount" must be a number greater than or equal to zero.';
 
 function orderFieldMaxLength(field) {
   if (field === 'title') return TITLE_MAX_LENGTH;
@@ -175,6 +187,40 @@ function readOptionalImageUrl(body, key, maxLength = FIELD_MAX_LENGTH) {
     return { error: `Field "${key}" must be ${maxLength} characters or fewer.` };
   }
   return { value: value === '' ? null : value };
+}
+
+// The API documents camelCase field names; the snake_case column names are
+// accepted too so a script that speaks the database spelling still works.
+function aliasedKeys(...names) {
+  return names;
+}
+
+function readAliasedText(body, names, maxLength) {
+  const key = names.find((name) => body[name] !== undefined);
+  if (key === undefined) return { present: false, value: undefined };
+  const raw = body[key];
+  if (raw === undefined || raw === null) return { present: true, value: '' };
+  if (typeof raw !== 'string') {
+    return { present: true, error: `Field "${names[0]}" must be text.` };
+  }
+  const value = raw.trim();
+  if (value.length > maxLength) {
+    return {
+      present: true,
+      error: `Field "${names[0]}" must be ${maxLength} characters or fewer.`,
+    };
+  }
+  return { present: true, value };
+}
+
+function readPriceAmount(body) {
+  const key = aliasedKeys('priceAmount', 'price_amount').find((name) => body[name] !== undefined);
+  if (key === undefined) return { present: false, value: undefined };
+  const raw = body[key];
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) {
+    return { present: true, error: PRICE_AMOUNT_ERROR };
+  }
+  return { present: true, value: raw };
 }
 
 async function sendFile(c, filePath, contentType) {
@@ -345,6 +391,76 @@ export function createApp(options) {
   });
 
   // -------------------------------------------------------------------------
+  // Catalogue documents: the trade rate card
+  // -------------------------------------------------------------------------
+
+  app.get('/api/catalogue/templates', (c) => c.json(rateCardCatalog()));
+
+  app.post('/api/catalogue/render', async (c) => {
+    const parsed = await readOptionalJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+
+    let templateId = null;
+    const requestedTemplateId = parsed.body.templateId;
+    if (requestedTemplateId !== undefined && requestedTemplateId !== null) {
+      if (typeof requestedTemplateId !== 'string') {
+        return fail(c, 400, 'Field "templateId" must be a template id.');
+      }
+      const requested = requestedTemplateId.trim();
+      if (requested === '') return fail(c, 400, 'Field "templateId" must be a template id.');
+      if (requested.length > TEMPLATE_ID_MAX_LENGTH) {
+        return fail(
+          c,
+          400,
+          `Field "templateId" must be ${TEMPLATE_ID_MAX_LENGTH} characters or fewer.`,
+        );
+      }
+      if (!resolveRateCardVariant(requested)) {
+        return fail(
+          c,
+          400,
+          `Unknown templateId "${requested}". GET /api/catalogue/templates lists the available rate card templates.`,
+        );
+      }
+      templateId = requested;
+    }
+    const variant = resolveRateCardVariant(templateId);
+    templateId = variant.id;
+
+    // Concurrent identical rate cards share one build, like voucher renders.
+    const renderKey = `catalogue|${templateId}`;
+    let job = inflightRenders.get(renderKey);
+    if (!job) {
+      job = startRenderJob(renderKey, async () => {
+        const values = buildRateCardValues({
+          materials: listMaterials(db),
+          variants,
+          variant,
+        });
+        const renderId = newRenderId();
+        const result = await renderer.render({
+          kind: 'catalogue',
+          values,
+          renderId,
+          templateFile: RATE_CARD_TEMPLATE,
+        });
+        return createRender(db, {
+          id: renderId,
+          orderId: null,
+          kind: 'catalogue',
+          pageCount: result.pageCount,
+          pdfUrl: result.pdfUrl,
+          pageUrls: result.pageUrls,
+          templateId,
+        });
+      });
+    }
+
+    const render = await job;
+    return c.json(render, 201);
+  });
+
+  // -------------------------------------------------------------------------
   // Customers
   // -------------------------------------------------------------------------
 
@@ -481,13 +597,92 @@ export function createApp(options) {
     const imageUrl = readOptionalImageUrl(parsed.body, 'imageUrl');
     if (imageUrl.error) return fail(c, 400, imageUrl.error);
 
+    const priceAmount = readPriceAmount(parsed.body);
+    if (priceAmount.error) return fail(c, 400, priceAmount.error);
+    const priceUnit = readAliasedText(
+      parsed.body,
+      aliasedKeys('priceUnit', 'price_unit'),
+      PRICE_UNIT_MAX_LENGTH,
+    );
+    if (priceUnit.error) return fail(c, 400, priceUnit.error);
+    const sku = readAliasedText(parsed.body, aliasedKeys('sku'), SKU_MAX_LENGTH);
+    if (sku.error) return fail(c, 400, sku.error);
+
     const material = createMaterial(db, {
       name: name.value,
       kind: kind.value,
       hex: hex.value,
       imageUrl: imageUrl.value,
+      priceAmount: priceAmount.value ?? 0,
+      priceUnit: priceUnit.value ?? '',
+      sku: sku.value ?? '',
     });
     return c.json(material, 201);
+  });
+
+  app.get('/api/materials', (c) => c.json(listMaterials(db)));
+
+  app.get('/api/materials/:id', (c) => {
+    const material = getMaterial(db, c.req.param('id'));
+    if (!material) return fail(c, 404, 'Material not found.');
+    return c.json(material);
+  });
+
+  app.patch('/api/materials/:id', async (c) => {
+    const id = c.req.param('id');
+    if (!getMaterial(db, id)) return fail(c, 404, 'Material not found.');
+
+    const parsed = await readJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+
+    const patch = {};
+
+    for (const [field, maxLength] of [
+      ['name', NAME_MAX_LENGTH],
+      ['kind', FIELD_MAX_LENGTH],
+    ]) {
+      if (!(field in parsed.body)) continue;
+      const result = readText(parsed.body, field, { maxLength });
+      if (result.error) return fail(c, 400, result.error);
+      patch[field] = result.value;
+    }
+
+    if ('hex' in parsed.body) {
+      const hex = readText(parsed.body, 'hex', { required: true });
+      if (hex.error) return fail(c, 400, hex.error);
+      if (!/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex.value)) {
+        return fail(c, 400, 'Field "hex" must be a colour like #A65E22.');
+      }
+      patch.hex = hex.value;
+    }
+
+    if ('imageUrl' in parsed.body) {
+      const imageUrl = readOptionalImageUrl(parsed.body, 'imageUrl');
+      if (imageUrl.error) return fail(c, 400, imageUrl.error);
+      patch.imageUrl = imageUrl.value;
+    }
+
+    const priceAmount = readPriceAmount(parsed.body);
+    if (priceAmount.error) return fail(c, 400, priceAmount.error);
+    if (priceAmount.present) patch.priceAmount = priceAmount.value;
+
+    const priceUnit = readAliasedText(
+      parsed.body,
+      aliasedKeys('priceUnit', 'price_unit'),
+      PRICE_UNIT_MAX_LENGTH,
+    );
+    if (priceUnit.error) return fail(c, 400, priceUnit.error);
+    if (priceUnit.present) patch.priceUnit = priceUnit.value;
+
+    const sku = readAliasedText(parsed.body, aliasedKeys('sku'), SKU_MAX_LENGTH);
+    if (sku.error) return fail(c, 400, sku.error);
+    if (sku.present) patch.sku = sku.value;
+
+    if (Object.keys(patch).length === 0) {
+      return fail(c, 400, 'No material fields to update.');
+    }
+
+    return c.json(updateMaterial(db, id, patch));
   });
 
   // -------------------------------------------------------------------------

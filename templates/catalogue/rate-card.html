@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grace Wood Industry, Trade Rate Card</title>
+<link rel="stylesheet" href="../fonts/brand.css">
+<style>
+  @page { size: 216mm 303mm; margin: 0; }
+  html, body { margin:0; padding:0; background:#fff; }
+  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  :root{
+    --accent:#A65E22;
+    --accent-on-dark:#D08A4E;
+    --accent-soft:#F0E2D3;
+    --paper:#FFFFFF;
+    --cover-paper:#FBF7F1;
+    --ink:#14100C;
+    --muted:#6E6259;
+    --faint:#A2938A;
+    --hair:#E6DED2;
+    --on-dark:#FFFFFF;
+    --dark:#14100C;
+    {{paletteCss}}
+  }
+
+  .page{ position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page:last-child{ page-break-after:auto; }
+  .sheet{ position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
+  .abs{ position:absolute; }
+  .sans{ font-family:"Barlow", Helvetica, Arial, sans-serif; }
+  .serif{ font-family:"Instrument Serif", Georgia, serif; font-weight:400; }
+  .micro{ font-family:"Barlow", Helvetica, Arial, sans-serif; font-size:4.9pt; letter-spacing:.24em; text-transform:uppercase; font-weight:600; color:var(--faint); }
+  .micro.ink{ color:var(--ink); }
+  .micro.acc{ color:var(--accent); }
+  .label{ font-family:"Barlow", Helvetica, Arial, sans-serif; font-size:4.6pt; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  .hair{ height:0.14mm; background:var(--hair); }
+  .rule-ink{ height:0.3mm; background:var(--ink); }
+  .rule-acc{ height:0.4mm; background:var(--accent); }
+
+  /* One template, three complete layouts. The server sets the body class, so
+     only the chosen layout is printed and the other two cost no pages. */
+  .layout{ display:none; }
+  body.ledger .layout-ledger{ display:block; }
+  body.grid .layout-grid{ display:block; }
+  body.tags .layout-tags{ display:block; }
+  .page.cont.no-more{ display:none; }
+
+  table.rates{ border-collapse:collapse; table-layout:fixed; font-variant-numeric:tabular-nums; }
+  table.rates th{ text-align:left; }
+
+  /* ---------------------------------------------------------------- ledger */
+  .ledger-page{ background:var(--cover-paper); }
+  .ledger-page .c-sku{ width:30mm; }
+  .ledger-page .c-name{ width:52mm; }
+  .ledger-page .c-kind{ width:44mm; }
+  .ledger-page .c-unit{ width:22mm; }
+  .ledger-page .c-rate{ width:26mm; text-align:right; }
+  .ledger-table{ position:absolute; left:18mm; top:112mm; width:174mm; }
+  .ledger-table th{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); font-weight:600; padding:0 0 2.4mm 0; border-bottom:0.3mm solid var(--ink); }
+  .ledger-table td{ font-family:"Barlow", sans-serif; color:var(--ink); padding:3mm 0 2.8mm 0; border-bottom:0.12mm solid var(--hair); vertical-align:top; }
+  .ledger-table tr:last-child td{ border-bottom:0.3mm solid var(--ink); }
+  .ledger-table td.c-sku{ font-size:5.6pt; letter-spacing:.1em; color:var(--muted); }
+  .ledger-table td.c-name{ font-family:"Instrument Serif", Georgia, serif; font-size:11pt; line-height:1.1; }
+  .ledger-table td.c-kind{ font-size:6.2pt; color:var(--muted); }
+  .ledger-table td.c-unit{ font-size:6.2pt; color:var(--muted); }
+  .ledger-table td.c-rate{ font-family:"Instrument Serif", Georgia, serif; font-size:12pt; }
+
+  /* ------------------------------------------------------------------ grid */
+  .grid-page .c-sku{ width:28mm; }
+  .grid-page .c-name{ width:54mm; }
+  .grid-page .c-kind{ width:42mm; }
+  .grid-page .c-unit{ width:20mm; }
+  .grid-page .c-rate{ width:30mm; text-align:right; }
+  .grid-table{ position:absolute; left:18mm; top:94mm; width:174mm; }
+  .grid-table th{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.22em; text-transform:uppercase; color:var(--on-dark); font-weight:600; background:var(--ink); padding:2.4mm 2mm; }
+  .grid-table th.c-rate{ text-align:right; }
+  .grid-table td{ font-family:"Barlow", sans-serif; font-size:6.8pt; color:var(--ink); padding:2.9mm 2mm 2.7mm 2mm; border-bottom:0.12mm solid var(--hair); vertical-align:top; }
+  .grid-table td.c-sku{ font-size:5.6pt; letter-spacing:.1em; font-weight:600; color:var(--accent); }
+  .grid-table td.c-name{ font-weight:600; font-size:7.2pt; }
+  .grid-table td.c-kind{ color:var(--muted); }
+  .grid-table td.c-unit{ color:var(--muted); }
+  .grid-table td.c-rate{ text-align:right; font-weight:600; font-size:8.2pt; }
+
+  /* ------------------------------------------------------------------ tags */
+  .tags-page{ background:var(--cover-paper); }
+  .tags-page .c-sku{ width:32mm; }
+  .tags-page .c-name{ width:58mm; }
+  .tags-page .c-kind{ width:38mm; }
+  .tags-page .c-unit{ width:20mm; }
+  .tags-page .c-rate{ width:26mm; text-align:right; }
+  .tags-table{ position:absolute; left:18mm; top:106mm; width:174mm; }
+  .tags-table th{ font-family:"Barlow", sans-serif; font-size:4.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); font-weight:600; padding:0 0 2mm 0; }
+  .tags-table td{ padding:3.4mm 2mm 3.2mm 2mm; border-bottom:0.3mm solid var(--hair); vertical-align:middle; }
+  .tags-table td.c-sku{ background:var(--accent-soft); font-family:"Barlow", sans-serif; font-size:5.8pt; font-weight:600; letter-spacing:.12em; color:var(--accent); text-align:center; }
+  .tags-table td.c-name{ font-family:"Instrument Serif", Georgia, serif; font-size:12pt; color:var(--ink); padding-left:4mm; }
+  .tags-table td.c-kind{ font-family:"Barlow", sans-serif; font-size:6.2pt; color:var(--muted); }
+  .tags-table td.c-unit{ font-family:"Barlow", sans-serif; font-size:6pt; color:var(--muted); }
+  .tags-table td.c-rate{ font-family:"Instrument Serif", Georgia, serif; font-size:15pt; color:var(--ink); }
+
+  /* ---------------------------------------------------------- continuation */
+  .cont-page .c-sku{ width:30mm; }
+  .cont-page .c-name{ width:52mm; }
+  .cont-page .c-kind{ width:44mm; }
+  .cont-page .c-unit{ width:22mm; }
+  .cont-page .c-rate{ width:26mm; text-align:right; }
+  .cont-table{ position:absolute; left:18mm; top:62mm; width:174mm; }
+  .cont-table th{ font-family:"Barlow", sans-serif; font-size:4.6pt; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); font-weight:600; padding:0 0 2.2mm 0; border-bottom:0.3mm solid var(--ink); }
+  .cont-table td{ font-family:"Barlow", sans-serif; font-size:6.4pt; color:var(--ink); padding:2.9mm 0 2.7mm 0; border-bottom:0.12mm solid var(--hair); vertical-align:top; }
+  .cont-table td.c-sku{ font-size:5.6pt; letter-spacing:.1em; color:var(--muted); }
+  .cont-table td.c-name{ font-size:7.2pt; font-weight:600; }
+  .cont-table td.c-kind{ color:var(--muted); }
+  .cont-table td.c-unit{ color:var(--muted); }
+  .cont-table td.c-rate{ text-align:right; font-weight:600; font-size:7.6pt; }
+
+  /* Continuation pages keep each layout's own table language. */
+  .cont-table.grid-cont th{ background:var(--ink); color:var(--on-dark); padding:2.2mm 2mm; }
+  .cont-table.grid-cont td{ padding:2.7mm 2mm; }
+  .cont-table.grid-cont td.c-sku{ color:var(--accent); font-weight:600; }
+  .cont-table.grid-cont td.c-name{ font-weight:600; font-size:7pt; }
+  .cont-table.grid-cont td.c-rate{ font-weight:600; }
+
+  .cont-table.tags-cont td{ padding:3.1mm 2mm 2.9mm 2mm; vertical-align:middle; border-bottom:0.3mm solid var(--hair); }
+  .cont-table.tags-cont td.c-sku{ background:var(--accent-soft); font-family:"Barlow", sans-serif; font-size:5.8pt; font-weight:600; letter-spacing:.12em; color:var(--accent); text-align:center; }
+  .cont-table.tags-cont td.c-name{ font-family:"Instrument Serif", Georgia, serif; font-size:11pt; color:var(--ink); padding-left:4mm; }
+  .cont-table.tags-cont td.c-kind{ font-family:"Barlow", sans-serif; font-size:6.2pt; }
+  .cont-table.tags-cont td.c-unit{ font-family:"Barlow", sans-serif; font-size:6pt; }
+  .cont-table.tags-cont td.c-rate{ font-family:"Instrument Serif", Georgia, serif; font-size:14pt; color:var(--ink); text-align:right; }
+</style>
+</head>
+<body class="{{rateCardLayout}}">
+
+<!-- ============================================================ LEDGER -->
+<div class="layout layout-ledger">
+  <div class="page ledger-page">
+    <div class="sheet">
+      <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:18mm; width:17mm;">
+      <div class="abs" style="left:40mm; top:18mm; font-family:'Barlow',sans-serif; font-size:6.4pt; line-height:1.65; color:var(--ink);">
+        Grace Wood Industry<br><span style="color:var(--muted);">Custom wardrobes and furniture · Nagercoil</span>
+      </div>
+      <div class="abs micro" style="right:18mm; top:20mm; text-align:right; line-height:1.8;">
+        {{addressLine1}}<br>{{addressLine2}}<br>{{phone}}
+      </div>
+      <div class="abs hair" style="left:18mm; top:44mm; width:174mm;"></div>
+
+      <div class="abs label" style="left:18mm; top:52mm;">Trade rate card · {{date}}</div>
+      <div class="abs serif" style="left:18mm; top:58mm; width:174mm; font-size:34pt; line-height:1.02; color:var(--ink); letter-spacing:-.014em;">Trade Rate Card</div>
+      <div class="abs sans" style="left:18mm; top:90mm; width:150mm; font-size:7pt; line-height:1.5; color:var(--muted);">Wardrobe carcasses, shutters and edge banding. Rates in INR per unit shown, ex GST.</div>
+
+      <table class="rates ledger-table">
+        <thead><tr><th class="c-sku">SKU</th><th class="c-name">Material</th><th class="c-kind">Finish or kind</th><th class="c-unit">Unit</th><th class="c-rate">Rate · INR</th></tr></thead>
+        <tbody>{{rateCardRows}}</tbody>
+      </table>
+
+      <div class="abs sans" style="left:18mm; top:236mm; width:174mm; font-size:5.4pt; line-height:1.7; color:var(--muted);">{{rateCardCount}} materials on this card. Rates in INR per unit shown. GST 18% additional. Rates valid until revised.</div>
+      <div class="abs hair" style="left:18mm; top:270mm; width:174mm;"></div>
+      <div class="abs micro" style="left:18mm; top:277mm;">{{shopLine}}</div>
+      <div class="abs micro" style="right:18mm; top:277mm; text-align:right;">{{email}} · 01</div>
+    </div>
+  </div>
+
+  <div class="page cont cont-page ledger-page {{rateCardContinuation}}">
+    <div class="sheet">
+      <div class="abs micro ink" style="left:18mm; top:18mm;">Grace Wood Industry · Trade rate card, continued</div>
+      <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{date}}</div>
+      <div class="abs hair" style="left:18mm; top:28mm; width:174mm;"></div>
+      <div class="abs serif" style="left:18mm; top:38mm; width:174mm; font-size:19pt; color:var(--ink);">Trade Rate Card, continued</div>
+      <table class="rates cont-table">
+        <thead><tr><th class="c-sku">SKU</th><th class="c-name">Material</th><th class="c-kind">Finish or kind</th><th class="c-unit">Unit</th><th class="c-rate">Rate · INR</th></tr></thead>
+        <tbody>{{rateCardRowsMore}}</tbody>
+      </table>
+      <div class="abs sans" style="left:18mm; top:250mm; width:174mm; font-size:5.4pt; line-height:1.7; color:var(--muted);">Rates in INR per unit shown. GST 18% additional. Rates valid until revised.</div>
+      <div class="abs hair" style="left:18mm; top:270mm; width:174mm;"></div>
+      <div class="abs micro" style="left:18mm; top:277mm;">{{shopLine}}</div>
+      <div class="abs micro" style="right:18mm; top:277mm; text-align:right;">{{email}} · 02</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================== GRID -->
+<div class="layout layout-grid">
+  <div class="page grid-page">
+    <div class="abs" style="left:0; top:0; width:216mm; height:2.4mm; background:var(--accent);"></div>
+    <div class="sheet">
+      <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:18mm; width:13mm;">
+      <div class="abs" style="left:35mm; top:19mm; font-family:'Barlow',sans-serif; font-size:7.4pt; font-weight:600; letter-spacing:.06em; color:var(--ink);">Grace Wood Industry</div>
+      <div class="abs micro" style="right:18mm; top:20mm; text-align:right; line-height:1.8;">{{addressLine1}}<br>{{phone}} · {{email}}</div>
+      <div class="abs hair" style="left:18mm; top:38mm; width:174mm;"></div>
+
+      <div class="abs label" style="left:18mm; top:46mm;">01 Rates</div>
+      <div class="abs" style="left:18mm; top:52mm; width:120mm; font-family:'Barlow',sans-serif; font-weight:600; font-size:27pt; line-height:1; letter-spacing:-.015em; color:var(--ink);">Trade Rate Card</div>
+      <div class="abs" style="right:18mm; top:52mm; width:48mm; text-align:right; font-family:'Barlow',sans-serif; font-size:5.4pt; line-height:1.8; color:var(--muted);">{{rateCardCount}} materials<br>Rates in INR, ex GST<br>{{date}}</div>
+      <div class="abs" style="left:18mm; top:86mm; width:174mm; font-family:'Barlow',sans-serif; font-size:6pt; letter-spacing:.02em; color:var(--muted);">Carcasses, shutters and edge banding · rates per unit shown</div>
+
+      <table class="rates grid-table">
+        <thead><tr><th class="c-sku">SKU</th><th class="c-name">Material</th><th class="c-kind">Finish or kind</th><th class="c-unit">Unit</th><th class="c-rate">Rate · INR</th></tr></thead>
+        <tbody>{{rateCardRows}}</tbody>
+      </table>
+
+      <div class="abs hair" style="left:18mm; top:240mm; width:174mm;"></div>
+      <div class="abs sans" style="left:18mm; top:246mm; width:110mm; font-size:5.6pt; line-height:1.7; color:var(--muted);">Rates in INR per unit shown. GST 18% additional. Rates valid until revised.</div>
+      <div class="abs micro" style="left:18mm; top:277mm;">{{shopLine}}</div>
+      <div class="abs micro" style="right:18mm; top:277mm; text-align:right;">02 · Rate card · 01</div>
+    </div>
+  </div>
+
+  <div class="page cont cont-page grid-page {{rateCardContinuation}}">
+    <div class="abs" style="left:0; top:0; width:216mm; height:2.4mm; background:var(--accent);"></div>
+    <div class="sheet">
+      <div class="abs micro ink" style="left:18mm; top:18mm;">Grace Wood Industry · 02 Rates, continued</div>
+      <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{date}}</div>
+      <div class="abs hair" style="left:18mm; top:28mm; width:174mm;"></div>
+      <div class="abs" style="left:18mm; top:38mm; width:174mm; font-family:'Barlow',sans-serif; font-weight:600; font-size:18pt; letter-spacing:-.01em; color:var(--ink);">Trade Rate Card, continued</div>
+      <table class="rates cont-table grid-cont">
+        <thead><tr><th class="c-sku">SKU</th><th class="c-name">Material</th><th class="c-kind">Finish or kind</th><th class="c-unit">Unit</th><th class="c-rate">Rate · INR</th></tr></thead>
+        <tbody>{{rateCardRowsMore}}</tbody>
+      </table>
+      <div class="abs hair" style="left:18mm; top:250mm; width:174mm;"></div>
+      <div class="abs sans" style="left:18mm; top:255mm; width:174mm; font-size:5.6pt; line-height:1.7; color:var(--muted);">Rates in INR per unit shown. GST 18% additional. Rates valid until revised.</div>
+      <div class="abs micro" style="left:18mm; top:277mm;">{{shopLine}}</div>
+      <div class="abs micro" style="right:18mm; top:277mm; text-align:right;">02 · Rate card · 02</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================== TAGS -->
+<div class="layout layout-tags">
+  <div class="page tags-page">
+    <div class="sheet">
+      <img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:18mm; width:15mm;">
+      <div class="abs micro" style="right:18mm; top:19mm; text-align:right; line-height:1.8;">Grace Wood Industry<br>{{addressLine2}} · {{phone}}</div>
+      <div class="abs micro" style="left:36mm; top:19mm;">Trade rate card · {{date}}</div>
+
+      <div class="abs serif" style="left:18mm; top:52mm; width:174mm; font-size:30pt; line-height:1.02; font-style:italic; color:var(--ink); letter-spacing:-.012em;">Trade Rate Card</div>
+      <div class="abs rule-acc" style="left:18mm; top:88mm; width:24mm;"></div>
+      <div class="abs sans" style="left:18mm; top:94mm; width:160mm; font-size:6.6pt; line-height:1.5; color:var(--muted);">{{rateCardCount}} materials. Rates in INR per unit shown, ex GST.</div>
+
+      <table class="rates tags-table">
+        <thead><tr><th class="c-sku">SKU</th><th class="c-name">Material</th><th class="c-kind">Finish or kind</th><th class="c-unit">Unit</th><th class="c-rate">Rate · INR</th></tr></thead>
+        <tbody>{{rateCardRows}}</tbody>
+      </table>
+
+      <div class="abs sans" style="left:18mm; top:238mm; width:174mm; font-size:5.4pt; line-height:1.7; color:var(--muted);">Rates in INR per unit shown. GST 18% additional. Rates valid until revised.</div>
+      <div class="abs hair" style="left:18mm; top:270mm; width:174mm;"></div>
+      <div class="abs micro" style="left:18mm; top:277mm;">{{shopLine}}</div>
+      <div class="abs micro" style="right:18mm; top:277mm; text-align:right;">{{email}} · 01</div>
+    </div>
+  </div>
+
+  <div class="page cont cont-page tags-page {{rateCardContinuation}}">
+    <div class="sheet">
+      <div class="abs micro ink" style="left:18mm; top:18mm;">Grace Wood Industry · Trade rate card, continued</div>
+      <div class="abs micro" style="right:18mm; top:18mm; text-align:right;">{{date}}</div>
+      <div class="abs hair" style="left:18mm; top:28mm; width:174mm;"></div>
+      <div class="abs serif" style="left:18mm; top:38mm; width:174mm; font-size:19pt; font-style:italic; color:var(--ink);">Trade Rate Card, continued</div>
+      <table class="rates cont-table tags-cont">
+        <thead><tr><th class="c-sku">SKU</th><th class="c-name">Material</th><th class="c-kind">Finish or kind</th><th class="c-unit">Unit</th><th class="c-rate">Rate · INR</th></tr></thead>
+        <tbody>{{rateCardRowsMore}}</tbody>
+      </table>
+
+      <div class="abs sans" style="left:18mm; top:250mm; width:174mm; font-size:5.4pt; line-height:1.7; color:var(--muted);">Rates in INR per unit shown. GST 18% additional. Rates valid until revised.</div>
+      <div class="abs hair" style="left:18mm; top:270mm; width:174mm;"></div>
+      <div class="abs micro" style="left:18mm; top:277mm;">{{shopLine}}</div>
+      <div class="abs micro" style="right:18mm; top:277mm; text-align:right;">{{email}} · 02</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

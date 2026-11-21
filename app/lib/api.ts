@@ -95,13 +95,16 @@ export interface Material {
   kind: string;
   hex: string;
   imageUrl: string | null;
+  priceAmount?: number;
+  priceUnit?: string;
+  sku?: string;
   createdAt: string;
 }
 
 export interface Render {
   id: string;
   orderId: string;
-  kind: 'voucher' | 'kit';
+  kind: 'voucher' | 'kit' | 'catalogue';
   templateId: string | null;
   pageCount: number;
   pdfUrl: string;
@@ -332,6 +335,13 @@ export const api = {
       method: 'POST',
       body: {},
       timeoutMs: 45000,
+    });
+  },
+  renderCatalogue(templateId?: string): Promise<Render> {
+    return request<Render>('/api/catalogue/render', {
+      method: 'POST',
+      body: templateId ? { templateId } : {},
+      timeoutMs: RENDER_TIMEOUT_MS,
     });
   },
   listTemplates(): Promise<Template[]> {

@@ -52,11 +52,12 @@ export const ORDER_TEXT_FIELDS = [
 ];
 
 // The schema is versioned with PRAGMA user_version. Version 1 is the original
-// catalogue schema, version 2 adds the runtime settings table and version 3
-// adds the order brief and generated brochure copy. Every change is appended as
-// a new migration so an existing data directory upgrades in place. Never edit
-// an applied migration.
-export const SCHEMA_VERSION = 3;
+// catalogue schema, version 2 adds the runtime settings table, version 3 adds
+// the order brief and generated brochure copy and version 4 adds the material
+// trade rates and lets a render stand on its own without an order (the rate
+// card). Every change is appended as a new migration so an existing data
+// directory upgrades in place. Never edit an applied migration.
+export const SCHEMA_VERSION = 4;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -186,6 +187,51 @@ export const MIGRATIONS = Object.freeze([
       addColumnIfMissing(db, 'orders', 'copy_json', 'TEXT');
     },
   },
+  {
+    version: 4,
+    name: 'material trade rates and order independent renders',
+    // The renders table is rebuilt below so orderId may be NULL: the rate card
+    // is a catalogue document and belongs to no order. SQLite can only relax a
+    // NOT NULL constraint by copying the table.
+    foreignKeys: 'off',
+    up(db) {
+      // A material can carry a trade rate for the printed rate card.
+      addColumnIfMissing(db, 'materials', 'price_amount', 'REAL NOT NULL DEFAULT 0');
+      addColumnIfMissing(db, 'materials', 'price_unit', "TEXT NOT NULL DEFAULT ''");
+      addColumnIfMissing(db, 'materials', 'sku', "TEXT NOT NULL DEFAULT ''");
+
+      const orderIdColumn = db
+        .prepare('PRAGMA table_info(renders)')
+        .all()
+        .find((column) => column.name === 'orderId');
+      if (!orderIdColumn || Number(orderIdColumn.notnull) === 0) return false;
+
+      const renderColumns = tableColumns(db, 'renders');
+      const templateExpression = renderColumns.includes('templateId') ? 'templateId' : 'NULL';
+      db.exec(`
+        CREATE TABLE renders_v4 (
+          id TEXT PRIMARY KEY,
+          orderId TEXT REFERENCES orders(id) ON DELETE RESTRICT,
+          kind TEXT NOT NULL,
+          pageCount INTEGER NOT NULL,
+          pdfUrl TEXT NOT NULL,
+          pageUrls TEXT NOT NULL,
+          templateId TEXT,
+          createdAt TEXT NOT NULL
+        );
+      `);
+      db.exec(`
+        INSERT INTO renders_v4 (id, orderId, kind, pageCount, pdfUrl, pageUrls, templateId, createdAt)
+        SELECT id, orderId, kind, pageCount, pdfUrl, pageUrls, ${templateExpression}, createdAt
+        FROM renders;
+      `);
+      db.exec('DROP TABLE renders');
+      db.exec('ALTER TABLE renders_v4 RENAME TO renders');
+      db.exec('CREATE INDEX IF NOT EXISTS renders_order_created_idx ON renders (orderId, createdAt)');
+      db.exec('CREATE INDEX IF NOT EXISTS renders_created_idx ON renders (createdAt)');
+      return true;
+    },
+  },
 ]);
 
 export function schemaVersion(db) {
@@ -200,6 +246,11 @@ export function migrate(db) {
   let current = schemaVersion(db);
   for (const migration of MIGRATIONS) {
     if (migration.version <= current) continue;
+    // SQLite can not relax a NOT NULL constraint in place. A migration that
+    // rebuilds a table sets foreignKeys: 'off'; the pragma is a no-op inside a
+    // transaction, so it is switched around the transaction, not inside it.
+    const foreignKeysOff = migration.foreignKeys === 'off';
+    if (foreignKeysOff) db.exec('PRAGMA foreign_keys = OFF');
     db.exec('BEGIN IMMEDIATE');
     try {
       migration.up(db);
@@ -212,6 +263,8 @@ export function migrate(db) {
         `Database migration ${migration.version} (${migration.name}) failed: ${error.message}`,
         { cause: error },
       );
+    } finally {
+      if (foreignKeysOff) db.exec('PRAGMA foreign_keys = ON');
     }
   }
   return current;
@@ -237,6 +290,13 @@ function plain(row) {
 
 function text(value) {
   return value === undefined || value === null ? '' : String(value).trim();
+}
+
+// The route validates the amount; this only keeps a broken direct call from
+// writing a negative or non numeric rate into the database.
+function normalisePriceAmount(value) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) && amount >= 0 ? amount : 0;
 }
 
 function withDefault(field, value) {
@@ -426,6 +486,15 @@ export function deleteOrder(db, id) {
 // Materials
 // ---------------------------------------------------------------------------
 
+// The API speaks camelCase while the columns are snake_case. price_amount and
+// sku are the trade rate card values; listMaterials is the one place that maps
+// them back to the API spelling.
+const MATERIAL_SELECT = `
+  SELECT id, name, kind, hex, imageUrl,
+         price_amount AS priceAmount, price_unit AS priceUnit, sku, createdAt
+  FROM materials
+`;
+
 export function createMaterial(db, input) {
   const material = {
     id: randomUUID(),
@@ -433,19 +502,59 @@ export function createMaterial(db, input) {
     kind: text(input.kind),
     hex: text(input.hex),
     imageUrl: input.imageUrl === undefined || input.imageUrl === null ? null : text(input.imageUrl),
+    priceAmount: normalisePriceAmount(input.priceAmount),
+    priceUnit: text(input.priceUnit),
+    sku: text(input.sku),
     createdAt: now(),
   };
   db.prepare(
-    'INSERT INTO materials (id, name, kind, hex, imageUrl, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(material.id, material.name, material.kind, material.hex, material.imageUrl, material.createdAt);
+    `INSERT INTO materials
+       (id, name, kind, hex, imageUrl, price_amount, price_unit, sku, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    material.id,
+    material.name,
+    material.kind,
+    material.hex,
+    material.imageUrl,
+    material.priceAmount,
+    material.priceUnit,
+    material.sku,
+    material.createdAt,
+  );
   return plain(material);
 }
 
 export function listMaterials(db) {
-  return db
-    .prepare('SELECT id, name, kind, hex, imageUrl, createdAt FROM materials ORDER BY createdAt ASC, rowid ASC')
-    .all()
-    .map(plain);
+  return db.prepare(`${MATERIAL_SELECT} ORDER BY createdAt ASC, rowid ASC`).all().map(plain);
+}
+
+export function getMaterial(db, id) {
+  return plain(db.prepare(`${MATERIAL_SELECT} WHERE id = ?`).get(id));
+}
+
+const MATERIAL_PATCH_FIELDS = new Set([
+  'name',
+  'kind',
+  'hex',
+  'imageUrl',
+  'priceAmount',
+  'priceUnit',
+  'sku',
+]);
+
+export function updateMaterial(db, id, patch) {
+  const keys = Object.keys(patch).filter((key) => MATERIAL_PATCH_FIELDS.has(key));
+  if (keys.length === 0) return getMaterial(db, id);
+  const columns = { priceAmount: 'price_amount', priceUnit: 'price_unit' };
+  const assignments = keys.map((key) => `${columns[key] ?? key} = ?`).join(', ');
+  const values = keys.map((key) => {
+    if (key === 'priceAmount') return normalisePriceAmount(patch[key]);
+    if (key === 'imageUrl') return patch[key] === null ? null : text(patch[key]);
+    return text(patch[key]);
+  });
+  db.prepare(`UPDATE materials SET ${assignments} WHERE id = ?`).run(...values, id);
+  return getMaterial(db, id);
 }
 
 // ---------------------------------------------------------------------------

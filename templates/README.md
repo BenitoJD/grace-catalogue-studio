@@ -47,3 +47,28 @@ maximum 1000 character body. Previews are page one thumbnails generated with no
 copy, so they only need regenerating when the visible design changes. The copy
 blocks are invisible in the empty state, so adding copy support alone does not
 require a preview refresh.
+
+## Catalogue rate card
+
+`catalogue/rate-card.html` is the trade rate card, a fourth document separate
+from the voucher families. It lists every material from the materials table with
+its SKU, name, finish or kind, unit and stored rate in INR, and adds a GST note.
+
+The file holds three complete layouts, switched on with a body class. The server
+picks one variant and passes the palette variables with `{{paletteCss}}`, so the
+same palette tokens as the vouchers drive the card.
+
+| Template id | Layout | Palette |
+|---|---|---|
+| `rate-card-ledger` | ledger table on warm paper, serif masthead | copper |
+| `rate-card-grid` | numbered grid with a dark rate header band | ink |
+| `rate-card-tags` | boxed SKU tags with large serif rates | olive |
+
+Tokens used by this template: `paletteCss`, `rateCardLayout`, `rateCardRows`,
+`rateCardRowsMore`, `rateCardContinuation`, `rateCardCount`, `date`,
+`addressLine1`, `addressLine2`, `cityLine`, `phone`, `email`, `shopLine`.
+
+The card is one A4 page for up to 8 priced materials and two pages for up to 22.
+Rows beyond the second page capacity are not printed, so keep the priced
+material catalogue at 22 items or fewer. Rates are printed exactly as stored;
+nothing is calculated at render time. The GST line is a static note.

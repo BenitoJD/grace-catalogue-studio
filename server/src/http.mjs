@@ -16,7 +16,7 @@ import { RenderError } from './render.mjs';
 
 export const BODY_LIMIT_BYTES = 64 * 1024;
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-export const RENDER_ROUTE_PATTERN = /^\/api\/orders\/[^/]+\/render\/?$/;
+export const RENDER_ROUTE_PATTERN = /^\/api\/(?:orders\/[^/]+|catalogue)\/render\/?$/;
 // Note and brochure copy drafting call a paid model, so they get their own
 // generous limit instead of eating the much smaller render budget.
 export const NOTE_ROUTE_PATTERN = /^\/api\/orders\/[^/]+\/note\/?$/;

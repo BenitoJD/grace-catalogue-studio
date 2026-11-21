@@ -63,6 +63,17 @@ async function hasText(page, text, timeout = 8000) {
   }
 }
 
+async function waitForBodyText(page, needle, timeout = 30000) {
+  const deadline = Date.now() + timeout;
+  const wanted = needle.toLowerCase();
+  while (Date.now() < deadline) {
+    const text = (await page.evaluate(() => document.body.innerText)).toLowerCase();
+    if (text.includes(wanted)) return true;
+    await sleep(400);
+  }
+  return false;
+}
+
 async function clickText(page, text) {
   const clicked = await page.evaluate((needle) => {
     const nodes = [...document.querySelectorAll("div,span,a,button")].filter(
@@ -361,16 +372,7 @@ try {
     .then(() => true)
     .catch(() => false);
   const copyText = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, " ").toLowerCase();
-  let copyBox = "";
-  if (copyReady && !copyText.includes("built to the millimetre")) {
-    const at = copyText.indexOf("white laminate");
-    copyBox = at >= 0 ? copyText.slice(Math.max(0, at - 260), at + 120) : "body phrase missing";
-  }
-  check(
-    "generated headline appears",
-    copyReady && copyText.includes("built to the millimetre"),
-    copyBox || copyText.slice(0, 120)
-  );
+  check("generated headline appears", copyReady && copyText.includes("built to the millimetre"));
   check("generated body appears", copyText.includes("white laminate keeps the interior bright"));
   await page.screenshot({ path: `${shots}/06d-brochure-copy.png` });
 
@@ -395,6 +397,18 @@ try {
   }
   check("brochure body is printed in the voucher", bodyInPdf);
 
+  // 4d. the info kit renders from the same order
+  await page.goto(`${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
+  await sleep(2500);
+  check("info kit button present", await clickText(page, "Render info kit"));
+  const kitReady = await waitForBodyText(page, "5 pages", 60000);
+  check("info kit renders five pages", kitReady);
+  const kitImages = await page.evaluate(
+    () => [...document.querySelectorAll("img")].filter((image) => image.src.includes("/pages/") && image.naturalWidth > 100).length
+  );
+  check("info kit page preview loads", kitImages >= 1, `${kitImages} page images`);
+  await page.screenshot({ path: `${shots}/06e-info-kit.png` });
+
   // 5. materials tab
   await page.goto(`${WEB}/materials`, { waitUntil: "networkidle2" });
   check("materials screen opens", await hasText(page, "Materials"));
@@ -403,6 +417,21 @@ try {
     { timeout: 15000 }
   ).then(() => true).catch(() => false);
   check("material images load", swatchesLoaded);
+  const rateShown = await page.evaluate(() => document.body.innerText.includes("per sheet"));
+  check("materials show their rates", rateShown);
+  check("print rate card button present", await clickText(page, "Print rate card"));
+  const rateOpened = await page
+    .waitForFunction(() => window.__rateOpen === undefined || true, { timeout: 1000 })
+    .then(() => true)
+    .catch(() => true);
+  await sleep(4000);
+  const rateRender = (await (await fetch(`${API}/api/catalogue/templates`)).json()).length;
+  check("rate card templates available", rateRender >= 1, `${rateRender} templates`);
+  const catalogueRenders = await (await fetch(`${API}/api/renders`)).json();
+  check(
+    "rate card rendered a document",
+    catalogueRenders.some((item) => item.kind === "catalogue" && item.pageCount >= 1)
+  );
 
   // 6. settings tab
   await page.goto(`${WEB}/settings`, { waitUntil: "networkidle2" });

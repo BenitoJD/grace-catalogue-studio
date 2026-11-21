@@ -71,10 +71,42 @@ const DEMO_ORDERS = [
 ];
 
 const DEMO_MATERIALS = [
-  { name: 'Dark Walnut', kind: 'laminate', hex: '#3F2A1D', imageUrl: '/media/tex-walnut.jpg' },
-  { name: 'Cream', kind: 'laminate', hex: '#E8DCC8', imageUrl: '/media/tex-cream.jpg' },
-  { name: 'Ash Grey', kind: 'laminate', hex: '#9A9A94', imageUrl: '/media/tex-grey.jpg' },
-  { name: 'Edge band', kind: 'edge band', hex: '#8B5A2B', imageUrl: '/media/tex-band.jpg' },
+  {
+    name: 'Dark Walnut',
+    kind: 'laminate',
+    hex: '#3F2A1D',
+    imageUrl: '/media/tex-walnut.jpg',
+    priceAmount: 1240,
+    priceUnit: 'sheet',
+    sku: 'GW-WAL-06',
+  },
+  {
+    name: 'Cream',
+    kind: 'laminate',
+    hex: '#E8DCC8',
+    imageUrl: '/media/tex-cream.jpg',
+    priceAmount: 980,
+    priceUnit: 'sheet',
+    sku: 'GW-CRM-04',
+  },
+  {
+    name: 'Ash Grey',
+    kind: 'laminate',
+    hex: '#9A9A94',
+    imageUrl: '/media/tex-grey.jpg',
+    priceAmount: 1120,
+    priceUnit: 'sheet',
+    sku: 'GW-ASH-07',
+  },
+  {
+    name: 'Edge band',
+    kind: 'edge band',
+    hex: '#8B5A2B',
+    imageUrl: '/media/tex-band.jpg',
+    priceAmount: 18,
+    priceUnit: 'metre',
+    sku: 'GW-EDG-02',
+  },
 ];
 
 const config = loadConfig();

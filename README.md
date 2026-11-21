@@ -13,6 +13,22 @@ One codebase. It runs as a phone app and as a website, built with React Native a
 
 The design is fixed. The words are few. The photography carries the page.
 
+## Documents
+
+Three documents come out of the same data.
+
+| Document | Where it starts | Pages | Notes |
+|---|---|---|---|
+| Order voucher | Any order, Design gallery | 4 | 30 designs, ten families, model-written body |
+| Info kit | Any order, Info kit | 5 | Company brochure: workshop, materials, process |
+| Trade rate card | Materials, Print rate card | 1 to 2 | Rates from the material list, three layouts |
+
+![Info kit](docs/screenshots/e2e/06e-info-kit.png)
+
+![Rate card](docs/screenshots/rate-card.png)
+
+The rate card prints stored rates only. Nothing is calculated at render time, and GST is stated separately. `GET /api/catalogue/templates` lists the three layouts, `POST /api/catalogue/render` produces the PDF.
+
 ## Screens
 
 ![Orders](docs/screenshots/orders.png)
@@ -96,6 +112,10 @@ Full contract in [CONTRACT.md](CONTRACT.md). The essentials:
 | POST | `/api/orders/:id/render` | render a voucher with an optional `templateId`, returns page URLs |
 | GET | `/api/templates` | the 30 brochure templates and their thumbnail URLs |
 | GET | `/previews/:templateId.png` | a template thumbnail |
+| GET | `/api/materials` | materials with `priceAmount`, `priceUnit` and `sku` |
+| PATCH | `/api/materials/:id` | update a material, including its trade rate |
+| GET | `/api/catalogue/templates` | the three trade rate card variants |
+| POST | `/api/catalogue/render` | render the rate card with an optional `templateId` |
 | GET | `/files/:name` | the PDF |
 | GET | `/pages/:renderId/:n.png` | a page image for the in app preview |
 
@@ -106,6 +126,13 @@ full four page HTML document in `templates/voucher/families/`, and the palette
 arrives as CSS variables. The app sends `templateId` with a render; missing
 means the first template (`atelier-copper`). Thumbnails are cached in
 `data/previews/` and generated once per template.
+
+The trade rate card is separate from the voucher. It prints every material from
+the materials table with its SKU, unit and stored rate, plus a GST note, on one
+to two A4 pages. `templates/catalogue/rate-card.html` holds three layouts, picked
+with `templateId`: `rate-card-ledger`, `rate-card-grid` or `rate-card-tags`.
+`GET /api/catalogue/templates` lists them and
+`POST /api/catalogue/render` returns a render with `kind: "catalogue"`.
 
 ## Rendering
 
@@ -138,14 +165,14 @@ House rules for copy: short sentences, no em dashes or en dashes, a middot for s
 ## Tests
 
 ```bash
-npm test          # 61 server tests, api, rendering and the model
+npm test          # 66 server tests, api, rendering, the model and the rate card
 npm run verify    # black box: create, render, check the pdf with pdfinfo
 npm run e2e       # drives the real web app in Chrome like a person
 npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API, the web build and a mock model provider, then walks the product: order book, new order, create, detail, render, open PDF, share, re-render, choose a different design, test the model connection, draft a customer note, write the brochure body, confirm the body is inside the PDF, materials, settings, deep link, mobile viewport, and the sad path when the API is down. 63 checks. It writes screenshots to `docs/screenshots/e2e/`. It fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: order book, new order, create, detail, render, open PDF, share, re-render, choose a different design, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, print the rate card, materials, settings, deep link, mobile viewport, and the sad path when the API is down. 70 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
 
 ## Design templates
 

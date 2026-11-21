@@ -215,10 +215,42 @@ function resetLlmState() {
 }
 
 const DEMO_MATERIALS = [
-  { name: 'Dark Walnut', kind: 'laminate', hex: '#3F2A1D', imageUrl: '/media/tex-walnut.jpg' },
-  { name: 'Cream', kind: 'laminate', hex: '#E8DCC8', imageUrl: '/media/tex-cream.jpg' },
-  { name: 'Ash Grey', kind: 'laminate', hex: '#9A9A94', imageUrl: '/media/tex-grey.jpg' },
-  { name: 'Edge band', kind: 'edge band', hex: '#8B5A2B', imageUrl: '/media/tex-band.jpg' },
+  {
+    name: 'Dark Walnut',
+    kind: 'laminate',
+    hex: '#3F2A1D',
+    imageUrl: '/media/tex-walnut.jpg',
+    priceAmount: 1240,
+    priceUnit: 'sheet',
+    sku: 'GW-WAL-06',
+  },
+  {
+    name: 'Cream',
+    kind: 'laminate',
+    hex: '#E8DCC8',
+    imageUrl: '/media/tex-cream.jpg',
+    priceAmount: 980,
+    priceUnit: 'sheet',
+    sku: 'GW-CRM-04',
+  },
+  {
+    name: 'Ash Grey',
+    kind: 'laminate',
+    hex: '#9A9A94',
+    imageUrl: '/media/tex-grey.jpg',
+    priceAmount: 1120,
+    priceUnit: 'sheet',
+    sku: 'GW-ASH-07',
+  },
+  {
+    name: 'Edge band',
+    kind: 'edge band',
+    hex: '#8B5A2B',
+    imageUrl: '/media/tex-band.jpg',
+    priceAmount: 18,
+    priceUnit: 'metre',
+    sku: 'GW-EDG-02',
+  },
 ];
 
 const DEMO_ORDER = {
@@ -2424,5 +2456,258 @@ test('brochure copy renders when supplied and disappears when empty', { timeout:
       `${templateId} body must vanish with no copy`,
     );
     assert.ok(!flat.includes('{{'), `${templateId} should not leak a placeholder`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Trade rate card
+// ---------------------------------------------------------------------------
+
+test('materials keep a trade rate, unit and SKU through POST, GET, PATCH and bootstrap', async () => {
+  const created = await postJson(`${baseUrl}/api/materials`, {
+    name: 'Matte Oak',
+    kind: 'laminate',
+    hex: '#8B6F47',
+    imageUrl: '/media/tex-band.jpg',
+    priceAmount: 1450.5,
+    priceUnit: 'sheet',
+    sku: 'GW-OAK-08',
+  });
+  assert.equal(created.status, 201);
+  const material = await created.json();
+  assert.equal(material.priceAmount, 1450.5);
+  assert.equal(material.priceUnit, 'sheet');
+  assert.equal(material.sku, 'GW-OAK-08');
+
+  const listed = await (await fetch(`${baseUrl}/api/materials`)).json();
+  const fromList = listed.find((entry) => entry.id === material.id);
+  assert.ok(fromList, 'GET /api/materials should include the new material');
+  assert.equal(fromList.priceAmount, 1450.5);
+  assert.equal(fromList.priceUnit, 'sheet');
+  assert.equal(fromList.sku, 'GW-OAK-08');
+
+  const fetched = await (await fetch(`${baseUrl}/api/materials/${material.id}`)).json();
+  assert.equal(fetched.priceAmount, 1450.5);
+  assert.equal(fetched.priceUnit, 'sheet');
+  assert.equal(fetched.sku, 'GW-OAK-08');
+
+  const bootstrap = await (await fetch(`${baseUrl}/api/bootstrap`)).json();
+  const fromBootstrap = bootstrap.materials.find((entry) => entry.id === material.id);
+  assert.ok(fromBootstrap, 'bootstrap should include the new material');
+  assert.equal(fromBootstrap.priceAmount, 1450.5);
+  assert.equal(fromBootstrap.sku, 'GW-OAK-08');
+
+  const patchedResponse = await fetch(`${baseUrl}/api/materials/${material.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ priceAmount: 1500, priceUnit: 'panel', sku: 'GW-OAK-09' }),
+  });
+  assert.equal(patchedResponse.status, 200);
+  const patched = await patchedResponse.json();
+  assert.equal(patched.priceAmount, 1500);
+  assert.equal(patched.priceUnit, 'panel');
+  assert.equal(patched.sku, 'GW-OAK-09');
+  assert.equal(patched.name, 'Matte Oak', 'PATCH must leave untouched fields alone');
+
+  // A material without trade fields still stores the zero defaults.
+  const blank = await postJson(`${baseUrl}/api/materials`, {
+    name: 'Sample Board',
+    kind: 'sample',
+    hex: '#CCBBAA',
+  });
+  assert.equal(blank.status, 201);
+  const blankMaterial = await blank.json();
+  assert.equal(blankMaterial.priceAmount, 0);
+  assert.equal(blankMaterial.priceUnit, '');
+  assert.equal(blankMaterial.sku, '');
+
+  // The snake_case column spelling is accepted too for scripts.
+  const snake = await postJson(`${baseUrl}/api/materials`, {
+    name: 'Snake Case Board',
+    kind: 'sample',
+    hex: '#BBAA99',
+    price_amount: 12.5,
+    price_unit: 'metre',
+    sku: 'GW-SNK-01',
+  });
+  assert.equal(snake.status, 201);
+  const snakeMaterial = await snake.json();
+  assert.equal(snakeMaterial.priceAmount, 12.5);
+  assert.equal(snakeMaterial.priceUnit, 'metre');
+});
+
+test('material prices reject bad values without saving anything', async () => {
+  const cases = [
+    { priceAmount: -1, field: 'priceAmount' },
+    { priceAmount: '1240', field: 'priceAmount' },
+    { priceAmount: Number.POSITIVE_INFINITY, field: 'priceAmount' },
+    { priceUnit: 'x'.repeat(21), field: 'priceUnit' },
+    { sku: 'x'.repeat(41), field: 'sku' },
+  ];
+  for (const invalid of cases) {
+    const body = { name: 'Invalid Rate', kind: 'laminate', hex: '#123456' };
+    const field = invalid.field;
+    body[field] = invalid[field];
+    // JSON can not carry Infinity, so send a raw body for that case.
+    const payload =
+      invalid.priceAmount === Number.POSITIVE_INFINITY
+        ? '{"name":"Invalid Rate","kind":"laminate","hex":"#123456","priceAmount":1e999}'
+        : JSON.stringify(body);
+    const response = await fetch(`${baseUrl}/api/materials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+    });
+    assert.equal(response.status, 400, `${field} should be rejected`);
+    const error = (await response.json()).error;
+    assert.match(error, new RegExp(field, 'i'));
+  }
+
+  const before = (await (await fetch(`${baseUrl}/api/materials`)).json()).length;
+  const invalidPatch = await fetch(`${baseUrl}/api/materials/${orderId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ priceAmount: -5 }),
+  });
+  assert.equal(invalidPatch.status, 404, 'a bad id is a not found even for price patches');
+
+  const materials = await (await fetch(`${baseUrl}/api/materials`)).json();
+  assert.equal(materials.length, before, 'a rejected material must not be stored');
+  const first = materials[0];
+  const badAmount = await fetch(`${baseUrl}/api/materials/${first.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ priceAmount: -5 }),
+  });
+  assert.equal(badAmount.status, 400);
+  assert.match((await badAmount.json()).error, /priceAmount/i);
+  const badUnit = await fetch(`${baseUrl}/api/materials/${first.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ priceUnit: 'x'.repeat(21) }),
+  });
+  assert.equal(badUnit.status, 400);
+  assert.match((await badUnit.json()).error, /priceUnit/i);
+  const badSku = await fetch(`${baseUrl}/api/materials/${first.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sku: 'x'.repeat(41) }),
+  });
+  assert.equal(badSku.status, 400);
+  assert.match((await badSku.json()).error, /sku/i);
+});
+
+test('the catalogue rate card renders its variants from the material rates', { timeout: 300_000 }, async () => {
+  const catalogResponse = await fetch(`${baseUrl}/api/catalogue/templates`);
+  assert.equal(catalogResponse.status, 200);
+  const catalog = await catalogResponse.json();
+  assert.equal(catalog.length, 3);
+  assert.deepEqual(
+    catalog.map((entry) => entry.id),
+    ['rate-card-ledger', 'rate-card-grid', 'rate-card-tags'],
+  );
+  for (const entry of catalog) {
+    assert.ok(entry.name);
+    assert.ok(['copper', 'ink', 'olive'].includes(entry.palette));
+  }
+
+  // No body: the first variant is the default.
+  const response = await postJson(`${baseUrl}/api/catalogue/render`, {});
+  assert.equal(response.status, 201);
+  const render = await response.json();
+  assert.equal(render.kind, 'catalogue');
+  assert.equal(render.orderId, null);
+  assert.equal(render.templateId, 'rate-card-ledger');
+  assert.ok(render.pageCount >= 1 && render.pageCount <= 2);
+  assert.equal(render.pageUrls.length, render.pageCount);
+
+  const pdfPath = path.join(dataDir, 'renders', `${render.id}.pdf`);
+  assert.ok(existsSync(pdfPath), 'the rate card PDF should exist');
+  assert.ok(statSync(pdfPath).size > 10 * 1024);
+  const text = pdfText(pdfPath);
+  assert.ok(text.includes('Dark Walnut'), 'the rate card should list seeded materials');
+  assert.match(text, /1,?240/, 'the rate card should show the seeded walnut rate');
+  assert.match(text, /GST/i, 'the GST note belongs on the rate card');
+  assert.ok(text.includes('SKU'));
+  assert.ok(text.includes('GW-WAL-06'));
+
+  const pdfResponse = await fetch(`${baseUrl}${render.pdfUrl}`);
+  assert.equal(pdfResponse.status, 200);
+  assert.match(pdfResponse.headers.get('content-type') ?? '', /application\/pdf/);
+  const pageResponse = await fetch(`${baseUrl}${render.pageUrls[0]}`);
+  assert.equal(pageResponse.status, 200);
+  assert.match(pageResponse.headers.get('content-type') ?? '', /image\/png/);
+
+  for (const entry of catalog) {
+    const variantResponse = await postJson(`${baseUrl}/api/catalogue/render`, {
+      templateId: entry.id,
+    });
+    const variantRaw = await variantResponse.text();
+    assert.equal(variantResponse.status, 201, variantRaw);
+    const variantRender = JSON.parse(variantRaw);
+    assert.equal(variantRender.templateId, entry.id);
+    assert.equal(variantRender.kind, 'catalogue');
+    assert.ok(variantRender.pageCount >= 1 && variantRender.pageCount <= 2);
+    const variantText = pdfText(path.join(dataDir, 'renders', `${variantRender.id}.pdf`));
+    assert.ok(variantText.includes('Dark Walnut'), `${entry.id} should list the seeded materials`);
+    assert.match(variantText, /1,?240/, `${entry.id} should show the seeded rate`);
+    assert.match(variantText, /GST/i, `${entry.id} should note GST`);
+  }
+});
+
+test('an unknown catalogue templateId is rejected without writing a render', async () => {
+  const before = (await (await fetch(`${baseUrl}/api/renders`)).json()).length;
+  const response = await postJson(`${baseUrl}/api/catalogue/render`, {
+    templateId: 'not-a-rate-card',
+  });
+  assert.equal(response.status, 400);
+  const error = (await response.json()).error;
+  assert.match(error, /Unknown templateId/i);
+  assert.match(error, /not-a-rate-card/);
+  const after = (await (await fetch(`${baseUrl}/api/renders`)).json()).length;
+  assert.equal(after, before, 'a rejected catalogue template must not create a render');
+});
+
+test('the catalogue render fails when a placeholder is unfilled', async () => {
+  const brokenRoot = path.join(tempDir, 'broken-catalogue');
+  const brokenCatalogueDir = path.join(brokenRoot, 'catalogue');
+  mkdirSync(brokenCatalogueDir, { recursive: true });
+  const template = readFileSync(
+    path.join(templatesDir, 'catalogue', 'rate-card.html'),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(brokenCatalogueDir, 'rate-card.html'),
+    `${template}\n<div>{{neverProvided}}</div>\n`,
+    'utf8',
+  );
+
+  const brokenApp = createApp({
+    db,
+    dataDir,
+    templatesDir: brokenRoot,
+    weasyprintBin,
+    pdftoppmBin,
+  });
+  const started = await startApp(brokenApp);
+  try {
+    const before = (await (await fetch(`${baseUrl}/api/renders`)).json()).length;
+    const response = await postJson(
+      `http://127.0.0.1:${started.port}/api/catalogue/render`,
+      {},
+    );
+    assert.equal(response.status, 500);
+    const body = await response.json();
+    assert.match(body.error, /Unfilled placeholder/);
+    assert.match(body.error, /neverProvided/);
+    const after = (await (await fetch(`${baseUrl}/api/renders`)).json()).length;
+    assert.equal(after, before, 'a failed catalogue render must not be recorded');
+    assert.equal(
+      readdirSync(brokenCatalogueDir).filter((name) => name.startsWith('built-')).length,
+      0,
+      'a failed catalogue render must clean up the built HTML',
+    );
+  } finally {
+    await stopServer({ server: started.server });
   }
 });

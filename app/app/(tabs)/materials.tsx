@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { FlatList, Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Screen } from '@/components/Screen';
+import { Button } from '@/components/Button';
 import { ErrorState, LoadingState } from '@/components/StateViews';
-import { fileUrl, type Material } from '@/lib/api';
+import { api, errorMessage, fileUrl, type Material } from '@/lib/api';
+import { openUrl } from '@/lib/actions';
 import { useBootstrap } from '@/lib/bootstrap';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
@@ -13,6 +15,24 @@ const HEX_PATTERN = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
 
 export default function MaterialsScreen() {
   const { data, loading, error, reload } = useBootstrap();
+  const [rateLoading, setRateLoading] = useState(false);
+  const [rateError, setRateError] = useState<string | null>(null);
+
+  const printRateCard = useCallback(async () => {
+    if (rateLoading) {
+      return;
+    }
+    setRateLoading(true);
+    setRateError(null);
+    try {
+      const rendered = await api.renderCatalogue();
+      await openUrl(fileUrl(rendered.pdfUrl));
+    } catch (failure) {
+      setRateError(errorMessage(failure, 'The rate card could not be rendered. Try again.'));
+    } finally {
+      setRateLoading(false);
+    }
+  }, [rateLoading]);
   const { width } = useWindowDimensions();
   const materials = data?.materials ?? [];
   const columns = width >= 900 ? 4 : width >= 600 ? 3 : 2;
@@ -27,6 +47,15 @@ export default function MaterialsScreen() {
       <Text style={[text.screenTitle, styles.title]}>Materials</Text>
       <Text style={[text.muted, styles.subtitle]}>Colours in the studio catalogue.</Text>
       <View style={[shared.hairline, styles.rule]} />
+      <View style={styles.rateRow}>
+        <Button
+          label="Print rate card"
+          onPress={() => void printRateCard()}
+          loading={rateLoading}
+          loadingLabel="Rendering"
+        />
+        {rateError ? <Text style={[text.caption, styles.rateError]}>{rateError}</Text> : null}
+      </View>
       <View style={styles.gridHeading}>
         <Text style={text.sectionLabel}>Colours</Text>
         {data ? <Text style={text.caption}>{materialCountLabel(materials.length)}</Text> : null}
@@ -98,6 +127,11 @@ function MaterialTile({ material, width }: { material: Material; width: number }
           {material.kind}
         </Text>
       ) : null}
+      {typeof material.priceAmount === 'number' && material.priceAmount > 0 ? (
+        <Text style={[text.caption, styles.materialRate]} numberOfLines={1}>
+          {`₹${material.priceAmount.toLocaleString('en-IN')} per ${material.priceUnit || 'unit'}`}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -164,6 +198,16 @@ const styles = StyleSheet.create({
   },
   materialName: {
     marginTop: space.md,
+  },
+  materialRate: {
+    color: colors.copper,
+  },
+  rateRow: {
+    marginTop: space.lg,
+    gap: space.sm,
+  },
+  rateError: {
+    color: '#8C2F24',
   },
   materialKind: {
     marginTop: 2,

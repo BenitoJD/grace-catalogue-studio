@@ -70,7 +70,17 @@ Order {
   createdAt: string;
 }
 
-Material { id: string; name: string; kind: string; hex: string; imageUrl: string | null; createdAt: string }
+Material {
+  id: string;
+  name: string;
+  kind: string;
+  hex: string;
+  imageUrl: string | null;
+  priceAmount: number;      // trade rate, 0 until set, never negative
+  priceUnit: string;        // sheet, metre, panel, empty until set
+  sku: string;              // GW-WAL-06, empty until set
+  createdAt: string;
+}
 
 Template {
   id: string;               // atelier-copper
@@ -88,10 +98,11 @@ Template {
 }
 
 Render {
+  // kind is "voucher" | "kit" | "catalogue"; catalogue renders have orderId null
   id: string;
-  orderId: string;
-  kind: "voucher" | "kit";
-  templateId: string | null; // brochure template used for a voucher, null for a kit
+  orderId: string | null;   // null for a catalogue document such as the rate card
+  kind: "voucher" | "kit" | "catalogue";
+  templateId: string | null; // brochure template for a voucher, rate card id for a catalogue render
   pageCount: number;
   pdfUrl: string;           // /files/<id>.pdf
   pageUrls: string[];       // /pages/<id>/1.png ...
@@ -120,7 +131,6 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | GET | `/api/llm/settings` | | `{ endpoint, model, hasKey, source, updatedAt }` |
 | PUT | `/api/llm/settings` | `{ endpoint?, model?, apiKey? }` | same shape as GET |
 | POST | `/api/llm/test` | `{}` | `{ ok: true, latencyMs, model, sample }` or 502 with the provider message |
-| GET | `/api/templates` | | 30 designs with `id, name, family, palette, previewUrl` |
 | GET | `/api/templates` | | `Template[]` (30 brochure templates) |
 | GET | `/previews/:templateId.png` | | `image/png` (template thumbnail) |
 | GET | `/api/renders` | | `Render[]` |
@@ -128,9 +138,25 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | GET | `/files/:name` | | `application/pdf` |
 | GET | `/pages/:renderId/:n.png` | | `image/png` |
 | GET | `/media/:name` | | static image |
-| POST | `/api/materials` | `{ name, kind, hex }` | `Material` (201) |
+| POST | `/api/materials` | `{ name, kind, hex, priceAmount?, priceUnit?, sku?, imageUrl? }` | `Material` (201) |
+| GET | `/api/materials` | | `Material[]` |
+| GET | `/api/materials/:id` | | `Material` |
+| PATCH | `/api/materials/:id` | partial material fields | `Material` |
+| GET | `/api/catalogue/templates` | | `{ id, name, palette, description }[]` (3 rate card variants) |
+| POST | `/api/catalogue/render` | `{ templateId? }` | `Render` (201), kind `catalogue` |
 
 `orderNo` is generated server side as `GWI-<year>-<sequence>`, zero padded to three digits.
+
+Material trade fields are validated on write: `priceAmount` must be a finite number
+greater than or equal to zero, `priceUnit` is at most 20 characters and `sku` is
+at most 40 characters. The API speaks the camelCase names above; the snake_case
+column names (`price_amount`, `price_unit`) are accepted too. Bootstrap and
+`GET /api/materials` return the camelCase names.
+
+`POST /api/catalogue/render` renders the trade rate card and stores the result as
+a normal `Render` row with `kind: "catalogue"` and `orderId: null`. Rendering is
+queued and concurrent identical rate card requests share one build, like voucher
+renders.
 
 `templateId` on `POST /api/orders/:id/render` is optional. When it is missing the
 first template in the catalogue is used, so existing clients keep working. An
@@ -149,6 +175,11 @@ document) and `{{title}}` (the cover title, already split into at most three
 fitted lines). The blueprint family also receives `widthValue`, `widthUnit`,
 `heightValue`, `heightUnit`, `depthValue` and `depthUnit`: the dimension strings
 split into a number and a unit for its specification table.
+
+Catalogue tokens (rate card template only): `paletteCss, rateCardLayout,
+rateCardRows, rateCardRowsMore, rateCardContinuation, rateCardCount, date,
+addressLine1, addressLine2, cityLine, phone, email, shopLine`. They are supplied
+automatically by the server; none of them is order data.
 
 Kit keys: `addressLine1, addressLine2, cityLine, phone, email`.
 
@@ -201,6 +232,28 @@ missing preview is requested, or eagerly with
 The model is configured at runtime and stored in the `settings` table as `llm_endpoint`, `llm_model` and `llm_api_key`. Environment fallbacks are `LLM_ENDPOINT`, `LLM_MODEL` and `LLM_API_KEY`; stored values win. The key is never returned by the API and never logged.
 
 `POST /api/orders/:id/copy` builds a prompt from the order plus the customer brief and asks for strict JSON `{ headline, body, closing }`. The reply is parsed defensively, capped, stored in `orders.copy_json`, and passed to the templates as `noteHeadline`, `noteBody` and `noteClosing`. When an order has no copy the three placeholders are empty strings and every template hides the block.
+
+
+## Catalogue rate card
+
+The trade rate card is a fourth document, separate from the ten voucher families.
+It lists every material from the materials table: SKU, material name, finish or
+kind, unit and rate in INR, with a GST note. No price is calculated at render
+time; each row prints the stored `priceAmount`, `priceUnit` and `sku`.
+
+One template, `templates/catalogue/rate-card.html`, carries three complete
+layouts that are switched on with a CSS class. The app picks a variant:
+
+| Template id | Name | Palette | Layout |
+|---|---|---|---|
+| `rate-card-ledger` | Rate Card Ledger | copper | ledger table on warm paper, serif masthead |
+| `rate-card-grid` | Rate Card Grid | ink | numbered grid with a dark header band |
+| `rate-card-tags` | Rate Card Tags | olive | boxed SKU tags with large serif rates |
+
+The first variant is the default when `templateId` is missing. A card is one A4
+page with 3mm bleed for up to 8 priced materials and becomes two pages for up to
+22; more materials than that are not printed. The palette tokens come from the
+same tone sets used by the voucher templates.
 
 ## Rendering
 
