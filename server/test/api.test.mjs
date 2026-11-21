@@ -39,7 +39,13 @@ import {
 } from '../src/db.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
-import { normaliseDimension, normaliseFieldValue, scrubBrief } from '../src/intake.mjs';
+import {
+  ensureMissingMentioned,
+  humanList,
+  normaliseDimension,
+  normaliseFieldValue,
+  scrubBrief,
+} from '../src/intake.mjs';
 import {
   COPY_BODY_MAX_CHARS,
   COPY_CLOSING_MAX_CHARS,
@@ -3097,4 +3103,71 @@ test('the copy gate catches a material thickness turned into a count', async () 
     order,
   );
   assert.equal(honest.some((issue) => /invents a count/.test(issue)), false);
+});
+
+
+test('the reply always names the exact missing details', async () => {
+  assert.equal(humanList(['one']), 'one');
+  assert.equal(humanList(['one', 'two']), 'one and two');
+  assert.equal(humanList(['one', 'two', 'three']), 'one, two and three');
+
+  const vague = ensureMissingMentioned('I need more information.', [
+    'customerName',
+    'width',
+    'shutters',
+  ]);
+  assert.match(vague, /customer name/);
+  assert.match(vague, /the width/);
+  assert.match(vague, /number of shutters/);
+  assert.doesNotMatch(vague, /more information/);
+
+  // A field already asked about is not repeated, the rest are added.
+  const partial = ensureMissingMentioned('What is the width?', ['width', 'depth']);
+  assert.match(partial, /the depth/);
+  assert.doesNotMatch(partial, /the width and the depth/);
+
+  // Nothing missing means nothing is added.
+  assert.equal(ensureMissingMentioned('The brochure can be made.', []), 'The brochure can be made.');
+  assert.equal(ensureMissingMentioned('Noted', ['height']), 'Noted. I still need the height.');
+});
+
+test('the intake route forces the missing list into the reply', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'I need more information.',
+      order: { customerName: 'Anita' },
+      ready: false,
+    }),
+  });
+
+  const response = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'A wardrobe for Anita please.' }],
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.doesNotMatch(body.reply, /more information/i);
+  for (const phrase of ['the piece', 'the room', 'the width', 'the height', 'the depth', 'number of shutters']) {
+    assert.ok(body.reply.includes(phrase), `the reply names ${phrase}`);
+  }
+  for (const phrase of ['the piece', 'the room', 'the width', 'the height', 'the depth', 'number of shutters']) {
+    assert.ok(body.missing.some((entry) => entry.length > 0));
+  }
+
+  // If the model already listed everything, the reply is left untouched.
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'I have the name. I still need the piece, the room, the width, the height, the depth and the number of shutters.',
+      order: { customerName: 'Anita' },
+      ready: false,
+    }),
+  });
+  const second = await (await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'A wardrobe for Anita please.' }],
+  })).json();
+  assert.equal(
+    second.reply,
+    'I have the name. I still need the piece, the room, the width, the height, the depth and the number of shutters.',
+  );
 });

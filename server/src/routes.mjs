@@ -46,8 +46,10 @@ import {
   INTAKE_MAX_TOKENS,
   INTAKE_TEMPERATURE,
   buildIntakeMessages,
+  ensureMissingMentioned,
   mergeDraft,
   missingEssentials,
+  missingFields,
   parseIntakeReply,
 } from './intake.mjs';
 import {
@@ -1013,8 +1015,11 @@ export function createApp(options) {
       const intake = parseIntakeReply(result.content);
       const draft = mergeDraft(body.draft ?? {}, intake.order);
       const missing = missingEssentials(draft);
+      // Never let a vague "more details" reach the client: the reply names the
+      // exact fields that are still empty.
+      const reply = ensureMissingMentioned(intake.reply, missingFields(draft));
       return c.json({
-        reply: intake.reply,
+        reply,
         draft,
         missing,
         ready: missing.length === 0,
