@@ -475,6 +475,26 @@ try {
     catalogueRenders.some((item) => item.kind === "catalogue" && item.pageCount >= 1)
   );
 
+  // 5b. adding a colour from the studio, the form the workshop asked for
+  check("add colour button present", await clickText(page, "Add colour"));
+  check("add colour sheet opens", await hasText(page, "Add a colour"));
+  check("colour name accepts input", await setValueByPlaceholder(page, "e.g. Teak Natural", "Teak Natural"));
+  check("colour code accepts input", await setValueByPlaceholder(page, "#A65E22", "#B08A63"));
+  check("colour rate accepts input", await setValueByPlaceholder(page, "1240", "1350"));
+  check("colour code accepts a code", await setValueByPlaceholder(page, "GW-WAL-06", "GW-TEK-01"));
+  await page.screenshot({ path: `${shots}/06h-add-colour.png` });
+  check("colour saves", await clickText(page, "Save colour"));
+  const colourAdded = await waitForBodyText(page, "teak natural", 20000);
+  check("new colour appears in the grid", colourAdded);
+  const materialsAfter = await (await fetch(`${API}/api/materials`)).json();
+  check(
+    "api stored the new colour with its rate",
+    materialsAfter.length === 5 &&
+      materialsAfter.some((material) => material.sku === "GW-TEK-01" && material.priceAmount === 1350),
+    `${materialsAfter.length} materials`,
+  );
+  await page.screenshot({ path: `${shots}/06i-colour-added.png` });
+
   // 6. settings tab
   await page.goto(`${WEB}/settings`, { waitUntil: "networkidle2" });
   check("settings screen opens", await hasText(page, "Settings"));

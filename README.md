@@ -59,7 +59,9 @@ One form, prefilled with the house standard. A person can create an order in und
 
 ![Materials](docs/screenshots/materials.png)
 
-The swatch library that feeds the finishes page of the voucher.
+The swatch library that feeds the finishes page of the voucher and the printed rate card. **Add colour** opens a form for the name, kind, colour code, swatch image, rate, unit and code; the new colour appears in the grid and on the next rate card immediately.
+
+![Add a colour](docs/screenshots/materials-add-colour.png)
 
 ![Designs](docs/screenshots/e2e/06-designs.png)
 

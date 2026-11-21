@@ -101,6 +101,16 @@ export interface Material {
   createdAt: string;
 }
 
+export interface MaterialInput {
+  name: string;
+  kind: string;
+  hex: string;
+  imageUrl?: string;
+  priceAmount?: number;
+  priceUnit?: string;
+  sku?: string;
+}
+
 export interface Render {
   id: string;
   orderId: string;
@@ -364,6 +374,12 @@ export const api = {
       body: {},
       timeoutMs: 45000,
     });
+  },
+  createMaterial(input: MaterialInput): Promise<Material> {
+    return request<Material>('/api/materials', { method: 'POST', body: input });
+  },
+  updateMaterial(id: string, input: Partial<MaterialInput>): Promise<Material> {
+    return request<Material>(`/api/materials/${id}`, { method: 'PATCH', body: input });
   },
   renderCatalogue(templateId?: string): Promise<Render> {
     return request<Render>('/api/catalogue/render', {
