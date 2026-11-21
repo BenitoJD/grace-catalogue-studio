@@ -57,7 +57,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -232,7 +232,61 @@ export const MIGRATIONS = Object.freeze([
       return true;
     },
   },
+  {
+    version: 5,
+    name: 'language model response cache',
+    up(db) {
+      // Generated copy and notes are deterministic for a given prompt. Caching
+      // them saves provider spend and makes repeat clicks instant. Expiry is
+      // enforced on read, so no sweeper has to run for correctness.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS llm_cache (
+          key TEXT PRIMARY KEY,
+          endpoint TEXT NOT NULL,
+          model TEXT NOT NULL,
+          response_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          last_used_at TEXT NOT NULL,
+          hits INTEGER NOT NULL DEFAULT 0
+        );
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS llm_cache_created_idx ON llm_cache (created_at)');
+    },
+  },
 ]);
+
+export function getLlmCache(db, key, expiryCutoffIso = null) {
+  const row = db.prepare('SELECT * FROM llm_cache WHERE key = ?').get(key);
+  if (!row) return null;
+  if (expiryCutoffIso && row.created_at < expiryCutoffIso) {
+    db.prepare('DELETE FROM llm_cache WHERE key = ?').run(key);
+    return null;
+  }
+  db.prepare('UPDATE llm_cache SET hits = hits + 1, last_used_at = ? WHERE key = ?').run(now(), key);
+  return row;
+}
+
+export function putLlmCache(db, entry) {
+  const timestamp = now();
+  db.prepare(
+    `INSERT INTO llm_cache (key, endpoint, model, response_json, created_at, last_used_at, hits)
+     VALUES (?, ?, ?, ?, ?, ?, 0)
+     ON CONFLICT(key) DO UPDATE SET
+       response_json = excluded.response_json,
+       last_used_at = excluded.last_used_at`,
+  ).run(entry.key, entry.endpoint, entry.model, entry.responseJson, timestamp, timestamp);
+}
+
+export function pruneLlmCache(db, beforeIso) {
+  return db.prepare('DELETE FROM llm_cache WHERE created_at < ?').run(beforeIso).changes;
+}
+
+export function llmCacheStats(db) {
+  const row = db
+    .prepare('SELECT COUNT(*) AS entries, COALESCE(SUM(hits), 0) AS hits, MIN(created_at) AS oldest FROM llm_cache')
+    .get();
+  return { entries: Number(row.entries), hits: Number(row.hits), oldest: row.oldest ?? null };
+}
 
 export function schemaVersion(db) {
   return Number(db.prepare('PRAGMA user_version').get()?.user_version ?? 0);

@@ -126,8 +126,10 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | PATCH | `/api/orders/:id` | partial order fields | `Order` |
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
 | POST | `/api/orders/:id/render` | `{ kind: "voucher" \| "kit", templateId? }` | `Render` (201) |
-| POST | `/api/orders/:id/copy` | `{ brief?, regenerate? }` | `{ copy: { headline, body, closing }, model, latencyMs }` |
-| POST | `/api/orders/:id/note` | `{}` | `{ note, model, latencyMs }` |
+| POST | `/api/orders/:id/copy` | `{ brief?, regenerate? }` | `{ copy: { headline, body, closing }, model, latencyMs, cached }` |
+| GET | `/api/llm/cache/stats` | | `{ enabled, ttlHours, entries, hits, oldest }` |
+| POST | `/api/llm/cache/purge` | | `{ deleted }` |
+| POST | `/api/orders/:id/note` | `{}` | `{ note, model, latencyMs, cached }` |
 | GET | `/api/llm/settings` | | `{ endpoint, model, hasKey, source, updatedAt }` |
 | PUT | `/api/llm/settings` | `{ endpoint?, model?, apiKey? }` | same shape as GET |
 | POST | `/api/llm/test` | `{}` | `{ ok: true, latencyMs, model, sample }` or 502 with the provider message |
@@ -254,6 +256,12 @@ The first variant is the default when `templateId` is missing. A card is one A4
 page with 3mm bleed for up to 8 priced materials and becomes two pages for up to
 22; more materials than that are not printed. The palette tokens come from the
 same tone sets used by the voucher templates.
+
+## Model cache
+
+Copy and notes are cached in the `llm_cache` table, keyed by a SHA-256 of the provider endpoint, the model and every prompt message. A repeated request returns the stored reply with `cached: true` and `latencyMs: 0`, and never calls the provider. `regenerate: true` bypasses the lookup and replaces the cached entry with the new copy.
+
+Entries expire after `LLM_CACHE_TTL_HOURS` (default 168, 0 disables). Expiry is enforced on read and expired rows are also pruned at boot. Because the prompt text is part of the key, a prompt change or a new brief can never serve stale words.
 
 ## Rendering
 

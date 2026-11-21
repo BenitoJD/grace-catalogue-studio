@@ -251,6 +251,22 @@ node scripts/mock-llm.mjs 8793   # then point Settings at http://127.0.0.1:8793/
 
 Environment fallbacks are `LLM_ENDPOINT`, `LLM_MODEL` and `LLM_API_KEY`; settings saved in the studio win.
 
+## Model caching
+
+Every generated reply is cached locally, keyed by a hash of the provider, the model and the full prompt. A repeated request returns the stored words with `cached: true` and `latencyMs: 0`, and does not call the provider at all. `regenerate: true` bypasses the cache and replaces the entry, so a fresh copy is never shadowed by an older one.
+
+Measured live against OpenCode Go:
+
+| Request | Result |
+|---|---|
+| First copy | 4,259 ms, `cached: false` |
+| Identical second copy | 0 ms, `cached: true` |
+| Regenerate | 4,568 ms, fresh copy stored |
+
+The same applies to the customer note. `GET /api/llm/cache/stats` reports entries and hits, `POST /api/llm/cache/purge` clears it, and `LLM_CACHE_TTL_HOURS` sets the window (default 168, 0 disables). Expiry is enforced on read and expired rows are pruned at boot.
+
+The system prompt is also a stable prefix at the start of every request, which is what provider side prompt caching keys on. The provider's cached token count already appears in the usage figures, so the two layers stack.
+
 ## Copy quality
 
 The model's brochure copy is measured, not eyeballed. `scripts/ai-quality.mjs` runs six realistic orders through the live provider and scores every reply against a rubric: body between 90 and 150 words, headline and closing caps, numbers that exist in the order, no money, date or festival leaks from the brief, no talk of the order, brief or specification, no durability or cleanliness claims, no parts the order does not include, no repeated verbs, no reused example phrasing, and no walking through the materials list.

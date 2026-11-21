@@ -4,7 +4,7 @@ import path from 'node:path';
 import { serve } from '@hono/node-server';
 
 import { loadConfig } from './config.mjs';
-import { openDb } from './db.mjs';
+import { openDb, pruneLlmCache } from './db.mjs';
 import { isExecutable } from './http.mjs';
 import { createLogger } from './logger.mjs';
 import { ensureMedia } from './media.mjs';
@@ -39,6 +39,14 @@ const renderer = createRenderer({
   pdftoppmBin: config.pdftoppmBin,
 });
 
+// Drop expired model replies at boot. Expiry is also enforced on read, this
+// only keeps the table from growing across restarts.
+if (config.llmCacheTtlHours > 0) {
+  const cutoff = new Date(Date.now() - config.llmCacheTtlHours * 3600 * 1000).toISOString();
+  const removed = pruneLlmCache(db, cutoff);
+  if (removed > 0) logger.info('Pruned expired language model cache entries.', { removed });
+}
+
 const app = createApp({
   db,
   dataDir: config.dataDir,
@@ -51,6 +59,7 @@ const app = createApp({
   rateLimitPerMin: config.rateLimitPerMin,
   renderLimitPerMin: config.renderLimitPerMin,
   noteLimitPerMin: config.noteLimitPerMin,
+  llmCacheTtlHours: config.llmCacheTtlHours,
   onReady: ({ previewStore }) => {
     // Warm template thumbnails after boot. Cached previews return immediately;
     // on a fresh data directory this fills the cache in the background while

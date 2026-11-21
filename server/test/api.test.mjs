@@ -27,7 +27,10 @@ import {
   createOrder,
   createRender,
   deleteCustomer,
+  getOrder,
   getSetting,
+  llmCacheStats,
+  putLlmCache,
   listRenders,
   listSettings,
   openDb,
@@ -35,6 +38,7 @@ import {
   setSetting,
 } from '../src/db.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
+import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import {
   COPY_BODY_MAX_CHARS,
   COPY_CLOSING_MAX_CHARS,
@@ -216,6 +220,9 @@ function lastProviderRequest() {
 
 function resetLlmState() {
   db.prepare('DELETE FROM settings').run();
+  // Each language model test starts with an empty reply cache so a hit from an
+  // earlier test can never change the provider request counts it asserts on.
+  db.prepare('DELETE FROM llm_cache').run();
   resetMockProvider();
 }
 
@@ -2803,4 +2810,139 @@ test('copy quality gate catches thin bodies and internal paperwork talk', async 
   assert.equal(repaired.at(-1).role, 'user');
   assert.match(repaired.at(-1).content, /body too short/);
   assert.match(repaired.at(-1).content, /90 to 150 words/);
+});
+
+
+test('a repeated copy request is served from the model cache', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+
+  const first = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  assert.equal(first.status, 200);
+  const firstBody = await first.json();
+  assert.equal(firstBody.cached, false);
+  const requestsAfterFirst = mockProviderState.requests.length;
+  assert.ok(requestsAfterFirst >= 1);
+
+  const second = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  assert.equal(second.status, 200);
+  const secondBody = await second.json();
+  assert.equal(secondBody.cached, true, 'the second identical request comes from the cache');
+  assert.equal(secondBody.latencyMs, 0);
+  assert.deepEqual(secondBody.copy, firstBody.copy);
+  assert.equal(
+    mockProviderState.requests.length,
+    requestsAfterFirst,
+    'a cache hit must not call the provider',
+  );
+});
+
+test('regenerate bypasses the model cache', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+  const before = mockProviderState.requests.length;
+
+  await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  const regenerated = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, {
+    brief: COPY_BRIEF,
+    regenerate: true,
+  });
+  assert.equal(regenerated.status, 200);
+  const body = await regenerated.json();
+  assert.equal(body.cached, false);
+  assert.equal(mockProviderState.requests.length, before + 2);
+
+  // The regenerated copy replaces the cached one, so the next plain request is
+  // served from cache with the new words and no extra provider call.
+  const afterRegenerate = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  const cachedAgain = await afterRegenerate.json();
+  assert.equal(cachedAgain.cached, true);
+  assert.deepEqual(cachedAgain.copy, body.copy);
+  assert.equal(mockProviderState.requests.length, before + 2);
+});
+
+test('a different brief misses the model cache', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+  const before = mockProviderState.requests.length;
+
+  await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: 'Brief one, calm bedroom.' });
+  const second = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: 'Brief two, more hanging.' });
+  assert.equal(second.status, 200);
+  assert.equal((await second.json()).cached, false);
+  assert.equal(mockProviderState.requests.length, before + 2);
+});
+
+test('the model cache exposes stats and can be purged', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+  await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+
+  const stats = await (await fetch(`${baseUrl}/api/llm/cache/stats`)).json();
+  assert.equal(stats.enabled, true);
+  assert.ok(stats.entries >= 1);
+  assert.ok(stats.hits >= 1);
+
+  const purged = await (await fetch(`${baseUrl}/api/llm/cache/purge`, { method: 'POST' })).json();
+  assert.ok(purged.deleted >= 1);
+  const after = await (await fetch(`${baseUrl}/api/llm/cache/stats`)).json();
+  assert.equal(after.entries, 0);
+});
+
+test('an expired cache entry is ignored and replaced', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(BROCHURE_COPY) });
+
+  // Seed an entry that has aged out, keyed exactly like the real request.
+  const messages = buildCopyMessages(
+    getOrder(db, orderId),
+    COPY_BRIEF,
+  );
+  const key = buildLlmCacheKey({ endpoint: mockProviderUrl, model: LLM_MODEL, messages });
+  const staleCopy = { headline: 'Stale headline', body: 'stale body', closing: 'stale closing' };
+  putLlmCache(db, {
+    key,
+    endpoint: mockProviderUrl,
+    model: LLM_MODEL,
+    responseJson: JSON.stringify({ copy: staleCopy, model: LLM_MODEL }),
+  });
+  db.prepare('UPDATE llm_cache SET created_at = ? WHERE key = ?').run(
+    '2000-01-01T00:00:00.000Z',
+    key,
+  );
+  // Move the brief used above to the one the request will send.
+  db.prepare('UPDATE orders SET brief = ? WHERE id = ?').run(COPY_BRIEF, orderId);
+
+  const before = mockProviderState.requests.length;
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.cached, false, 'an expired entry must not be served');
+  assert.notEqual(body.copy.headline, 'Stale headline');
+  assert.equal(mockProviderState.requests.length, before + 1);
+});
+
+test('cache keys are stable and change with the brief or model', async () => {
+  const messages = [
+    { role: 'system', content: 'system prompt' },
+    { role: 'user', content: 'order one' },
+  ];
+  const base = { endpoint: 'https://opencode.ai/zen/go/v1', model: 'deepseek-v4.1-flash', messages };
+  const key = buildLlmCacheKey(base);
+  assert.equal(key.length, 64);
+  assert.equal(buildLlmCacheKey(base), key, 'the same request hashes the same');
+  assert.notEqual(
+    buildLlmCacheKey({ ...base, messages: [{ role: 'system', content: 'system prompt' }, { role: 'user', content: 'order two' }] }),
+    key,
+  );
+  assert.notEqual(buildLlmCacheKey({ ...base, model: 'another-model' }), key);
+  assert.notEqual(buildLlmCacheKey({ ...base, endpoint: 'https://api.openai.com/v1' }), key);
+  assert.ok(cacheExpiryCutoff(1) < new Date().toISOString());
+  assert.equal(cacheExpiryCutoff(0), null);
 });

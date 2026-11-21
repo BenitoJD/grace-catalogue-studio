@@ -13,9 +13,13 @@ import {
   deleteOrder,
   deleteSetting,
   getCustomer,
+  getLlmCache,
   getMaterial,
   getOrder,
   getRender,
+  llmCacheStats,
+  pruneLlmCache,
+  putLlmCache,
   listCustomers,
   listMaterials,
   listOrders,
@@ -30,10 +34,12 @@ import {
   DEFAULT_NOTE_LIMIT_PER_MIN,
   DEFAULT_RATE_LIMIT_PER_MIN,
   DEFAULT_RENDER_LIMIT_PER_MIN,
+  parseCacheTtlHours,
   parseCorsOrigins,
   parsePositiveInt,
 } from './config.mjs';
 import { installHttpHardening, isExecutable } from './http.mjs';
+import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
   CONNECTION_TEST_MESSAGES,
   COPY_MAX_TOKENS,
@@ -286,6 +292,11 @@ export function createApp(options) {
   // Read the provider environment here, once per created app, so tests can
   // isolate themselves and the runtime keeps the normal process environment.
   const llmEnv = options.llmEnv ?? process.env;
+  const cacheTtlHours =
+    options.llmCacheTtlHours ??
+    parseCacheTtlHours(process.env.LLM_CACHE_TTL_HOURS);
+  const cacheEnabled = Number.isFinite(cacheTtlHours) && cacheTtlHours > 0;
+  const cacheCutoff = () => cacheExpiryCutoff(cacheTtlHours);
 
   const variants = loadVariants(templatesDir);
   const renderer =
@@ -790,20 +801,43 @@ export function createApp(options) {
     if (!order) return fail(c, 404, 'Order not found.');
     const config = resolveLlmConfig(db, llmEnv);
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+
+    const messages = buildNoteMessages(order);
+    const cacheKey = cacheEnabled
+      ? buildLlmCacheKey({ endpoint: config.endpoint, model: config.model, messages })
+      : null;
+    if (cacheKey) {
+      const hit = getLlmCache(db, cacheKey, cacheCutoff());
+      if (hit) {
+        logger.info('Language model cache hit.', { kind: 'note', orderId: order.id });
+        const stored = JSON.parse(hit.response_json);
+        return c.json({ ...stored, latencyMs: 0, cached: true });
+      }
+    }
+
     try {
       const result = await requestChat({
         endpoint: config.endpoint,
         model: config.model,
         apiKey: config.apiKey,
-        messages: buildNoteMessages(order),
+        messages,
         maxTokens: NOTE_MAX_TOKENS,
         temperature: NOTE_TEMPERATURE,
       });
-      return c.json({
+      const payload = {
         note: result.content,
         model: result.model,
         latencyMs: result.latencyMs,
-      });
+      };
+      if (cacheKey) {
+        putLlmCache(db, {
+          key: cacheKey,
+          endpoint: config.endpoint,
+          model: config.model,
+          responseJson: JSON.stringify({ note: payload.note, model: payload.model }),
+        });
+      }
+      return c.json({ ...payload, cached: false });
     } catch (error) {
       return llmFailureResponse(c, error);
     }
@@ -848,12 +882,29 @@ export function createApp(options) {
     const config = resolveLlmConfig(db, llmEnv);
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
 
+    const bypassCache = body.regenerate === true;
+    const baseMessages = buildCopyMessages(order, order.brief ?? '');
+    // The key is built even on a regenerate: the fresh copy replaces the cached
+    // one, so the next plain request cannot serve the older words.
+    const cacheKey = cacheEnabled
+      ? buildLlmCacheKey({ endpoint: config.endpoint, model: config.model, messages: baseMessages })
+      : null;
+    if (cacheKey && !bypassCache) {
+      const hit = getLlmCache(db, cacheKey, cacheCutoff());
+      if (hit) {
+        logger.info('Language model cache hit.', { kind: 'copy', orderId: order.id });
+        const stored = JSON.parse(hit.response_json);
+        setOrderCopy(db, id, stored.copy);
+        return c.json({ copy: stored.copy, model: stored.model, latencyMs: 0, cached: true });
+      }
+    }
+
     try {
       let result = await requestChat({
         endpoint: config.endpoint,
         model: config.model,
         apiKey: config.apiKey,
-        messages: buildCopyMessages(order, order.brief ?? ''),
+        messages: baseMessages,
         maxTokens: COPY_MAX_TOKENS,
         temperature: COPY_TEMPERATURE,
       });
@@ -876,10 +927,35 @@ export function createApp(options) {
         }
       }
       setOrderCopy(db, id, copy);
-      return c.json({ copy, model: result.model, latencyMs: result.latencyMs });
+      if (cacheKey) {
+        putLlmCache(db, {
+          key: cacheKey,
+          endpoint: config.endpoint,
+          model: config.model,
+          responseJson: JSON.stringify({ copy, model: result.model }),
+        });
+      }
+      return c.json({ copy, model: result.model, latencyMs: result.latencyMs, cached: false });
     } catch (error) {
       return llmFailureResponse(c, error);
     }
+  });
+
+  app.get('/api/llm/cache/stats', (c) => {
+    const stats = llmCacheStats(db);
+    return c.json({
+      enabled: cacheEnabled,
+      ttlHours: cacheTtlHours,
+      entries: stats.entries,
+      hits: stats.hits,
+      oldest: stats.oldest,
+    });
+  });
+
+  app.post('/api/llm/cache/purge', (c) => {
+    const deleted = pruneLlmCache(db, '9999-12-31T23:59:59.999Z');
+    logger.info('Language model cache purged.', { deleted });
+    return c.json({ deleted });
   });
 
   // -------------------------------------------------------------------------

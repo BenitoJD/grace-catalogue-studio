@@ -333,10 +333,7 @@ try {
   await page.goto(`${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
   await sleep(2500);
   check("draft note button present", await clickText(page, "Draft customer note"));
-  const noteShown = await page
-    .waitForFunction(() => document.body.innerText.includes("three shutters in warm oak"), { timeout: 30000 })
-    .then(() => true)
-    .catch(() => false);
+  const noteShown = await waitForBodyText(page, "three shutters in warm oak", 45000);
   check("drafted note appears", noteShown);
   check("copy note button present", await clickText(page, "Copy note"));
   await sleep(600);

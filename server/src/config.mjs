@@ -17,6 +17,7 @@ export const DEFAULT_RATE_LIMIT_PER_MIN = 120;
 export const DEFAULT_RENDER_LIMIT_PER_MIN = 12;
 export const DEFAULT_NOTE_LIMIT_PER_MIN = 30;
 export const DEFAULT_RENDER_RETENTION_DAYS = 30;
+export const DEFAULT_LLM_CACHE_TTL_HOURS = 168;
 
 function findOnPath(command) {
   const dirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
@@ -49,6 +50,13 @@ export function parsePositiveInt(value, fallback) {
   if (value === undefined || value === null || String(value).trim() === '') return fallback;
   const parsed = Number.parseInt(String(value).trim(), 10);
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : fallback;
+}
+
+// Cache TTL allows 0, which means "do not cache at all".
+export function parseCacheTtlHours(value, fallback = DEFAULT_LLM_CACHE_TTL_HOURS) {
+  if (value === undefined || value === null || String(value).trim() === '') return fallback;
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 // Retention days allow 0, which means "keep forever".
@@ -95,5 +103,6 @@ export function loadConfig(env = process.env) {
     ),
     noteLimitPerMin: parsePositiveInt(env.NOTE_LIMIT_PER_MIN, DEFAULT_NOTE_LIMIT_PER_MIN),
     retentionDays: parseRetentionDays(env.RENDER_RETENTION_DAYS),
+    llmCacheTtlHours: parseCacheTtlHours(env.LLM_CACHE_TTL_HOURS),
   };
 }
