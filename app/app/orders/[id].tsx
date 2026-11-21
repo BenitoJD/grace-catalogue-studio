@@ -359,8 +359,6 @@ export default function OrderDetailScreen() {
                 subtitle={`${displayValue(order.customerName)} · ${statusLabel(order.status)}`}
               />
 
-              <View style={[shared.hairline, styles.rule]} />
-
               {SPEC_SECTIONS.map((section) => (
                 <View key={section.title} style={styles.specSection}>
                   <Text style={[text.sectionLabel, styles.specHeading]}>{section.title}</Text>
@@ -824,9 +822,8 @@ const styles = StyleSheet.create({
   designThumb: {
     width: 84,
     height: 118,
-    borderWidth: 1,
-    borderColor: colors.hair,
-    backgroundColor: colors.paperDeep,
+    borderRadius: 8,
+    backgroundColor: colors.fill,
   },
   designThumbEmpty: {
     backgroundColor: colors.paperDeep,
@@ -845,7 +842,10 @@ const styles = StyleSheet.create({
     marginTop: space.xl,
   },
   specSection: {
-    marginTop: space.xl,
+    backgroundColor: colors.surface,
+    borderRadius: layout.radius,
+    padding: space.lg,
+    marginTop: space.md,
   },
   specHeading: {
     marginBottom: space.sm,
@@ -854,9 +854,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingVertical: space.md,
+    paddingVertical: space.sm + 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.hair,
+    borderBottomColor: colors.hairInset,
     gap: space.lg,
   },
   specLabel: {
@@ -871,7 +871,10 @@ const styles = StyleSheet.create({
     color: colors.faint,
   },
   voucherSection: {
-    marginTop: space.xxl,
+    marginTop: space.md,
+    backgroundColor: colors.surface,
+    borderRadius: layout.radius,
+    padding: space.lg,
   },
   fileRow: {
     flexDirection: 'row',
@@ -880,7 +883,7 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingVertical: space.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.hair,
+    borderBottomColor: colors.hairInset,
   },
   fileRowPressed: {
     opacity: 0.65,

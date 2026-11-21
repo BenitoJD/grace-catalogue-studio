@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { colors, layout, space, text } from '@/lib/theme';
+import { colors, space, text } from '@/lib/theme';
 
 type Variant = 'primary' | 'secondary' | 'quiet';
 
@@ -95,8 +95,8 @@ export function TextAction({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 48,
-    borderRadius: layout.radius,
+    minHeight: 50,
+    borderRadius: 14,
     paddingHorizontal: space.xl,
     alignItems: 'center',
     justifyContent: 'center',
@@ -106,9 +106,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.copper,
   },
   secondary: {
-    backgroundColor: colors.paper,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
+    backgroundColor: colors.fill,
   },
   quiet: {
     minHeight: 44,
@@ -120,10 +118,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   pressed: {
-    opacity: 0.65,
+    opacity: 0.72,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   spinner: {
     marginRight: space.sm,

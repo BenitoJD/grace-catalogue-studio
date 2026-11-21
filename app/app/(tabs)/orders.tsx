@@ -2,7 +2,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { api, fileUrl, type Order, type Render } from '@/lib/api';
@@ -127,7 +126,9 @@ function OrderCard({ order, documents }: { order: Order; documents: Render[] }) 
     <View style={styles.card}>
       <View style={shared.rowBetween}>
         <Text style={text.eyebrow}>{order.orderNo}</Text>
-        <Text style={text.caption}>{statusLabel(order.status)}</Text>
+        <View style={styles.statusPill}>
+          <Text style={styles.statusText}>{statusLabel(order.status)}</Text>
+        </View>
       </View>
       <Text style={[text.cardTitle, styles.cardTitle]} numberOfLines={2}>
         {order.title}
@@ -169,13 +170,14 @@ function OrderCard({ order, documents }: { order: Order; documents: Render[] }) 
         ))
       )}
 
-      <View style={styles.cardActions}>
-        <Button
-          label="Open order"
-          variant="secondary"
-          onPress={() => router.push({ pathname: '/orders/[id]', params: { id: order.id } })}
-        />
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open order ${order.orderNo}`}
+        onPress={() => router.push({ pathname: '/orders/[id]', params: { id: order.id } })}
+        style={({ pressed }) => [styles.openRow, pressed && styles.openRowPressed]}>
+        <Text style={styles.openRowLabel}>Open order</Text>
+        <Text style={styles.openRowChevron}>›</Text>
+      </Pressable>
     </View>
   );
 }
@@ -194,13 +196,13 @@ const styles = StyleSheet.create({
     paddingBottom: space.xxxl,
   },
   header: {
-    paddingTop: space.xxl,
+    paddingTop: space.md,
   },
   title: {
-    marginTop: space.sm,
+    marginTop: 2,
   },
   subtitle: {
-    marginTop: space.sm,
+    marginTop: 4,
     maxWidth: 520,
   },
   listHeading: {
@@ -208,16 +210,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: space.xl,
-    paddingBottom: space.md,
+    paddingBottom: space.sm,
   },
   itemGap: {
     marginBottom: space.md,
   },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
+    backgroundColor: colors.surface,
     borderRadius: layout.radius,
-    padding: space.xl,
+    padding: space.lg,
+  },
+  statusPill: {
+    backgroundColor: colors.fill,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.muted,
   },
   documentRow: {
     flexDirection: 'row',
@@ -228,17 +240,17 @@ const styles = StyleSheet.create({
   documentThumb: {
     width: 52,
     height: 74,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    backgroundColor: colors.paper,
+    borderRadius: 8,
+    backgroundColor: colors.fill,
   },
   documentInfo: {
     gap: 2,
+    flexShrink: 1,
   },
   documentTitle: {
+    fontSize: 15,
+    fontWeight: '600',
     color: colors.ink,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
   },
   documentMeta: {
     color: colors.faint,
@@ -248,30 +260,47 @@ const styles = StyleSheet.create({
     color: colors.faint,
   },
   pdfLink: {
-    marginTop: space.xs,
+    marginTop: 4,
     alignSelf: 'flex-start',
   },
   pdfLinkPressed: {
-    opacity: 0.65,
+    opacity: 0.6,
   },
   pdfLinkLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.copper,
   },
-  cardActions: {
+  openRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.sm,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairInset,
     marginTop: space.lg,
+    paddingTop: space.md,
+  },
+  openRowPressed: {
+    opacity: 0.6,
+  },
+  openRowLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.copper,
+  },
+  openRowChevron: {
+    fontSize: 22,
+    lineHeight: 24,
+    color: colors.faint,
   },
   cardTitle: {
     marginTop: space.sm,
+    fontSize: 18,
   },
   customer: {
-    marginTop: space.xs,
+    marginTop: 2,
   },
   dimensions: {
-    marginTop: space.md,
+    marginTop: space.sm,
   },
 });

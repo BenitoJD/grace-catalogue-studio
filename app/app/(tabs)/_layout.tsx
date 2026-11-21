@@ -15,15 +15,17 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.copper,
         tabBarInactiveTintColor: colors.faint,
         tabBarStyle: {
-          backgroundColor: colors.paper,
-          borderTopColor: colors.hair,
+          backgroundColor: 'rgba(255, 255, 255, 0.96)',
+          borderTopColor: colors.hairInset,
           borderTopWidth: StyleSheet.hairlineWidth,
-          height: 58 + insets.bottom,
-          paddingTop: space.xs + 2,
+          height: 60 + insets.bottom,
+          paddingTop: space.sm,
           paddingBottom: insets.bottom,
+          elevation: 0,
         },
         tabBarLabelStyle: text.tabLabel,
-        sceneStyle: { backgroundColor: colors.paper },
+        tabBarItemStyle: { gap: 2 },
+        sceneStyle: { backgroundColor: colors.background },
       }}>
       <Tabs.Screen
         name="index"

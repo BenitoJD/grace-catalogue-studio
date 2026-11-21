@@ -13,8 +13,9 @@ interface ScreenHeaderProps {
 }
 
 /**
- * Editorial screen header: a copper eyebrow, a serif title and an optional
- * short subtitle. Back is drawn with hairlines so no icon font is needed.
+ * Native feeling screen header: a large bold title, a quiet subtitle and a
+ * copper back control. The chevron is drawn with hairlines so no icon font is
+ * needed on any platform.
  */
 export function ScreenHeader({ eyebrow, title, subtitle, back, onBack, children }: ScreenHeaderProps) {
   return (
@@ -40,7 +41,7 @@ export function ScreenHeader({ eyebrow, title, subtitle, back, onBack, children 
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingTop: space.xxl,
+    paddingTop: space.xl,
   },
   back: {
     flexDirection: 'row',
@@ -49,33 +50,34 @@ const styles = StyleSheet.create({
     minHeight: 32,
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.55,
   },
   chevron: {
     width: 9,
     height: 9,
-    borderLeftWidth: 1.5,
-    borderBottomWidth: 1.5,
-    borderColor: colors.muted,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: colors.copper,
     transform: [{ rotate: '45deg' }],
     marginLeft: 2,
-    marginRight: space.sm,
+    marginRight: 6,
   },
   backLabel: {
     ...text.caption,
-    color: colors.muted,
+    fontSize: 16,
+    color: colors.copper,
   },
   eyebrowAfterBack: {
-    marginTop: space.xl,
+    marginTop: space.md,
   },
   titleAfterEyebrow: {
-    marginTop: space.sm,
+    marginTop: 2,
   },
   subtitle: {
-    marginTop: space.xs,
-    maxWidth: 460,
+    marginTop: 4,
+    maxWidth: 520,
   },
   children: {
-    marginTop: space.xl,
+    marginTop: space.lg,
   },
 });

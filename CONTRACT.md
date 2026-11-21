@@ -18,15 +18,20 @@ Single source of truth for the API and the data the app may rely on.
 
 | Token | Value | Use |
 |---|---|---|
-| paper | `#FFFFFF` | page background |
-| ink | `#14100C` | primary text |
-| muted | `#6E6259` | secondary text |
-| faint | `#A2938A` | captions, footer |
-| copper | `#A65E22` | accents, section labels |
-| hair | `#E6DED2` | hairlines |
+| background | `#F2F2F7` | grouped screen background |
+| surface | `#FFFFFF` | cards and sheets |
+| fill | `#EFEFF4` | fields and secondary buttons |
+| ink | `#1C1C1E` | primary text |
+| muted | `#6E6E73` | secondary text |
+| faint | `#8E8E93` | captions |
+| copper | `#A65E22` | tint, primary actions |
+| hair | `#DCDCE2` | inset separators |
 
-Type: display serif (`Georgia` on iOS and web, `serif` on Android), body sans (system).
-Spacing scale: 4, 8, 12, 16, 24, 32, 48.
+The app follows Apple's grouped interface: system font at native sizes, white
+cards on a grouped grey background, one brand tint, rounded controls, no
+decoration. Printed brochures keep their own editorial typography and palette;
+only the application is Apple styled.
+Spacing scale: 4, 8, 12, 16, 20, 28, 44.
 Never use em dashes or en dashes in user facing strings. Use a comma, a colon or a middot.
 
 ## Data model

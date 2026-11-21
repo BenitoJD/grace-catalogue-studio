@@ -155,14 +155,16 @@ Rendering is queued per process so two requests cannot write into the same build
 
 | Token | Value |
 |---|---|
-| paper | `#FFFFFF` |
-| ink | `#14100C` |
-| muted | `#6E6259` |
-| faint | `#A2938A` |
+| background | `#F2F2F7` |
+| surface | `#FFFFFF` |
+| fill | `#EFEFF4` |
+| ink | `#1C1C1E` |
+| muted | `#6E6E73` |
+| faint | `#8E8E93` |
 | copper | `#A65E22` |
-| hairline | `#E6DED2` |
+| hairline | `#DCDCE2` |
 
-Display type is a serif, set large and tight. Body type is a neutral sans. Section labels are small, tracked, uppercase. No shadows, no gradients, no decoration.
+The application follows Apple's grouped interface: the system font at native sizes, white cards on a grouped grey background, one brand tint, 14 point rounded cards, pill buttons and an iOS style tab bar. Printed brochures keep their own editorial typography; only the app is Apple styled.
 
 House rules for copy: short sentences, no em dashes or en dashes, a middot for separators. Say what the person should do next, not what the system did.
 

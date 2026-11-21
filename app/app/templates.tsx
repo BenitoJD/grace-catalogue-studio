@@ -217,22 +217,23 @@ const styles = StyleSheet.create({
     marginBottom: GRID_GAP,
   },
   tile: {
-    borderWidth: 1,
-    borderColor: colors.hair,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.surface,
+    borderRadius: layout.radius,
+    padding: 6,
   },
   tileSelected: {
-    borderColor: colors.copper,
     borderWidth: 2,
+    borderColor: colors.copper,
   },
   tilePressed: {
     opacity: 0.85,
   },
   preview: {
-    backgroundColor: colors.paperDeep,
+    backgroundColor: colors.fill,
+    borderRadius: 8,
   },
   tileText: {
-    paddingHorizontal: space.sm,
+    paddingHorizontal: 6,
     paddingVertical: space.sm,
     gap: 2,
   },

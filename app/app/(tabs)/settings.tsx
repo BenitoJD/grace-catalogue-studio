@@ -109,7 +109,6 @@ export default function SettingsScreen() {
             <Text style={[text.muted, styles.subtitle]}>Connection, model and app details.</Text>
           </View>
 
-          <View style={[shared.hairline, styles.rule]} />
 
           <View style={styles.section}>
             <Text style={text.sectionLabel}>Connection</Text>
@@ -122,7 +121,6 @@ export default function SettingsScreen() {
             </Text>
           </View>
 
-          <View style={[shared.hairline, styles.rule]} />
 
           <View style={styles.section}>
             <Text style={text.sectionLabel}>Language model</Text>
@@ -197,7 +195,6 @@ export default function SettingsScreen() {
             ) : null}
           </View>
 
-          <View style={[shared.hairline, styles.rule]} />
 
           <View style={styles.section}>
             <Text style={text.sectionLabel}>App</Text>
@@ -206,7 +203,6 @@ export default function SettingsScreen() {
             <InfoRow label="Expo SDK" value={SDK_VERSION} />
           </View>
 
-          <View style={[shared.hairline, styles.rule]} />
 
           <View style={styles.section}>
             <Text style={text.sectionLabel}>About</Text>
@@ -238,24 +234,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.gutter,
   },
   header: {
-    paddingTop: space.xxl,
+    paddingTop: space.md,
   },
   title: {
-    marginTop: space.sm,
+    marginTop: 2,
   },
   subtitle: {
-    marginTop: space.xs,
-  },
-  rule: {
-    marginTop: space.xl,
+    marginTop: 4,
   },
   section: {
-    paddingTop: space.xl,
+    backgroundColor: colors.surface,
+    borderRadius: layout.radius,
+    padding: space.lg,
+    marginTop: space.md,
   },
   label: {
     marginTop: space.lg,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
   url: {
     marginTop: space.xs,
@@ -293,7 +287,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.hair,
+    borderBottomColor: colors.hairInset,
   },
   infoValue: {
     textAlign: 'right',

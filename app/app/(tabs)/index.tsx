@@ -25,7 +25,7 @@ import {
   type Render,
 } from '@/lib/api';
 import { openUrl } from '@/lib/actions';
-import { colors, layout, space, text } from '@/lib/theme';
+import { colors, space, text } from '@/lib/theme';
 
 type Bubble =
   | {
@@ -318,7 +318,7 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
       <View style={[styles.frame, { paddingTop: insets.top + space.lg }]}>
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerText}>
             <Text style={text.eyebrow}>Grace Wood</Text>
             <Text style={[text.screenTitle, styles.title]}>Studio chat</Text>
           </View>
@@ -330,14 +330,8 @@ export default function ChatScreen() {
               style={({ pressed }) => [styles.headerAction, pressed && styles.sendPressed]}>
               <Text style={styles.headerActionLabel}>New order</Text>
             </Pressable>
-          ) : (
-            <View style={styles.headerMark}>
-              <Text style={styles.headerMarkText}>GW</Text>
-            </View>
-          )}
+          ) : null}
         </View>
-
-        <View style={[styles.rule]} />
 
         <ScrollView
           ref={scroll}
@@ -350,10 +344,9 @@ export default function ChatScreen() {
           ))}
           {busy ? (
             <View style={styles.rowLeft}>
-              <Avatar role="assistant" />
               <View style={[styles.bubble, styles.bubbleAssistant]}>
                 <View style={styles.typing}>
-                  <ActivityIndicator size="small" color={colors.copper} />
+                  <ActivityIndicator size="small" color={colors.faint} />
                   <Text style={[text.caption, styles.typingText]}>
                     {cooking ? 'Creating the order' : 'Reading'}
                   </Text>
@@ -439,7 +432,7 @@ export default function ChatScreen() {
                 (busy || (input.trim() === '' && pendingFiles.length === 0)) && styles.sendDisabled,
                 pressed && styles.sendPressed,
               ]}>
-              <Text style={styles.sendLabel}>Send</Text>
+              <Text style={styles.sendLabel}>↑</Text>
             </Pressable>
           </View>
 
@@ -478,7 +471,6 @@ function BubbleView({ bubble }: { bubble: Bubble }) {
     const firstPage = bubble.render.pageUrls?.[0];
     return (
       <View style={styles.rowLeft}>
-        <Avatar role="assistant" />
         <View style={[styles.bubble, styles.bubbleAssistant, styles.brochure]}>
           <Text style={[text.body, styles.brochureTitle]}>{bubble.content}</Text>
           <Text style={[text.caption, styles.brochureMeta]}>
@@ -510,7 +502,6 @@ function BubbleView({ bubble }: { bubble: Bubble }) {
   const isUser = bubble.role === 'user';
   return (
     <View style={isUser ? styles.rowRight : styles.rowLeft}>
-      {!isUser ? <Avatar role="assistant" /> : null}
       <View
         style={[
           styles.bubble,
@@ -546,17 +537,6 @@ function BubbleView({ bubble }: { bubble: Bubble }) {
           </View>
         ) : null}
       </View>
-      {isUser ? <Avatar role="user" /> : null}
-    </View>
-  );
-}
-
-function Avatar({ role }: { role: 'user' | 'assistant' }) {
-  return (
-    <View style={[styles.avatar, role === 'user' ? styles.avatarUser : styles.avatarAssistant]}>
-      <Text style={[styles.avatarText, role === 'user' ? styles.avatarTextUser : null]}>
-        {role === 'user' ? 'You' : 'GW'}
-      </Text>
     </View>
   );
 }
@@ -572,129 +552,84 @@ function SmallAction({ label, onPress }: { label: string; onPress: () => void })
   );
 }
 
-const MAX_BUBBLE = 560;
-
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.background,
   },
   frame: {
     flex: 1,
     width: '100%',
-    maxWidth: 900,
+    maxWidth: 860,
     alignSelf: 'center',
-    paddingHorizontal: layout.gutter,
+    paddingHorizontal: space.lg,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
+    gap: space.md,
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
+  },
+  headerText: {
+    flexShrink: 1,
   },
   title: {
-    marginTop: space.xs,
+    marginTop: 2,
   },
   headerAction: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    borderRadius: 10,
-    paddingHorizontal: space.md,
+    backgroundColor: colors.copperSoft,
+    borderRadius: 999,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
   headerActionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.ink,
-  },
-  autoHint: {
-    color: colors.faint,
-    textAlign: 'center',
-  },
-  headerMark: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerMarkText: {
-    fontFamily: 'Georgia',
-    fontSize: 14,
     color: colors.copper,
-  },
-  rule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.hair,
-    marginTop: space.lg,
+    fontSize: 14,
+    fontWeight: '600',
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    paddingVertical: space.lg,
-    gap: space.md,
+    paddingTop: space.sm,
+    paddingBottom: space.md,
+    gap: space.sm + 2,
   },
   rowLeft: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.sm,
+    alignItems: 'flex-end',
     maxWidth: '100%',
   },
   rowRight: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    alignItems: 'flex-start',
-    gap: space.sm,
-  },
-  avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  avatarAssistant: {
-    backgroundColor: colors.paperDeep,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-  },
-  avatarUser: {
-    backgroundColor: colors.copper,
-  },
-  avatarText: {
-    fontFamily: 'Georgia',
-    fontSize: 10,
-    color: colors.copper,
-  },
-  avatarTextUser: {
-    color: colors.paper,
-    fontSize: 8,
-    letterSpacing: 0.4,
+    paddingLeft: 48,
   },
   bubble: {
-    maxWidth: MAX_BUBBLE,
-    borderRadius: 16,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm + 2,
+    maxWidth: '80%',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   bubbleAssistant: {
-    backgroundColor: colors.paperDeep,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
   },
   bubbleUser: {
     backgroundColor: colors.copper,
   },
   bubbleFailed: {
-    backgroundColor: '#FBEDEA',
+    backgroundColor: '#FCEDEA',
   },
   assistantText: {
     color: colors.ink,
     lineHeight: 22,
   },
   userText: {
-    color: colors.paper,
+    color: colors.surface,
     lineHeight: 22,
   },
   typing: {
@@ -704,205 +639,211 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   typingText: {
-    color: colors.muted,
+    color: colors.faint,
   },
   draftBar: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.hair,
     paddingTop: space.sm,
     gap: space.sm,
   },
   draftInfo: {
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space.sm,
+    paddingHorizontal: 4,
   },
   draftCount: {
-    color: colors.muted,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    color: colors.faint,
+    fontSize: 12,
   },
   draftMissing: {
-    color: colors.faint,
+    color: colors.muted,
+    fontSize: 12,
   },
   draftReady: {
-    color: '#2F6B45',
-  },
-  plus: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  plusLabel: {
-    fontSize: 22,
-    lineHeight: 24,
-    color: colors.ink,
+    color: colors.success,
+    fontSize: 12,
+    fontWeight: '600',
   },
   pendingRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: space.xs,
+    gap: 6,
+    paddingHorizontal: 4,
   },
   pendingChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xs,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    borderRadius: 8,
-    paddingHorizontal: space.sm,
-    paddingVertical: 5,
+    gap: 6,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     maxWidth: 260,
-    backgroundColor: colors.paperDeep,
+    backgroundColor: colors.fill,
   },
   pendingName: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.ink,
     flexShrink: 1,
   },
   pendingRemove: {
-    fontSize: 14,
-    color: colors.muted,
-  },
-  bubbleFiles: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.xs,
-    marginTop: space.sm,
-  },
-  fileChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    borderRadius: 8,
-    paddingHorizontal: space.sm,
-    paddingVertical: 5,
-    maxWidth: 260,
-    backgroundColor: colors.paper,
-  },
-  fileChipUser: {
-    borderColor: 'rgba(255,255,255,0.4)',
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  fileThumb: {
-    width: 22,
-    height: 22,
-    borderRadius: 4,
-  },
-  fileChipName: {
-    fontSize: 12,
-    color: colors.ink,
-    flexShrink: 1,
-  },
-  fileChipNameUser: {
-    color: colors.paper,
+    fontSize: 15,
+    color: colors.faint,
   },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: space.sm,
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    borderRadius: 14,
-    padding: space.sm,
-    backgroundColor: colors.paper,
+    borderColor: 'rgba(0, 0, 0, 0.07)',
+    padding: 6,
+  },
+  plus: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.fill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 1,
+  },
+  plusLabel: {
+    fontSize: 21,
+    lineHeight: 23,
+    color: colors.ink,
   },
   input: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 130,
-    fontSize: 15,
+    minHeight: 34,
+    maxHeight: 140,
+    fontSize: 16,
     lineHeight: 21,
     color: colors.ink,
-    paddingHorizontal: space.sm,
-    paddingTop: 9,
-    paddingBottom: 9,
+    paddingHorizontal: 4,
+    paddingTop: 7,
+    paddingBottom: 7,
   },
   send: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: colors.copper,
-    borderRadius: 10,
-    paddingHorizontal: space.md,
-    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 1,
   },
   sendDisabled: {
-    opacity: 0.45,
+    opacity: 0.3,
   },
   sendPressed: {
-    opacity: 0.75,
+    opacity: 0.7,
   },
   sendLabel: {
-    color: colors.paper,
-    fontSize: 14,
+    color: colors.surface,
+    fontSize: 18,
+    lineHeight: 20,
     fontWeight: '600',
   },
+  autoHint: {
+    color: colors.faint,
+    textAlign: 'center',
+    fontSize: 12,
+    paddingBottom: 2,
+  },
   cook: {
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
+    borderRadius: 14,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm + 2,
     alignItems: 'center',
     gap: 2,
   },
   cookReady: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
-  },
-  cookIdle: {
-    backgroundColor: colors.paper,
-    borderColor: colors.hair,
+    backgroundColor: colors.copper,
   },
   cookLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: colors.muted,
+    color: colors.copper,
   },
   cookLabelReady: {
-    color: colors.paper,
+    color: colors.surface,
   },
   cookHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.faint,
   },
   cookHintReady: {
-    color: 'rgba(255,255,255,0.72)',
+    color: 'rgba(255,255,255,0.78)',
   },
   brochure: {
-    padding: space.md,
-    gap: space.sm,
+    maxWidth: 440,
+    alignSelf: 'flex-start',
+    padding: 14,
+    gap: 8,
+    borderRadius: 20,
   },
   brochureTitle: {
     fontWeight: '600',
   },
   brochureMeta: {
-    color: colors.muted,
+    color: colors.faint,
   },
   preview: {
-    width: 200,
-    height: 283,
+    width: 176,
+    height: 249,
+    borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    backgroundColor: colors.paper,
+    borderColor: colors.hairInset,
+    backgroundColor: colors.surface,
   },
   brochureActions: {
     flexDirection: 'row',
-    gap: space.sm,
+    gap: 8,
+    marginTop: 2,
   },
   smallAction: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    borderRadius: 8,
-    paddingHorizontal: space.sm + 2,
-    paddingVertical: 6,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.fill,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   smallActionLabel: {
-    fontSize: 12,
-    color: colors.ink,
+    fontSize: 14,
+    color: colors.copper,
     fontWeight: '600',
+  },
+  bubbleFiles: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  fileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    maxWidth: 250,
+    backgroundColor: colors.fill,
+  },
+  fileChipUser: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  fileThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+  },
+  fileChipName: {
+    fontSize: 13,
+    color: colors.ink,
+    flexShrink: 1,
+  },
+  fileChipNameUser: {
+    color: colors.surface,
   },
 });

@@ -66,26 +66,30 @@ export function Field({
 
 const styles = StyleSheet.create({
   wrap: {
-    marginBottom: space.xl,
+    marginBottom: space.lg,
   },
   label: {
-    marginBottom: space.xs,
+    marginBottom: 6,
   },
   input: {
-    minHeight: 44,
-    paddingVertical: space.sm,
-    paddingHorizontal: 0,
-    fontSize: 16,
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 17,
     lineHeight: 22,
     color: colors.ink,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.hair,
+    backgroundColor: colors.fill,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   inputMultiline: {
-    minHeight: 64,
+    minHeight: 96,
     textAlignVertical: 'top',
+    paddingTop: 12,
   },
   inputFocused: {
-    borderBottomColor: colors.copper,
+    borderColor: colors.copper,
+    backgroundColor: colors.surface,
   },
 });

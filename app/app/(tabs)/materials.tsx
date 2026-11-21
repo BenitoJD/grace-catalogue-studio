@@ -21,7 +21,6 @@ import { api, errorMessage, fileUrl, type Material } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
-const LOGO = require('../../assets/images/logo.png');
 const GRID_GAP = space.lg;
 const HEX_PATTERN = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
 const KINDS = ['laminate', 'edge band', 'veneer', 'acrylic', 'plywood'];
@@ -43,19 +42,15 @@ export default function MaterialsScreen() {
 
   const header = (
     <View style={styles.header}>
-      <Image source={LOGO} style={styles.logo} resizeMode="contain" accessibilityLabel="Grace Wood logo" />
-      <Text style={[text.eyebrow, styles.eyebrow]}>Grace Wood</Text>
+      <Text style={text.eyebrow}>Grace Wood</Text>
       <Text style={[text.screenTitle, styles.title]}>Materials</Text>
       <Text style={[text.muted, styles.subtitle]}>Colours in the studio catalogue.</Text>
-      <View style={[shared.hairline, styles.rule]} />
       <View style={styles.actionsRow}>
-        <View style={styles.actionItem}>
-          <Button label="Add colour" onPress={() => setAddOpen(true)} />
-        </View>
+        <Button label="Add colour" fullWidth onPress={() => setAddOpen(true)} />
       </View>
       <View style={styles.gridHeading}>
         <Text style={text.sectionLabel}>Colours</Text>
-        {data ? <Text style={text.caption}>{materialCountLabel(materials.length)}</Text> : null}
+        {data ? <Text style={[text.caption, styles.count]}>{materialCountLabel(materials.length)}</Text> : null}
       </View>
       {loading && !data ? <LoadingState label="Loading colours." /> : null}
       {error ? (
@@ -238,7 +233,8 @@ function AddMaterialSheet({
             contentContainerStyle={styles.sheetContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}>
-            <Text style={text.cardTitle}>Add a colour</Text>
+            <View style={styles.grabber} />
+            <Text style={[text.largeCardTitle, styles.sheetTitle]}>Add a colour</Text>
             <Text style={[text.muted, styles.sheetIntro]}>
               It appears in the catalogue and in the finishes page of every voucher.
             </Text>
@@ -398,79 +394,76 @@ const styles = StyleSheet.create({
     paddingBottom: space.xxxl,
   },
   header: {
-    paddingTop: space.xxl,
-  },
-  logo: {
-    width: 58,
-    height: 65,
-    alignSelf: 'center',
-  },
-  eyebrow: {
-    marginTop: space.lg,
-    textAlign: 'center',
+    paddingTop: space.md,
   },
   title: {
-    marginTop: space.sm,
-    textAlign: 'center',
+    marginTop: 2,
   },
   subtitle: {
-    marginTop: space.xs,
-    textAlign: 'center',
-  },
-  rule: {
-    marginTop: space.xl,
+    marginTop: 4,
   },
   gridHeading: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: space.xl,
-    paddingBottom: space.lg,
+    paddingTop: space.xxl,
+    paddingBottom: space.md,
+  },
+  count: {
+    color: colors.faint,
   },
   column: {
     gap: GRID_GAP,
   },
   tile: {
-    marginBottom: space.xl,
+    backgroundColor: colors.surface,
+    borderRadius: layout.radius,
+    padding: 10,
+    marginBottom: space.md,
   },
   swatch: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: layout.radius,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
+    borderRadius: 10,
     overflow: 'hidden',
+    backgroundColor: colors.fill,
   },
   swatchImage: {
     width: '100%',
     height: '100%',
   },
   materialName: {
-    marginTop: space.md,
+    marginTop: space.sm + 2,
+    fontWeight: '600',
   },
   actionsRow: {
     marginTop: space.lg,
-    flexDirection: 'row',
-    gap: space.sm,
-  },
-  actionItem: {
-    flex: 1,
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(28, 26, 23, 0.42)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: space.lg,
   },
   sheet: {
     width: '100%',
-    maxWidth: 520,
+    maxWidth: 540,
     maxHeight: '92%',
-    backgroundColor: colors.paper,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  grabber: {
+    alignSelf: 'center',
+    width: 38,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.hair,
+    marginBottom: space.md,
+  },
+  sheetTitle: {
+    marginBottom: 4,
   },
   sheetContent: {
     padding: space.lg,

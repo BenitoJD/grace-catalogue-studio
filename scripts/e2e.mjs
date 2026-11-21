@@ -82,6 +82,15 @@ async function waitForBodyText(page, needle, timeout = 30000) {
   return false;
 }
 
+async function clickAria(page, label) {
+  return page.evaluate((wanted) => {
+    const element = document.querySelector(`[aria-label="${wanted}"]`);
+    if (!element) return false;
+    element.click();
+    return true;
+  }, label);
+}
+
 async function clickFirstText(page, text) {
   return page.evaluate((wanted) => {
     const nodes = [...document.querySelectorAll("div,span,button")].filter(
@@ -439,11 +448,11 @@ try {
     chatInput,
     "Need a wardrobe for Anita in the master bedroom, 2400 wide. She wants a loft on top and lighter oak. The plan I attached has the rest."
   );
-  check("chat accepts the dump", await clickText(page, "Send"));
+  check("chat accepts the dump", await clickAria(page, "Send message"));
   check("chat asks for the missing details", await waitForBodyText(page, "what is the height", 90000));
   const ordersBeforeChat = (await (await fetch(`${API}/api/orders`)).json()).length;
   await setValueByPlaceholder(page, chatInput, "Height 2100, depth 600, three shutters.");
-  check("chat takes the answer", await clickText(page, "Send"));
+  check("chat takes the answer", await clickAria(page, "Send message"));
   const cooked = await waitForBodyText(page, "the brochure is ready", 180000);
   check("chat creates the order on its own", cooked);
   const chatPageOk = await page.evaluate(() =>
@@ -469,7 +478,7 @@ try {
 
   // The next message belongs to a new order, so the old conversation is cleared.
   await setValueByPlaceholder(page, chatInput, "Another client needs a wardrobe.");
-  check("chat takes the next customer", await clickText(page, "Send"));
+  check("chat takes the next customer", await clickAria(page, "Send message"));
   const freshChat = await waitForBodyText(page, "what is the height", 90000);
   check("a new chat starts after an order", freshChat);
   const cleared = await page.evaluate(

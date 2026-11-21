@@ -60,7 +60,7 @@ export function EmptyState({
 }) {
   return (
     <View style={styles.empty}>
-      <Text style={text.cardTitle}>{title}</Text>
+      <Text style={[text.cardTitle, styles.emptyTitle]}>{title}</Text>
       <Text style={[text.muted, styles.emptyMessage]}>{message}</Text>
       {children ? <View style={styles.emptyAction}>{children}</View> : null}
     </View>
@@ -77,8 +77,7 @@ const styles = StyleSheet.create({
     marginTop: space.md,
   },
   errorBox: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
+    backgroundColor: colors.surface,
     borderRadius: layout.radius,
     padding: space.xl,
     marginTop: space.lg,
@@ -97,9 +96,15 @@ const styles = StyleSheet.create({
   empty: {
     paddingVertical: space.xxxl,
     maxWidth: 480,
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
+  emptyTitle: {
+    textAlign: 'center',
   },
   emptyMessage: {
     marginTop: space.sm,
+    textAlign: 'center',
   },
   emptyAction: {
     marginTop: space.xl,

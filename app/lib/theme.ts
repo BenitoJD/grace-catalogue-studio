@@ -1,124 +1,174 @@
 import { Platform, StyleSheet } from 'react-native';
 
 /**
- * Design tokens from CONTRACT.md. Every colour used in the app comes from here.
+ * Apple inspired design tokens for the studio app.
+ *
+ * Neutral grouped surfaces, one brand tint, system typography. The printed
+ * brochures keep their own editorial type: this file is only the application.
  */
 export const colors = {
-  paper: '#FFFFFF',
-  paperDeep: '#F7F3EC',
-  ink: '#14100C',
-  muted: '#6E6259',
-  faint: '#A2938A',
+  /** Screen background, the iOS grouped grey. */
+  background: '#F2F2F7',
+  /** Card and sheet surfaces. */
+  surface: '#FFFFFF',
+  /** Slightly raised neutral fill, for fields and secondary buttons. */
+  fill: '#EFEFF4',
+  fillPressed: '#E5E5EA',
+  /** Text. */
+  ink: '#1C1C1E',
+  muted: '#6E6E73',
+  faint: '#8E8E93',
+  /** Brand tint. */
   copper: '#A65E22',
-  hair: '#E6DED2',
+  copperSoft: '#F4E7DA',
+  /** Interactive tint fill used by secondary buttons and selected chips. */
+  tintFill: '#EFEFF4',
+  hair: '#DCDCE2',
+  hairInset: 'rgba(60, 60, 67, 0.18)',
+  danger: '#C0392B',
+  success: '#2E7D4F',
+  /** Legacy names kept so screens and components keep working. */
+  paper: '#FFFFFF',
+  paperDeep: '#F2F2F7',
+  card: '#FFFFFF',
 } as const;
 
-/** Spacing scale: 4, 8, 12, 16, 24, 32, 48. */
+/** Spacing scale: 4, 8, 12, 16, 20, 24, 32, 44. */
 export const space = {
   xs: 4,
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 24,
-  xxl: 32,
-  xxxl: 48,
+  xl: 20,
+  xxl: 28,
+  xxxl: 44,
 } as const;
 
-/** Display type is a serif. Body type stays on the system sans. */
-export const displayFont = Platform.select({
-  ios: 'Georgia',
-  android: 'serif',
-  default: 'Georgia',
-});
+/** The app uses the system UI font, like a native Apple application. */
+export const systemFont = Platform.select({
+  ios: 'System',
+  android: 'sans-serif',
+  web: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  default: 'system-ui',
+}) as string;
+
+/** Kept for places that still ask for the old display face. */
+export const displayFont = systemFont;
 
 export const layout = {
-  maxWidth: 720,
-  wideMaxWidth: 960,
-  gutter: space.xl,
-  radius: 2,
+  maxWidth: 700,
+  wideMaxWidth: 980,
+  gutter: 20,
+  radius: 14,
+  radiusSmall: 10,
+  radiusLarge: 20,
 } as const;
 
-/** Shared text styles. Screens compose these with spacing styles. */
+/** Shared text styles. Apple sizes and weights. */
 export const text = StyleSheet.create({
   display: {
-    fontFamily: displayFont,
+    fontFamily: systemFont,
     fontSize: 34,
-    lineHeight: 42,
+    lineHeight: 41,
+    fontWeight: '700',
     letterSpacing: -0.4,
     color: colors.ink,
   },
   screenTitle: {
-    fontFamily: displayFont,
-    fontSize: 28,
-    lineHeight: 35,
-    letterSpacing: -0.2,
+    fontFamily: systemFont,
+    fontSize: 34,
+    lineHeight: 41,
+    fontWeight: '700',
+    letterSpacing: -0.4,
     color: colors.ink,
   },
   cardTitle: {
-    fontFamily: displayFont,
-    fontSize: 21,
-    lineHeight: 28,
+    fontFamily: systemFont,
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+    color: colors.ink,
+  },
+  largeCardTitle: {
+    fontFamily: systemFont,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '700',
+    letterSpacing: -0.3,
     color: colors.ink,
   },
   eyebrow: {
-    fontSize: 11,
-    lineHeight: 15,
+    fontFamily: systemFont,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '600',
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    color: colors.copper,
+    color: colors.faint,
   },
   sectionLabel: {
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: '600',
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
+    fontFamily: systemFont,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
     color: colors.muted,
   },
   body: {
+    fontFamily: systemFont,
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 23,
     color: colors.ink,
   },
   bodySmall: {
-    fontSize: 14,
+    fontFamily: systemFont,
+    fontSize: 15,
     lineHeight: 21,
     color: colors.ink,
   },
   muted: {
+    fontFamily: systemFont,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 21,
     color: colors.muted,
   },
   caption: {
+    fontFamily: systemFont,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 18,
     color: colors.faint,
   },
   value: {
+    fontFamily: systemFont,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 21,
     color: colors.ink,
   },
   buttonLabel: {
+    fontFamily: systemFont,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+  tabLabel: {
+    fontFamily: systemFont,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '500',
+  },
+  metric: {
+    fontFamily: systemFont,
     fontSize: 15,
     lineHeight: 20,
     fontWeight: '600',
-    letterSpacing: 0.1,
-  },
-  tabLabel: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '500',
+    color: colors.ink,
   },
 });
 
-/** Shared layout pieces. Keep screens consistent by using these. */
+/** Shared layout pieces. */
 export const shared = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.background,
   },
   frame: {
     width: '100%',
@@ -135,7 +185,7 @@ export const shared = StyleSheet.create({
   },
   hairline: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.hair,
+    backgroundColor: colors.hairInset,
   },
   row: {
     flexDirection: 'row',
@@ -152,5 +202,16 @@ export const shared = StyleSheet.create({
   },
   scrollPadding: {
     paddingBottom: space.xxxl,
+  },
+  /** The default grouped card. */
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: layout.radius,
+    padding: space.lg,
+  },
+  cardLarge: {
+    backgroundColor: colors.surface,
+    borderRadius: layout.radiusLarge,
+    padding: space.xl,
   },
 });

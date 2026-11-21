@@ -20,6 +20,6 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     minHeight: 0,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.background,
   },
 });
