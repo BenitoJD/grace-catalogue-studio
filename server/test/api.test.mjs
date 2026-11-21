@@ -127,6 +127,7 @@ const mockProviderState = {
   errorBody: null,
   textError: 'Free usage limit reached',
   delayMs: 0,
+  replies: [],
   requests: [],
 };
 
@@ -171,6 +172,7 @@ function startMockProvider() {
             response.end(mockProviderState.textError);
             return;
           }
+          const queued = mockProviderState.replies.shift();
           response.writeHead(200, { 'Content-Type': 'application/json' });
           response.end(
             JSON.stringify({
@@ -180,7 +182,7 @@ function startMockProvider() {
               choices: [
                 {
                   index: 0,
-                  message: { role: 'assistant', content: mockProviderState.reply },
+                  message: { role: 'assistant', content: queued ?? mockProviderState.reply },
                   finish_reason: 'stop',
                 },
               ],
@@ -216,6 +218,7 @@ function resetMockProvider(overrides = {}) {
     errorBody: null,
     textError: 'Free usage limit reached',
     delayMs: 0,
+    replies: [],
     ...overrides,
   });
   mockProviderState.requests.length = 0;
@@ -3170,4 +3173,31 @@ test('the intake route forces the missing list into the reply', async () => {
     second.reply,
     'I have the name. I still need the piece, the room, the width, the height, the depth and the number of shutters.',
   );
+});
+
+
+test('a malformed intake reply is retried once before it fails', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({
+    replies: [
+      'Sorry, I did not catch that.',
+      JSON.stringify({ reply: 'Noted.', order: { customerName: 'Anita' }, ready: false }),
+    ],
+  });
+
+  const response = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'A wardrobe for Anita please.' }],
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.ok(body.reply.includes('the piece'), 'the honest reply is returned after the retry');
+  assert.equal(mockProviderState.requests.length, 2, 'one original request and one retry');
+
+  resetMockProvider({ replies: ['still not json', 'also not json'] });
+  const failed = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'A wardrobe please.' }],
+  });
+  assert.equal(failed.status, 502);
+  assert.equal(mockProviderState.requests.length, 2, 'only one retry, then the failure is surfaced');
 });

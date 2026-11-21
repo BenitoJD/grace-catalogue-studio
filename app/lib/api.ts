@@ -230,6 +230,13 @@ function messageFromBody(body: unknown): string | null {
     if (typeof value === 'string' && value.trim().length > 0) {
       return value.trim();
     }
+    // The language model routes answer { ok: false, error: { message, type } }.
+    if (value && typeof value === 'object' && 'message' in value) {
+      const nested = (value as { message?: unknown }).message;
+      if (typeof nested === 'string' && nested.trim().length > 0) {
+        return nested.trim();
+      }
+    }
   }
   return null;
 }

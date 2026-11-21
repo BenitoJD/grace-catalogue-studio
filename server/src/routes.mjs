@@ -1004,15 +1004,43 @@ export function createApp(options) {
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
 
     try {
-      const result = await requestChat({
+      const intakeMessages = buildIntakeMessages(cleanMessages, body.draft ?? {});
+      let result = await requestChat({
         endpoint: config.endpoint,
         model: config.model,
         apiKey: config.apiKey,
-        messages: buildIntakeMessages(cleanMessages, body.draft ?? {}),
+        messages: intakeMessages,
         maxTokens: INTAKE_MAX_TOKENS,
         temperature: INTAKE_TEMPERATURE,
       });
-      const intake = parseIntakeReply(result.content);
+      let intake;
+      try {
+        intake = parseIntakeReply(result.content);
+      } catch (error) {
+        // Small models occasionally answer with prose instead of JSON. Ask once
+        // more with the exact shape, then surface the failure if it repeats.
+        if (error?.type !== 'invalid_reply') throw error;
+        logger.warn('Intake reply could not be read, asking once more.', {
+          reason: error.message,
+        });
+        result = await requestChat({
+          endpoint: config.endpoint,
+          model: config.model,
+          apiKey: config.apiKey,
+          messages: [
+            ...intakeMessages,
+            { role: 'assistant', content: capText(result.content, 1500) },
+            {
+              role: 'user',
+              content:
+                'That reply was not usable. Reply with the strict JSON object only, no prose: {"reply": "...", "order": { ... }, "ready": false}.',
+            },
+          ],
+          maxTokens: INTAKE_MAX_TOKENS,
+          temperature: INTAKE_TEMPERATURE,
+        });
+        intake = parseIntakeReply(result.content);
+      }
       const draft = mergeDraft(body.draft ?? {}, intake.order);
       const missing = missingEssentials(draft);
       // Never let a vague "more details" reach the client: the reply names the
