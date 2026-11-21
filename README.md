@@ -301,7 +301,9 @@ The system prompt is also a stable prefix at the start of every request, which i
 
 ## Copy quality
 
-The model's brochure copy is measured, not eyeballed. `scripts/ai-quality.mjs` runs six realistic orders through the live provider and scores every reply against a rubric: body between 90 and 150 words, headline and closing caps, numbers that exist in the order, no money, date or festival leaks from the brief, no talk of the order, brief or specification, no durability or cleanliness claims, no parts the order does not include, no repeated verbs, no reused example phrasing, and no walking through the materials list.
+The model's brochure copy is measured, not eyeballed. `scripts/ai-quality.mjs` runs six realistic orders through the live provider and scores every reply against a rubric: body between 95 and 145 words, headline and closing caps, numbers that exist in the order, no money, date or festival leaks, no talk of the order or brief, no durability or cleanliness claims, no parts the order does not include, no repeated verbs, no reused example phrasing, and no walking through the materials list.
+
+The voice itself is checked: no marketing clichés (premium, luxurious, bespoke, stunning, perfect, elegant and friends), no second person selling ("you", "your", "we"), at least one long sentence balanced by short ones, no colon in the headline, and a limit on crutch words like quiet, calm and plane.
 
 ```bash
 # measure the prompt directly
@@ -312,17 +314,17 @@ LLM_ENDPOINT=https://opencode.ai/zen/go/v1 LLM_MODEL=deepseek-v4.1-flash LLM_API
 node scripts/ai-quality.mjs --api http://localhost:8787
 ```
 
-Final result measured through the API across six orders: **102 of 102 checks, average body 117 words, zero repair passes needed**.
+Final result across six orders: **118 of 120 checks, average body 114 words, zero repair passes needed** on the measured run.
 
-The generator also protects itself in production. `copyQualityIssues` rejects a thin body, internal paperwork talk, repeated verbs, a material walk through, and any mention of the carcass or back panel. When it finds a problem it runs one corrective retry naming the exact issues, so a weak first reply does not reach the customer.
+The generator protects itself in production. `copyQualityIssues` rejects a thin body, internal paperwork talk, repeated verbs, a material walk through, any mention of the carcass or back panel, a marketing cliché, and second person selling. A single corrective retry names the exact problems, so a weak reply does not reach the customer.
 
-Two bodies from the final run:
+Two bodies from the final runs:
 
-> **Lighter oak for a small bedroom**
-> The master bedroom carries the wardrobe across one wall, 2400 mm wide and 2100 mm high, so the floor stays clear. Warm oak laminate on the outside lifts the room, and white laminate inside keeps the shelves bright when the shutters open. Three shutters and four drawers sort daily clothes from the rest, and two of those drawers lock for papers and valuables. A loft above takes the suitcases and spare bedding out of the way.
+> **Loft above for the winter bedding**
+> Anitha's bedroom has little floor to spare, so the wardrobe runs 2400 mm across one wall and stops at 2100 mm, with a loft added on top for the bedding that used to sit in bags. Four drawers sit below the hanging space, and two of them lock, which keeps documents and jewellery out of the everyday shuffle. Warm oak laminate on the shutters lightens the room, and the white interior means a shelf is easy to read at a glance.
 
-> **Where the suitcases will live**
-> Suitcases take up more room than guests do. The lower section of this wardrobe is sized for them, with two drawers beside the space for folded bedding above. At 1800 mm wide and 2100 mm high, the frame sits flush against the guest room wall without crowding the bed.
+> **Three shutters for the guest room wall**
+> The guest room holds its light on the long wall, and the wardrobe takes that wall from end to end. Three shutters divide the width into equal parts, each one hinged to close softly rather than snap, so the proportions read before the handles do. Matte black aluminium runs vertically down the face, one set to each shutter, and the edge banding follows the same colour as the laminate so the outline stays unbroken. Inside, white laminate keeps the interior bright when the doors are open.
 
 ## Production
 

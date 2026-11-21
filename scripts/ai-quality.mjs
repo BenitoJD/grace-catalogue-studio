@@ -42,23 +42,11 @@ const CLAIM_WORDS = [
 ];
 
 const BANNED_PHRASES = [
-  'elevate',
-  'seamless',
-  'unleash',
-  'crafted to perfection',
-  'bespoke',
-  'luxurious',
-  'state of the art',
-  'state-of-the-art',
-  'game changer',
-  'cutting edge',
-  'cutting-edge',
-  'dream',
-  'oasis',
-  'timeless elegance',
-  'transform your',
-  'nestled',
-  'boasts'
+  'elevate', 'seamless', 'unleash', 'crafted to perfection', 'bespoke', 'luxurious', 'luxury',
+  'premium', 'crafted', 'state of the art', 'state-of-the-art', 'game changer', 'cutting edge',
+  'cutting-edge', 'dream', 'oasis', 'timeless', 'transform your', 'nestled', 'boasts',
+  'stunning', 'gorgeous', 'beautiful', 'perfect', 'amazing', 'exceptional', 'ultimate',
+  'world class', 'top notch', 'elegant', 'high end', 'very', 'really'
 ];
 
 const ORDERS = [
@@ -246,6 +234,14 @@ function scoreCopy(order, copy, scenarioBrief = '') {
   const claims = CLAIM_WORDS.filter((phrase) => lower.includes(phrase));
   const metaWords = ['the specification', 'the order', 'the brief', 'the document'].filter((phrase) => lower.includes(phrase));
   const exampleEchoes = ['rarely has a spare wall', 'somewhere warm to land', 'storage first', 'does not look like a cupboard'].filter((phrase) => lower.includes(phrase));
+  const addressesReader = /\byou\b|\byour\b|\bwe\b|\bour\b/i.test(`${copy.headline} ${body} ${copy.closing}`);
+  const sentences = body.split(/(?<=[.!?])\s+/).map((sentence) => sentence.trim()).filter(Boolean);
+  const wordCounts = sentences.map((sentence) => sentence.split(/\s+/).length);
+  const sentenceVariety =
+    wordCounts.length >= 4 &&
+    Math.max(...wordCounts) >= 18 &&
+    Math.min(...wordCounts) <= 10;
+  const hasColon = copy.headline.includes(':');
   const shutterCount = Number.parseInt(String(order.shutters ?? '').replace(/\D/g, ''), 10);
   const noShutters = Number.isFinite(shutterCount) && shutterCount === 0;
   const phantomComponents = noShutters
@@ -291,6 +287,9 @@ function scoreCopy(order, copy, scenarioBrief = '') {
     noPerformanceClaims: claims.length === 0,
     noMetaTalk: metaWords.length === 0,
     noExampleEcho: exampleEchoes.length === 0,
+    describesNotSells: !addressesReader,
+    sentenceVariety,
+    headlineNoColon: !hasColon,
     noPhantomComponents: phantomComponents.length === 0,
     headlineNotFormula: !headlineFormula
   };
@@ -306,6 +305,8 @@ function scoreCopy(order, copy, scenarioBrief = '') {
     claims,
     metaWords,
     exampleEchoes,
+    addressesReader,
+    sentenceVariety,
     briefLeak,
     phantomComponents,
     repeatedVerbs,

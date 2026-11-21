@@ -1844,9 +1844,9 @@ test('language model helpers are unit testable without the internet', async () =
   assert.equal(copyMessages[0].role, 'system');
   assert.equal(copyMessages[1].role, 'user');
   assert.match(copyMessages[0].content, /strict JSON/i);
-  assert.match(copyMessages[0].content, /at most 60 characters/i);
-  assert.match(copyMessages[0].content, /90 to 150 words/i);
-  assert.match(copyMessages[0].content, /at most 90 characters/i);
+  assert.match(copyMessages[0].content, /at most 56 characters/i);
+  assert.match(copyMessages[0].content, /95 to 145 words/i);
+  assert.match(copyMessages[0].content, /at most 80 characters/i);
   assert.match(copyMessages[0].content, /no em dashes or en dashes/i);
   assert.match(copyMessages[0].content, /British Indian English/i);
   assert.match(copyMessages[0].content, /Never invent/i);
@@ -2106,9 +2106,9 @@ test('order copy generation stores the copy and returns the three fields', async
   assert.ok(prompt.includes('Matte black aluminium'), 'the prompt carries the handles');
   assert.ok(prompt.includes('Matte outside, white inside'), 'the prompt carries the finish');
   assert.match(prompt, /strict JSON/i);
-  assert.match(prompt, /at most 60 characters/i);
-  assert.match(prompt, /90 to 150 words/i);
-  assert.match(prompt, /at most 90 characters/i);
+  assert.match(prompt, /at most 56 characters/i);
+  assert.match(prompt, /95 to 145 words/i);
+  assert.match(prompt, /at most 80 characters/i);
   assert.match(prompt, /no em dashes or en dashes/i);
   assert.match(prompt, /British Indian English/i);
   assert.match(prompt, /Never invent/i);
@@ -2811,6 +2811,18 @@ test('copy quality gate catches thin bodies and internal paperwork talk', async 
     carcassOrder
   );
   assert.ok(carcass.some((issue) => /carcass/.test(issue)));
+
+  const hyped = copyQualityIssues({
+    ...good,
+    body: `${good.body} The premium finish feels luxurious in the room.`
+  });
+  assert.ok(hyped.some((issue) => /marketing cliché/.test(issue)), 'hype words are rejected');
+
+  const selling = copyQualityIssues({
+    ...good,
+    body: `${good.body} You will love how your wardrobe looks.`
+  });
+  assert.ok(selling.some((issue) => /addresses the reader/.test(issue)), 'second person is rejected');
 
   const repeated = copyQualityIssues({
     ...good,

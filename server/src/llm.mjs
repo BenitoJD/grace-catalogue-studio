@@ -71,29 +71,30 @@ const NOTE_SYSTEM_PROMPT = [
 
 const COPY_SYSTEM_PROMPT = [
   'You write the brochure copy for a single custom wardrobe or furniture order at Grace Wood Industry, a workshop in Nagercoil, Tamil Nadu.',
-  'The reader is the customer. The specification page in the same document already lists every dimension and material, so your job is to make the piece feel understood, not to repeat the list.',
+  'The reader is a discerning customer holding a printed document. The specification page already lists every dimension and material, so your job is to make the piece feel considered, not to repeat the list.',
+  'Voice: the quiet confidence of a design house catalogue, never a sales page. Precise nouns and verbs, restrained adjectives, a measured rhythm of short declarative sentences and one longer line. Say what a person would notice in the room. Never flatter, never hurry, never sell.',
   'Reply with strict JSON only, in exactly this shape:',
   '{"headline": "...", "body": "...", "closing": "..."}',
-  'Headline: at most 60 characters. Name something concrete from this order: a place, a use, a constraint. Do not use a relative clause with that, which or who. Do not start with "A" or "This". No question marks, no exclamation marks.',
-  'Body: 90 to 150 words. Count them: 90 is the floor even when the brief is one short line. If the brief is thin, write about the room, the proportions and the choices that were made. Open with something concrete from this order or this brief, not a general statement about rooms. Then how this piece answers the need. Then one telling detail from the brief, if there is one. Name no more than two materials, and use at most two facts from the order, the ones that matter most here. Do not walk through the materials. Vary the shape of your sentences, and never use the constructions "Nothing here is..." or "This is not X, it is Y". Use the words quiet, simple and warm at most once each.',
-  'Closing: at most 90 characters. Calm and specific. No sales pitch.',
+  'Headline: at most 56 characters, understated and specific, a phrase a design magazine would print. Name a place, a use or a constraint. Do not use a relative clause with that, which or who. Do not start with "A" or "This". No question marks, no exclamation marks, no colon.',
+  'Body: 95 to 145 words. Open with one precise observation about the room or the way the piece is used. Develop it through proportion, light, line or one telling detail, and include at least one sentence of fifteen words or more. Close on a restrained line of fact or feeling, never a pitch. Use at most two facts from the order and name no more than two materials. Do not lean on a favourite image: the words quiet, calm and plane may each appear only once in the whole piece, and the piece is never called a plane.',
+  'Closing: at most 80 characters. Understated, specific, no call to action.',
   'Hard rules:',
   'Use only facts present in the order and the customer brief.',
   'Never invent certifications, prices, dates, brands, warranties or performance claims. That includes moisture proof, heat resistant, scratch proof, easy to clean, does not show fingerprints or marks, lasts for years, made to last, holds its finish, and reachable without a stool, unless the order states them.',
   'Never mention money, currency, discounts, dates, festivals or deadlines, even when the brief does. Do not repeat the brief back, answer it.',
-  `Never address the customer and never put their name before a comma. Do not open the body with "For [name]" or "This wardrobe for [name]". If the name appears at all, use it once as a possessive, for example "Anitha's bedroom".`,
-  'No em dashes or en dashes. No exclamation marks. No questions.',
-  'Do not repeat a verb or a sentence opening. Keep, give, hold and make may each appear only once in the body.',
-  'British Indian English. Plain words, mostly short sentences, one longer sentence is enough.',
-  'Banned words: elevate, seamless, luxurious, luxury, bespoke, premium, crafted, timeless, oasis, dream, transform, nestled, boasts, state of the art, cutting edge, game changer, must have.',
+  'Do not address the reader. No "you", "your", "we" or "our". The piece is described, not sold.',
+  `Never put the customer's name before a comma. If the name appears at all, use it once as a possessive, for example "Anitha's bedroom".`,
+  'No em dashes or en dashes. No exclamation marks. No questions. No emojis.',
+  'Do not repeat a verb or a sentence opening. Keep, give, hold and make may each appear only once in the body; check every sentence before you answer.',
+  'British Indian English. Plain words, exact adjectives, no filler.',
+  'Banned words: elevate, seamless, luxurious, luxury, bespoke, premium, crafted, timeless, oasis, dream, transform, nestled, boasts, state of the art, cutting edge, game changer, must have, stunning, gorgeous, beautiful, perfect, amazing, exceptional, ultimate, world class, top notch, elegant, high end, very, really.',
   'Do not name the carcass, the back panel or the plywood thickness. Those belong in the specification table, not in the story.',
   'A thickness is not a count: "12 mm plywood" is a material, not twelve drawers. Never turn a material figure into a number of drawers, shelves or shutters.',
   'Only mention a component the order actually includes. If there are no shutters, do not mention hinges or handles. If there are no drawers, do not mention channels.',
   'Never mention the order, the brief, the specification or the document, not even to say what the brief asked for. The customer is reading copy, not a note about the process.',
   'No prose, markdown, code fences or explanation around the JSON object.',
-  'Headline shape examples, do not reuse: "Where the suitcases will live", "Loft above, drawers below", "Shelving for a working study".',
   'Voice example for a different product. Never reuse its headline, opening, sentences, phrases or shape. Match only the register:',
-  '{"headline":"A galley that works in one line","body":"The kitchen is narrow, so everything happens along one wall. Three metres of base units sit at 900 mm, with six shutters and six baskets below, so the pans and the jars stay within a step of the hob. Ash grey laminate keeps the front plain, which matters in a room where hands are often full. The handles run horizontal and sit flush, catching a hip less than a knob would. It is not a show kitchen. It is one that works every morning.","closing":"Plain lines, built for the way the kitchen is used."}'
+  '{"headline":"A desk that faces the window","body":"The study is narrow, so the desk runs under the window and leaves the back wall free. At 1500 mm it holds a screen, a lamp and the papers that collect by the end of the week. The drawer sits on the left, where the hand falls. The surface is pale, which keeps the window light in the room rather than against it. There is nothing on it that does not earn its place. Proportion and light do the rest, and the room stays a room to work in.","closing":"One line, one surface, the work in front of you."}'
 ].join(' ');
 
 // ---------------------------------------------------------------------------
@@ -372,6 +373,12 @@ export function providerHeaders(endpoint, apiKey) {
 }
 
 const COPY_META_WORDS = ['the specification', 'the order', 'the brief', 'this document', 'the document'];
+const COPY_HYPE_WORDS = [
+  'elevate', 'seamless', 'luxurious', 'luxury', 'bespoke', 'premium', 'crafted', 'timeless',
+  'oasis', 'dream', 'transform', 'nestled', 'boasts', 'state of the art', 'cutting edge',
+  'game changer', 'must have', 'stunning', 'gorgeous', 'beautiful', 'perfect', 'amazing',
+  'exceptional', 'ultimate', 'world class', 'top notch', 'elegant', 'high end',
+];
 
 const NUMBER_WORDS = {
   one: '1', two: '2', three: '3', four: '4', five: '5', six: '6',
@@ -406,9 +413,19 @@ export function copyQualityIssues(copy, order = null) {
   for (const phrase of COPY_META_WORDS) {
     if (lower.includes(phrase)) issues.push(`mentions internal paperwork ("${phrase}")`);
   }
+  for (const phrase of COPY_HYPE_WORDS) {
+    if (lower.includes(phrase)) issues.push(`uses a marketing cliché ("${phrase}")`);
+  }
+  if (/\byou\b|\byour\b|\bwe\b|\bour\b/i.test(body)) {
+    issues.push('addresses the reader instead of describing the piece');
+  }
   for (const verb of ['keeps', 'gives', 'holds', 'makes']) {
     const uses = (lower.match(new RegExp(`\\b${verb}\\b`, 'g')) ?? []).length;
     if (uses > 1) issues.push(`repeats "${verb}" ${uses} times`);
+  }
+  for (const word of ['quiet', 'calm', 'plane']) {
+    const uses = (lower.match(new RegExp(`\\b${word}\\b`, 'g')) ?? []).length;
+    if (uses > 1) issues.push(`leans on "${word}" ${uses} times`);
   }
   if (order) {
     // Counts are only allowed when the order itself contains them. A material
