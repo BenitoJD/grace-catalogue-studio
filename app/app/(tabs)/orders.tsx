@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
@@ -46,8 +46,10 @@ export default function OrdersScreen() {
 
   return (
     <Screen>
-      <View style={shared.frame}>
-        <FlatList
+      <View style={[shared.frame, styles.fill]}>
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl
               refreshing={loading && Boolean(data)}
@@ -58,22 +60,21 @@ export default function OrdersScreen() {
               colors={[colors.copper]}
             />
           }
-          data={orders}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={header}
-          contentContainerStyle={styles.content}
-          ItemSeparatorComponent={() => <View style={styles.itemGap} />}
-          renderItem={({ item }) => <OrderCard order={item} />}
-          ListEmptyComponent={
-            loading || error ? undefined : (
-              <EmptyState
-                title="No orders yet"
-                message="Orders drafted in the studio will be listed here."
-              />
-            )
-          }
-          showsVerticalScrollIndicator={false}
-        />
+          showsVerticalScrollIndicator={false}>
+          {header}
+          {loading || error ? null : orders.length === 0 ? (
+            <EmptyState
+              title="No orders yet"
+              message="Orders drafted in the studio will be listed here."
+            />
+          ) : (
+            orders.map((order) => (
+              <View key={order.id} style={styles.itemGap}>
+                <OrderCard order={order} />
+              </View>
+            ))
+          )}
+        </ScrollView>
       </View>
     </Screen>
   );
@@ -104,6 +105,14 @@ function OrderCard({ order }: { order: Order }) {
 }
 
 const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+    minHeight: 0,
+  },
+  list: {
+    flex: 1,
+    minHeight: 0,
+  },
   content: {
     paddingHorizontal: layout.gutter,
     paddingBottom: space.xxxl,

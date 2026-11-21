@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  FlatList,
   Image,
   Modal,
   Platform,
@@ -101,28 +100,27 @@ export default function MaterialsScreen() {
 
   return (
     <Screen>
-      <View style={shared.frameWide}>
-        <FlatList
-          key={`materials-${columns}`}
-          data={materials}
-          keyExtractor={(item) => item.id}
-          numColumns={columns}
-          ListHeaderComponent={header}
-          columnWrapperStyle={columns > 1 ? styles.column : undefined}
+      <View style={[shared.frameWide, styles.fill]}>
+        <ScrollView
+          style={styles.list}
           contentContainerStyle={styles.content}
-          renderItem={({ item }) => <MaterialTile material={item} width={tileWidth} />}
-          ListEmptyComponent={
-            loading || error ? undefined : (
-              <View style={styles.empty}>
-                <Text style={text.cardTitle}>No colours yet</Text>
-                <Text style={[text.muted, styles.emptyMessage]}>
-                  Colours added to the catalogue will be shown here.
-                </Text>
-              </View>
-            )
-          }
-          showsVerticalScrollIndicator={false}
-        />
+          showsVerticalScrollIndicator={false}>
+          {header}
+          {loading || error ? null : materials.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={text.cardTitle}>No colours yet</Text>
+              <Text style={[text.muted, styles.emptyMessage]}>
+                Colours added to the catalogue will be shown here.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.grid}>
+              {materials.map((material) => (
+                <MaterialTile key={material.id} material={material} width={tileWidth} />
+              ))}
+            </View>
+          )}
+        </ScrollView>
       </View>
       <AddMaterialSheet
         visible={addOpen}
@@ -390,6 +388,19 @@ function materialCountLabel(count: number): string {
 }
 
 const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+    minHeight: 0,
+  },
+  list: {
+    flex: 1,
+    minHeight: 0,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: GRID_GAP,
+  },
   content: {
     paddingHorizontal: layout.gutter,
     paddingBottom: space.xxxl,

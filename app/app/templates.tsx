@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  FlatList,
+  ScrollView,
   Image,
   Pressable,
   StyleSheet,
@@ -97,41 +97,41 @@ export default function TemplatesScreen() {
 
   return (
     <Screen>
-      <View style={shared.frameWide}>
-        <FlatList
-          key={`templates-${columns}`}
-          data={templates}
-          keyExtractor={(item) => item.id}
-          numColumns={columns}
-          ListHeaderComponent={header}
-          columnWrapperStyle={columns > 1 ? styles.column : undefined}
+      <View style={[shared.frameWide, styles.fill]}>
+        <ScrollView
+          style={styles.list}
           contentContainerStyle={styles.content}
-          renderItem={({ item }) => (
-            <TemplateTile
-              template={item}
-              width={tileWidth}
-              selected={selected === item.id}
+          showsVerticalScrollIndicator={false}>
+          {header}
+          {templates.length > 0 ? (
+            <View style={styles.grid}>
+              {templates.map((template) => (
+                <TemplateTile
+                  key={template.id}
+                  template={template}
+                  width={tileWidth}
+                  selected={selected === template.id}
+                  onPress={() => {
+                    choose(template.id);
+                  }}
+                />
+              ))}
+            </View>
+          ) : null}
+          <View style={styles.footer}>
+            <Button
+              label="Back to the order"
+              variant="secondary"
               onPress={() => {
-                choose(item.id);
+                if (orderId) {
+                  router.replace({ pathname: '/orders/[id]', params: { id: orderId } });
+                } else {
+                  router.replace('/orders');
+                }
               }}
             />
-          )}
-          ListFooterComponent={
-            <View style={styles.footer}>
-              <Button
-                label="Back to the order"
-                variant="secondary"
-                onPress={() => {
-                  if (orderId) {
-                    router.replace({ pathname: '/orders/[id]', params: { id: orderId } });
-                  } else {
-                    router.replace('/');
-                  }
-                }}
-              />
-            </View>
-          }
-        />
+          </View>
+        </ScrollView>
       </View>
     </Screen>
   );
@@ -183,6 +183,19 @@ function TemplateTile({
 }
 
 const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+    minHeight: 0,
+  },
+  list: {
+    flex: 1,
+    minHeight: 0,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.lg,
+  },
   content: {
     paddingBottom: space.xxl,
   },

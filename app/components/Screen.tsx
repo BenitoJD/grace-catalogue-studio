@@ -19,6 +19,7 @@ export function Screen({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
+    minHeight: 0,
     backgroundColor: colors.paper,
   },
 });
