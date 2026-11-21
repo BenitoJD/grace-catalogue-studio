@@ -5,9 +5,18 @@ export function TabGlyph({
   name,
   color,
 }: {
-  name: 'orders' | 'materials' | 'settings';
+  name: 'orders' | 'materials' | 'settings' | 'chat';
   color: ColorValue;
 }) {
+  if (name === 'chat') {
+    return (
+      <View style={styles.bubbles} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={[styles.bubble, styles.bubbleBig, { borderColor: color }]} />
+        <View style={[styles.bubble, styles.bubbleSmall, { borderColor: color }]} />
+      </View>
+    );
+  }
+
   if (name === 'materials') {
     return (
       <View style={styles.grid} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -57,6 +66,25 @@ export function TabGlyph({
 }
 
 const styles = StyleSheet.create({
+  bubbles: {
+    width: 20,
+    height: 18,
+    justifyContent: 'flex-start',
+  },
+  bubble: {
+    borderWidth: 1.2,
+    borderRadius: 7,
+  },
+  bubbleBig: {
+    width: 14,
+    height: 10,
+  },
+  bubbleSmall: {
+    width: 9,
+    height: 6,
+    marginTop: 1.5,
+    marginLeft: 7,
+  },
   list: {
     width: 18,
     height: 16,

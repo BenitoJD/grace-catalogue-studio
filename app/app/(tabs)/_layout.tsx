@@ -28,6 +28,13 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          title: 'Chat',
+          tabBarIcon: ({ color }) => <TabGlyph name="chat" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="orders"
+        options={{
           title: 'Orders',
           tabBarIcon: ({ color }) => <TabGlyph name="orders" color={color} />,
         }}

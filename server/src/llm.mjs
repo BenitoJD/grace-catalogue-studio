@@ -104,7 +104,7 @@ export function trimEndpoint(value) {
   return value.trim().replace(/\/+$/, '');
 }
 
-function clean(value) {
+export function clean(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
@@ -678,4 +678,29 @@ export function parseCopyReply(reply) {
     copy[field] = capCopyField(value, maxChars);
   }
   return copy;
+}
+
+
+/** Extract the first JSON object from a reply, with or without code fences. */
+export function parseJsonObject(reply) {
+  const raw = typeof reply === 'string' ? reply : '';
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw);
+  const source = fenced ? fenced[1] : raw;
+  const direct = source.trim();
+  if (direct.startsWith('{')) {
+    try {
+      const value = JSON.parse(direct);
+      if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    } catch {
+      // fall through to the balanced scan
+    }
+  }
+  const candidate = firstJsonObject(source);
+  if (!candidate) return null;
+  try {
+    const value = JSON.parse(candidate);
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
 }

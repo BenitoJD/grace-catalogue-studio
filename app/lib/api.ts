@@ -138,6 +138,20 @@ export interface LlmTestResult {
   error?: { message?: string; status?: number; type?: string };
 }
 
+export interface IntakeMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface IntakeResult {
+  reply: string;
+  draft: Record<string, string>;
+  missing: string[];
+  ready: boolean;
+  model: string;
+  latencyMs: number;
+}
+
 export interface OrderNote {
   note: string;
   model: string;
@@ -319,6 +333,13 @@ export const api = {
   },
   saveLlmSettings(input: { endpoint?: string; model?: string; apiKey?: string }): Promise<LlmSettings> {
     return request<LlmSettings>('/api/llm/settings', { method: 'PUT', body: input });
+  },
+  intake(messages: IntakeMessage[], draft?: Record<string, string>): Promise<IntakeResult> {
+    return request<IntakeResult>('/api/intake', {
+      method: 'POST',
+      body: { messages, draft },
+      timeoutMs: 60000,
+    });
   },
   generateOrderCopy(
     orderId: string,

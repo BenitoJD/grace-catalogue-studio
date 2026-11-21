@@ -2946,3 +2946,99 @@ test('cache keys are stable and change with the brief or model', async () => {
   assert.ok(cacheExpiryCutoff(1) < new Date().toISOString());
   assert.equal(cacheExpiryCutoff(0), null);
 });
+
+
+test('conversational intake extracts an order and reports what is still missing', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'Noted, a wardrobe for Anitha. What is the height?',
+      order: {
+        customerName: 'Anitha Selvam',
+        title: 'Master Bedroom Wardrobe',
+        room: 'Master bedroom',
+        width: '2400 mm',
+        depth: '600 mm',
+        budget: 'under one lakh',
+        randomField: 'drop me',
+      },
+      ready: true,
+    }),
+  });
+
+  const response = await postJson(`${baseUrl}/api/intake`, {
+    messages: [
+      {
+        role: 'user',
+        content:
+          'Need a wardrobe for Anitha in the master bedroom, 2400 wide and 600 deep. Budget under one lakh.',
+      },
+    ],
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.draft.customerName, 'Anitha Selvam');
+  assert.equal(body.draft.width, '2400 mm');
+  assert.equal('budget' in body.draft, false, 'unknown fields are dropped');
+  assert.equal('randomField' in body.draft, false, 'unknown fields are dropped');
+  assert.equal(body.ready, false, 'the model cannot declare ready while essentials are missing');
+  assert.ok(body.missing.includes('height'));
+  assert.ok(body.missing.includes('number of shutters'));
+  assert.match(body.reply, /height/i);
+  assert.equal(JSON.stringify(body).includes(LLM_KEY), false);
+
+  // A second turn supplies the gaps and merges with the draft.
+  const firstDraft = body.draft;
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'That is everything needed. The brochure can be made.',
+      order: { height: '2100 mm', shutters: '3' },
+      ready: true,
+    }),
+  });
+  const second = await postJson(`${baseUrl}/api/intake`, {
+    messages: [
+      { role: 'user', content: 'Need a wardrobe for Anitha in the master bedroom.' },
+      { role: 'assistant', content: body.reply },
+      { role: 'user', content: 'Height 2100, three shutters.' },
+    ],
+    draft: firstDraft,
+  });
+  assert.equal(second.status, 200);
+  const merged = await second.json();
+  assert.equal(merged.draft.width, '2400 mm', 'the earlier draft is kept');
+  assert.equal(merged.draft.height, '2100 mm');
+  assert.equal(merged.ready, true);
+  assert.deepEqual(merged.missing, []);
+
+  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
+  assert.match(prompt, /2400 mm/, 'the current draft is sent back to the model');
+});
+
+test('conversational intake validates its input and failures', async () => {
+  resetLlmState();
+  const unconfigured = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'A wardrobe please.' }],
+  });
+  assert.equal(unconfigured.status, 400);
+
+  await configureLlm();
+  const empty = await postJson(`${baseUrl}/api/intake`, { messages: [] });
+  assert.equal(empty.status, 400);
+  const missingContent = await postJson(`${baseUrl}/api/intake`, { messages: [{ role: 'user' }] });
+  assert.equal(missingContent.status, 400);
+  const tooLong = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'x'.repeat(4001) }],
+  });
+  assert.equal(tooLong.status, 400);
+
+  resetMockProvider({ reply: 'I could not read that.' });
+  const unreadable = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'A wardrobe please.' }],
+  });
+  assert.equal(unreadable.status, 502);
+  const failure = await unreadable.json();
+  assert.equal(failure.error.type, 'invalid_reply');
+  assert.match(failure.error.message, /intake reply/i);
+});

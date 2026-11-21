@@ -29,6 +29,18 @@ Three documents come out of the same data.
 
 The rate card prints stored rates only. Nothing is calculated at render time, and GST is stated separately. `GET /api/catalogue/templates` lists the three layouts, `POST /api/catalogue/render` produces the PDF.
 
+## Chat first
+
+The studio opens on a chat, not a form. The client dumps everything they know in one message: a WhatsApp forward, a list, a rough note. The model pulls out the order, asks only for essentials that are still missing, and says when it has enough.
+
+![Conversational intake](docs/screenshots/chat-intake.png)
+
+Press **Cook the brochure** and the studio creates the order, writes the copy with the same model, renders the voucher and shows the first page in the conversation, with Open PDF and Open order.
+
+![Brochure from the chat](docs/screenshots/chat-brochure.png)
+
+The extraction rules matter as much as the conversation. Bare dimensions become millimetres, counts become digits, unknown fields are dropped, and a reply without usable JSON is rejected with a readable error. A field is only ready when the customer actually said it, never guessed.
+
 ## Screens
 
 ![Orders](docs/screenshots/orders.png)

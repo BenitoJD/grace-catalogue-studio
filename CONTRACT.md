@@ -126,6 +126,7 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | PATCH | `/api/orders/:id` | partial order fields | `Order` |
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
 | POST | `/api/orders/:id/render` | `{ kind: "voucher" \| "kit", templateId? }` | `Render` (201) |
+| POST | `/api/intake` | `{ messages: [{ role, content }], draft? }` | `{ reply, draft, missing, ready, model, latencyMs }` |
 | POST | `/api/orders/:id/copy` | `{ brief?, regenerate? }` | `{ copy: { headline, body, closing }, model, latencyMs, cached }` |
 | GET | `/api/llm/cache/stats` | | `{ enabled, ttlHours, entries, hits, oldest }` |
 | POST | `/api/llm/cache/purge` | | `{ deleted }` |
@@ -256,6 +257,10 @@ The first variant is the default when `templateId` is missing. A card is one A4
 page with 3mm bleed for up to 8 priced materials and becomes two pages for up to
 22; more materials than that are not printed. The palette tokens come from the
 same tone sets used by the voucher templates.
+
+## Conversational intake
+
+`POST /api/intake` takes the chat transcript and the order captured so far. The reply is strict JSON `{ reply, order, ready }`; only known order fields are kept, dimensions get their unit, counts become digits, and `ready` is only true when the server sees every essential field in the merged draft. Failures are 400 for bad input, 400 when no model is configured, and 502 when the reply cannot be read.
 
 ## Model cache
 

@@ -41,6 +41,16 @@ import {
 import { installHttpHardening, isExecutable } from './http.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
+  INTAKE_MAX_MESSAGE_CHARS,
+  INTAKE_MAX_MESSAGES,
+  INTAKE_MAX_TOKENS,
+  INTAKE_TEMPERATURE,
+  buildIntakeMessages,
+  mergeDraft,
+  missingEssentials,
+  parseIntakeReply,
+} from './intake.mjs';
+import {
   CONNECTION_TEST_MESSAGES,
   COPY_MAX_TOKENS,
   COPY_TEMPERATURE,
@@ -956,6 +966,64 @@ export function createApp(options) {
     const deleted = pruneLlmCache(db, '9999-12-31T23:59:59.999Z');
     logger.info('Language model cache purged.', { deleted });
     return c.json({ deleted });
+  });
+
+  // Conversational intake: the customer dumps what they know, the model
+  // extracts the order and asks only for essentials that are still missing.
+  app.post('/api/intake', async (c) => {
+    const parsed = await readOptionalJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const body = parsed.body ?? {};
+    const messages = body.messages;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return fail(c, 400, 'Field "messages" must be a non empty array.');
+    }
+    if (messages.length > INTAKE_MAX_MESSAGES) {
+      return fail(c, 400, `Field "messages" may hold at most ${INTAKE_MAX_MESSAGES} messages.`);
+    }
+    const cleanMessages = [];
+    for (const message of messages) {
+      if (!message || typeof message !== 'object') {
+        return fail(c, 400, 'Every message must be an object with a role and content.');
+      }
+      const role = message.role === 'assistant' ? 'assistant' : 'user';
+      const content = typeof message.content === 'string' ? message.content.trim() : '';
+      if (content === '') return fail(c, 400, 'Every message needs content.');
+      if (content.length > INTAKE_MAX_MESSAGE_CHARS) {
+        return fail(c, 400, `A message may hold at most ${INTAKE_MAX_MESSAGE_CHARS} characters.`);
+      }
+      cleanMessages.push({ role, content });
+    }
+    if (body.draft !== undefined && (body.draft === null || typeof body.draft !== 'object')) {
+      return fail(c, 400, 'Field "draft" must be an object when present.');
+    }
+
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+
+    try {
+      const result = await requestChat({
+        endpoint: config.endpoint,
+        model: config.model,
+        apiKey: config.apiKey,
+        messages: buildIntakeMessages(cleanMessages, body.draft ?? {}),
+        maxTokens: INTAKE_MAX_TOKENS,
+        temperature: INTAKE_TEMPERATURE,
+      });
+      const intake = parseIntakeReply(result.content);
+      const draft = mergeDraft(body.draft ?? {}, intake.order);
+      const missing = missingEssentials(draft);
+      return c.json({
+        reply: intake.reply,
+        draft,
+        missing,
+        ready: missing.length === 0,
+        model: result.model,
+        latencyMs: result.latencyMs,
+      });
+    } catch (error) {
+      return llmFailureResponse(c, error);
+    }
   });
 
   // -------------------------------------------------------------------------

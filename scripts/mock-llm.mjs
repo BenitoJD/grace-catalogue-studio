@@ -73,8 +73,55 @@ createServer(async (request, response) => {
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const prompt = messages.map((message) => String(message.content ?? '')).join('\n').toLowerCase();
     const isConnectionTest = prompt.includes('single word ok');
-    const isCopyRequest = prompt.includes('headline') && prompt.includes('json');
-    const content = isConnectionTest ? 'ok' : isCopyRequest ? JSON.stringify(COPY) : NOTE;
+    const isIntakeRequest = prompt.includes('order intake assistant');
+    const isCopyRequest = !isIntakeRequest && prompt.includes('headline') && prompt.includes('json');
+
+    let intake = null;
+    if (isIntakeRequest) {
+      const transcript = messages
+        .filter((message) => message.role === 'user')
+        .map((message) => String(message.content ?? ''))
+        .filter((content) => !content.startsWith('Order so far'));
+      const said = transcript.join(' ').toLowerCase();
+      const complete =
+        /(width|wide)/.test(said) &&
+        /(height|high)/.test(said) &&
+        /(depth|deep)/.test(said) &&
+        /(shutter|door)/.test(said);
+      intake = complete
+        ? {
+            reply: 'Noted. The brochure can be made.',
+            order: {
+              customerName: 'Anita Kumar',
+              title: 'Master Bedroom Wardrobe',
+              room: 'Master bedroom',
+              width: '2400 mm',
+              height: '2100 mm',
+              depth: '600 mm',
+              shutters: '3',
+              brief: 'loft storage and a lighter oak finish'
+            },
+            ready: true
+          }
+        : {
+            reply: 'Noted. What is the height and how many shutters?',
+            order: {
+              customerName: 'Anita Kumar',
+              title: 'Master Bedroom Wardrobe',
+              room: 'Master bedroom',
+              width: '2400 mm'
+            },
+            ready: false
+          };
+    }
+
+    const content = isConnectionTest
+      ? 'ok'
+      : isIntakeRequest
+        ? JSON.stringify(intake)
+        : isCopyRequest
+          ? JSON.stringify(COPY)
+          : NOTE;
 
     // A small delay so latency numbers look real in the UI.
     setTimeout(() => {

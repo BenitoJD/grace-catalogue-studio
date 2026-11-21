@@ -182,8 +182,14 @@ try {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
 
-  // 1. order book
+  // 1. the studio opens on the chat, the order book lives one tab over
   await page.goto(WEB, { waitUntil: "networkidle2" });
+  check("chat loads", await hasText(page, "Studio chat"));
+  check("chat explains what to paste", await hasText(page, "Paste everything the customer told you"));
+  check("chat has a message box", (await page.$('textarea[placeholder="Paste the customer\'s requirement"]')) !== null);
+  await page.screenshot({ path: `${shots}/00-chat.png` });
+
+  await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
   check("order book loads", await hasText(page, "Grace Wood"));
   check("seeded orders show", await hasText(page, "GWI-2026-001"));
   check("seeded materials show in api", (await (await fetch(`${API}/api/bootstrap`)).json()).materials.length === 4);
@@ -298,7 +304,7 @@ try {
   check("render used the chosen design", rendersAfterDesign[0]?.templateId === targetDesign.id, String(rendersAfterDesign[0]?.templateId));
 
   // 4. back to the order book, the order is there
-  await page.goto(WEB, { waitUntil: "networkidle2" });
+  await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
   check("order appears in book", await hasText(page, "E2E Master Wardrobe"));
   check("order count updated", await hasText(page, "3 orders"));
   await page.screenshot({ path: `${shots}/06-orders-with-data.png` });
@@ -328,8 +334,39 @@ try {
   check("test connection reports success", connected);
   await page.screenshot({ path: `${shots}/06b-model-settings.png` });
 
+  // 4c. the chat interface: dump the requirement, answer the gap, cook
+  await page.goto(WEB, { waitUntil: "networkidle2" });
+  await sleep(2500);
+  const chatInput = "Paste the customer's requirement";
+  await setValueByPlaceholder(
+    page,
+    chatInput,
+    "Need a wardrobe for Anita in the master bedroom, 2400 wide. She wants a loft on top and lighter oak."
+  );
+  check("chat accepts the dump", await clickText(page, "Send"));
+  check("chat asks for the missing details", await waitForBodyText(page, "what is the height", 90000));
+  await setValueByPlaceholder(page, chatInput, "Height 2100, depth 600, three shutters.");
+  check("chat takes the answer", await clickText(page, "Send"));
+  const readyToCook = await waitForBodyText(page, "ready to make the brochure", 90000);
+  check("chat knows it has enough", readyToCook);
+  await page.screenshot({ path: `${shots}/06f-chat-ready.png` });
+
+  check("cook button present", await clickText(page, "Cook the brochure"));
+  const cooked = await waitForBodyText(page, "the brochure is ready", 180000);
+  check("cook produces a brochure", cooked);
+  const chatPageOk = await page.evaluate(() =>
+    [...document.querySelectorAll("img")].some(
+      (image) => image.src.includes("/pages/") && image.naturalWidth > 100
+    )
+  );
+  check("chat shows the first page", chatPageOk);
+  await page.screenshot({ path: `${shots}/06g-chat-brochure.png` });
+
   const noteOrders = await (await fetch(`${API}/api/orders`)).json();
-  const noteOrderId = noteOrders[0].id;
+  // The chat flow above created its own order. The note and copy steps belong to
+  // the order this run created, so pick it by title rather than by newest.
+  const noteOrder = noteOrders.find((order) => order.title === "E2E Master Wardrobe") ?? noteOrders[0];
+  const noteOrderId = noteOrder.id;
   await page.goto(`${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
   await sleep(2500);
   check("draft note button present", await clickText(page, "Draft customer note"));
@@ -444,7 +481,7 @@ try {
   // 8. mobile viewport
   const mobile = await browser.newPage();
   await mobile.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-  await mobile.goto(WEB, { waitUntil: "networkidle2" });
+  await mobile.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(1500);
   check("mobile renders the order book", await hasText(mobile, "Grace Wood"));
   const tabBar = await mobile.evaluate(() => {
@@ -464,7 +501,7 @@ try {
   // 10. error state when the api is down
   api.child.kill("SIGTERM");
   await sleep(700);
-  await page.goto(WEB, { waitUntil: "networkidle2" });
+  await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(2000);
   const errorShown = await hasText(page, "Cannot load", 12000);
   check("api down shows a readable error", errorShown);
