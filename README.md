@@ -34,23 +34,21 @@ The assistant keeps asking until it has enough: customer, piece, room, width, he
 
 One chat is one order. Once the brochure is in the conversation, the next message starts a clean chat for the next customer, and the header button starts a new order at any time.
 
+There is no manual order form anywhere. An order exists only after the chat has asked for every missing detail and finalised it. History is read only: it lists each order with the documents it produced, the brochure cover, the page count and a direct Open PDF, so every generated file stays reachable.
+
 ![Brochure from the chat](docs/screenshots/chat-brochure.png)
 
 The extraction rules matter as much as the conversation. Bare dimensions become millimetres, counts become digits, unknown fields are dropped, and a reply without usable JSON is rejected with a readable error. A field is only ready when the customer actually said it, never guessed.
 
 ## Screens
 
-![Orders](docs/screenshots/orders.png)
+![History](docs/screenshots/orders.png)
 
-The order book. Every order carries its number, customer, title and dimensions.
+History. Orders are only ever created by the chat, so this screen is read only: every order carries its number, customer, dimensions and the brochure it produced, with the cover thumbnail and a direct Open PDF.
 
 ![Order detail](docs/screenshots/order-detail.png)
 
 The full specification, then the rendered voucher with page by page preview, open PDF and share.
-
-![New order](docs/screenshots/new-order.png)
-
-One form, prefilled with the house standard. A person can create an order in under a minute.
 
 ![Materials](docs/screenshots/materials.png)
 

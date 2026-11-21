@@ -1,11 +1,12 @@
-import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
-import type { Order } from '@/lib/api';
+import { api, fileUrl, type Order, type Render } from '@/lib/api';
+import { openUrl } from '@/lib/actions';
 import { useBootstrap } from '@/lib/bootstrap';
 import { orderDimensions, sortOrders, statusLabel } from '@/lib/format';
 import { layout, shared, space, text, colors } from '@/lib/theme';
@@ -13,19 +14,58 @@ import { layout, shared, space, text, colors } from '@/lib/theme';
 export default function OrdersScreen() {
   const { data, loading, error, reload } = useBootstrap();
   const orders = useMemo(() => (data ? sortOrders(data.orders) : []), [data]);
+  const [renders, setRenders] = useState<Render[]>([]);
+
+  const loadRenders = useCallback(async () => {
+    try {
+      setRenders(await api.listRenders());
+    } catch {
+      // The order book still works without the document strip.
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadRenders();
+    }, [loadRenders])
+  );
+
+  // One row per generated document kind: the latest voucher and the latest kit.
+  const latestDocuments = useMemo(() => {
+    const byOrder = new Map<string, Map<string, Render>>();
+    for (const render of renders) {
+      if (!render.orderId) continue;
+      const forOrder = byOrder.get(render.orderId) ?? new Map<string, Render>();
+      const current = forOrder.get(render.kind);
+      if (!current || render.createdAt > current.createdAt) forOrder.set(render.kind, render);
+      byOrder.set(render.orderId, forOrder);
+    }
+    const grouped = new Map<string, Render[]>();
+    for (const [orderId, kinds] of byOrder) {
+      grouped.set(
+        orderId,
+        [...kinds.values()].sort((left, right) => {
+          if (left.kind === 'voucher') return -1;
+          if (right.kind === 'voucher') return 1;
+          return left.kind.localeCompare(right.kind);
+        })
+      );
+    }
+    return grouped;
+  }, [renders]);
 
   const header = (
     <View>
       <View style={styles.header}>
         <Text style={text.eyebrow}>Catalogue studio</Text>
         <Text style={[text.display, styles.title]}>Grace Wood</Text>
-        <View style={styles.headerAction}>
-          <Button label="New order" onPress={() => router.push('/orders/new')} />
-        </View>
+        <Text style={[text.muted, styles.subtitle]}>
+          Every order the chat has made, with the brochure it produced.
+        </Text>
       </View>
       <View style={shared.hairline} />
       <View style={styles.listHeading}>
-        <Text style={text.sectionLabel}>Orders</Text>
+        <Text style={text.sectionLabel}>History</Text>
         {data ? (
           <Text style={text.caption}>{orders.length === 1 ? '1 order' : `${orders.length} orders`}</Text>
         ) : null}
@@ -70,7 +110,7 @@ export default function OrdersScreen() {
           ) : (
             orders.map((order) => (
               <View key={order.id} style={styles.itemGap}>
-                <OrderCard order={order} />
+                <OrderCard order={order} documents={latestDocuments.get(order.id) ?? []} />
               </View>
             ))
           )}
@@ -80,15 +120,11 @@ export default function OrdersScreen() {
   );
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, documents }: { order: Order; documents: Render[] }) {
   const dimensions = orderDimensions(order);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Order ${order.orderNo}, ${order.title}, for ${order.customerName}`}
-      onPress={() => router.push({ pathname: '/orders/[id]', params: { id: order.id } })}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+    <View style={styles.card}>
       <View style={shared.rowBetween}>
         <Text style={text.eyebrow}>{order.orderNo}</Text>
         <Text style={text.caption}>{statusLabel(order.status)}</Text>
@@ -100,7 +136,47 @@ function OrderCard({ order }: { order: Order }) {
         {order.customerName}
       </Text>
       {dimensions ? <Text style={[text.caption, styles.dimensions]}>{dimensions}</Text> : null}
-    </Pressable>
+
+      {documents.length === 0 ? (
+        <Text style={[text.caption, styles.noDocument]}>No document yet</Text>
+      ) : (
+        documents.map((document) => (
+          <View key={document.id} style={styles.documentRow}>
+            {document.kind === 'voucher' ? (
+              <Image
+                source={{ uri: fileUrl(document.pageUrls[0]) }}
+                style={styles.documentThumb}
+                resizeMode="cover"
+                accessibilityLabel={`Brochure cover for ${order.orderNo}`}
+              />
+            ) : null}
+            <View style={styles.documentInfo}>
+              <Text style={[text.caption, styles.documentTitle]}>
+                {document.kind === 'voucher' ? 'Brochure' : 'Info kit'}
+              </Text>
+              <Text style={[text.caption, styles.documentMeta]}>
+                {document.pageCount} pages · print ready
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${document.kind} PDF for ${order.orderNo}`}
+                onPress={() => void openUrl(fileUrl(document.pdfUrl))}
+                style={({ pressed }) => [styles.pdfLink, pressed && styles.pdfLinkPressed]}>
+                <Text style={styles.pdfLinkLabel}>Open PDF</Text>
+              </Pressable>
+            </View>
+          </View>
+        ))
+      )}
+
+      <View style={styles.cardActions}>
+        <Button
+          label="Open order"
+          variant="secondary"
+          onPress={() => router.push({ pathname: '/orders/[id]', params: { id: order.id } })}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -123,9 +199,9 @@ const styles = StyleSheet.create({
   title: {
     marginTop: space.sm,
   },
-  headerAction: {
-    marginTop: space.xl,
-    alignSelf: 'flex-start',
+  subtitle: {
+    marginTop: space.sm,
+    maxWidth: 520,
   },
   listHeading: {
     flexDirection: 'row',
@@ -143,8 +219,51 @@ const styles = StyleSheet.create({
     borderRadius: layout.radius,
     padding: space.xl,
   },
-  cardPressed: {
+  documentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    marginTop: space.lg,
+  },
+  documentThumb: {
+    width: 52,
+    height: 74,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    backgroundColor: colors.paper,
+  },
+  documentInfo: {
+    gap: 2,
+  },
+  documentTitle: {
+    color: colors.ink,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  documentMeta: {
+    color: colors.faint,
+  },
+  noDocument: {
+    marginTop: space.lg,
+    color: colors.faint,
+  },
+  pdfLink: {
+    marginTop: space.xs,
+    alignSelf: 'flex-start',
+  },
+  pdfLinkPressed: {
     opacity: 0.65,
+  },
+  pdfLinkLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.copper,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+    marginTop: space.lg,
   },
   cardTitle: {
     marginTop: space.sm,

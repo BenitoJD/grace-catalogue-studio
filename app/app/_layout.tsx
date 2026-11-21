@@ -35,7 +35,6 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.paper },
         }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="orders/new" />
         <Stack.Screen name="orders/[id]" />
         <Stack.Screen name="templates" />
       </Stack>

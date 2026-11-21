@@ -35,7 +35,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="orders"
         options={{
-          title: 'Orders',
+          title: 'History',
           tabBarIcon: ({ color }) => <TabGlyph name="orders" color={color} />,
         }}
       />

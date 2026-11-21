@@ -9,10 +9,14 @@ const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const API = "http://localhost:8787";
 const WEB = "http://localhost:8081";
 const root = new URL("..", import.meta.url).pathname;
-const dbFile = `${root}data/e2e.db`;
+// The suite keeps its database and its renders in their own directory so a run
+// can never touch the studio data or clean up someone else's documents.
+const e2eDir = `${root}data/e2e`;
+const dbFile = `${e2eDir}/e2e.db`;
 const shots = `${root}docs/screenshots/e2e`;
 mkdirSync(shots, { recursive: true });
-if (existsSync(dbFile)) rmSync(dbFile);
+if (existsSync(e2eDir)) rmSync(e2eDir, { recursive: true, force: true });
+mkdirSync(e2eDir, { recursive: true });
 
 let failures = 0;
 const results = [];
@@ -72,6 +76,18 @@ async function waitForBodyText(page, needle, timeout = 30000) {
     await sleep(400);
   }
   return false;
+}
+
+async function clickFirstText(page, text) {
+  return page.evaluate((wanted) => {
+    const nodes = [...document.querySelectorAll("div,span,button")].filter(
+      (element) => element.textContent.trim() === wanted
+    );
+    const element = nodes[0];
+    if (!element) return false;
+    (element.closest('[role="button"],button') || element).click();
+    return true;
+  }, text);
 }
 
 async function waitForUploadedImage(page, timeout = 30000) {
@@ -165,6 +181,7 @@ if (seeded.status !== 0) {
 
 const api = startProcess("node", ["server/src/index.mjs"], {
   PORT: "8787",
+  CATALOG_DATA_DIR: e2eDir,
   CATALOG_DB: dbFile,
   // The suite drives a whole browser and uploads many page images from one IP.
   RATE_LIMIT_PER_MIN: "100000",
@@ -205,7 +222,7 @@ try {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
 
-  // 1. the studio opens on the chat, the order book lives one tab over
+  // 1. the studio opens on the chat, history lives one tab over
   await page.goto(WEB, { waitUntil: "networkidle2" });
   check("chat loads", await hasText(page, "Studio chat"));
   check("chat explains what to paste", await hasText(page, "Paste everything the customer told you"));
@@ -213,27 +230,40 @@ try {
   await page.screenshot({ path: `${shots}/00-chat.png` });
 
   await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
-  check("order book loads", await hasText(page, "Grace Wood"));
+  check("history loads", await hasText(page, "Grace Wood"));
   check("seeded orders show", await hasText(page, "GWI-2026-001"));
   check("seeded materials show in api", (await (await fetch(`${API}/api/bootstrap`)).json()).materials.length === 4);
+  check("history has no manual new order button", await page.evaluate(() => !document.body.innerText.includes("New order")));
   await page.screenshot({ path: `${shots}/01-orders.png` });
 
-  // 2. create an order like a person
-  check("new order button exists", await clickText(page, "New order"));
-  check("intake screen opens", await hasText(page, "New order"));
-  await page.screenshot({ path: `${shots}/02-new-order.png` });
-
-  check("customer picker shows customer", await clickText(page, "Arun Kumar"));
-  check("title field editable", await fillByPlaceholder(page, "Master Bedroom Wardrobe", "E2E Master Wardrobe"));
-  check("width field editable", await fillByPlaceholder(page, "2400 mm", "2600 mm"));
-  await page.screenshot({ path: `${shots}/03-filled-form.png` });
-
-  check("create order submits", await clickText(page, "Create order"));
-  check("detail screen opens", await hasText(page, "E2E Master Wardrobe", 12000));
-  const orderNo = await page.evaluate(() => (document.body.innerText.match(/GWI-\d{4}-\d{3}/) ?? [])[0] ?? "");
+  // 2. orders come from the chat. The suite makes one through the API, the same
+  // route the chat uses, then checks it appears in history.
+  const bootstrap = await (await fetch(`${API}/api/bootstrap`)).json();
+  const chatOrder = await (
+    await fetch(`${API}/api/orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        customerId: bootstrap.customers[0].id,
+        title: "E2E Master Wardrobe",
+        room: "Master bedroom",
+        width: "2600 mm",
+        height: "2100 mm",
+        depth: "600 mm",
+        shutters: "3"
+      })
+    })
+  ).json();
+  const orderNo = chatOrder.orderNo;
   check("order number assigned", /^GWI-\d{4}-\d{3}$/.test(orderNo), orderNo);
+  await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
+  await sleep(2000);
+  check("order appears in history", await hasText(page, "E2E Master Wardrobe"));
+  check("history card offers the order", await hasText(page, "Open order"));
+  await page.goto(`${WEB}/orders/${chatOrder.id}`, { waitUntil: "networkidle2" });
+  check("detail screen opens", await hasText(page, "E2E Master Wardrobe", 12000));
   check("width saved", await hasText(page, "2600 mm"));
-  await page.screenshot({ path: `${shots}/04-order-detail.png` });
+  await page.screenshot({ path: `${shots}/02-order-detail.png` });
 
   // 3. render the voucher
   check("generate button present", await clickText(page, "Generate voucher"));
@@ -331,14 +361,32 @@ try {
     .waitForFunction(async () => true, { timeout: 1000 })
     .then(() => true)
     .catch(() => true);
-  await sleep(3000);
-  const rendersAfterDesign = await (await fetch(`${API}/api/renders`)).json();
-  check("render used the chosen design", rendersAfterDesign[0]?.templateId === targetDesign.id, String(rendersAfterDesign[0]?.templateId));
+  let designRender = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const list = await (await fetch(`${API}/api/renders`)).json();
+    designRender = list.find(
+      (render) => render.templateId === targetDesign.id && render.orderId === chatOrder.id
+    );
+    if (designRender) break;
+    await sleep(500);
+  }
+  check(
+    "render used the chosen design",
+    Boolean(designRender),
+    designRender ? designRender.templateId : "no render with the chosen design yet"
+  );
 
-  // 4. back to the order book, the order is there
+  // 4. back to the history, the order and its generated brochure are there
   await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
-  check("order appears in book", await hasText(page, "E2E Master Wardrobe"));
+  await sleep(2500);
+  check("order appears in history", await hasText(page, "E2E Master Wardrobe"));
   check("order count updated", await hasText(page, "3 orders"));
+  check(
+    "history shows the generated brochure",
+    await page.evaluate(() => document.body.innerText.toLowerCase().includes("brochure"))
+  );
+  check("history lists the brochure pages", await hasText(page, "4 pages"));
+  check("history offers the pdf", await clickText(page, "Open PDF"));
   await page.screenshot({ path: `${shots}/06-orders-with-data.png` });
 
   // 4b. language model settings and a drafted customer note
@@ -577,7 +625,7 @@ try {
   check("mobile renders the order book", await hasText(mobile, "Grace Wood"));
   const tabBar = await mobile.evaluate(() => {
     const text = document.body.innerText;
-    return text.includes("Orders") && text.includes("Materials") && text.includes("Settings");
+    return text.includes("History") && text.includes("Materials") && text.includes("Settings");
   });
   check("mobile tab bar present", tabBar);
   await mobile.screenshot({ path: `${shots}/07-mobile-orders.png` });
