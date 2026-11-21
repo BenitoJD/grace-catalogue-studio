@@ -29,7 +29,8 @@ export const uploadBodyLimit = bodyLimit({
     ),
 });
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-export const RENDER_ROUTE_PATTERN = /^\/api\/(?:orders\/[^/]+|catalogue)\/render\/?$/;
+export const RENDER_ROUTE_PATTERN =
+  /^\/api\/(?:orders\/[^/]+\/(?:render|ai-brochure)|catalogue\/render)\/?$/;
 // Note and brochure copy drafting call a paid model, so they get their own
 // generous limit instead of eating the much smaller render budget.
 export const NOTE_ROUTE_PATTERN = /^\/api\/orders\/[^/]+\/note\/?$/;

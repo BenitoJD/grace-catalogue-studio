@@ -143,7 +143,7 @@ function OrderCard({ order, documents }: { order: Order; documents: Render[] }) 
       ) : (
         documents.map((document) => (
           <View key={document.id} style={styles.documentRow}>
-            {document.kind === 'voucher' ? (
+            {document.kind !== 'kit' ? (
               <Image
                 source={{ uri: fileUrl(document.pageUrls[0]) }}
                 style={styles.documentThumb}
@@ -153,7 +153,7 @@ function OrderCard({ order, documents }: { order: Order; documents: Render[] }) 
             ) : null}
             <View style={styles.documentInfo}>
               <Text style={[text.caption, styles.documentTitle]}>
-                {document.kind === 'voucher' ? 'Brochure' : 'Info kit'}
+                {document.kind === 'kit' ? 'Info kit' : 'Brochure'}
               </Text>
               <Text style={[text.caption, styles.documentMeta]}>
                 {document.pageCount} pages · print ready

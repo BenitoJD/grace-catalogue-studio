@@ -697,5 +697,9 @@ try {
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
   if (failed.length) console.log("failed:", failed.map((f) => f.label).join(", "));
+  if (failures > 0) {
+    const lines = api.dump().split("\n").filter((line) => line.includes('"status":500'));
+    console.log("api 500s:", lines.slice(-6).join("\n") || "none");
+  }
   process.exit(failures === 0 ? 0 : 1);
 }

@@ -73,8 +73,36 @@ createServer(async (request, response) => {
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const prompt = messages.map((message) => String(message.content ?? '')).join('\n').toLowerCase();
     const isConnectionTest = prompt.includes('single word ok');
+    const isDesignRequest = prompt.includes('art director and copywriter');
     const isIntakeRequest = prompt.includes('order intake assistant');
     const isCopyRequest = !isIntakeRequest && prompt.includes('headline') && prompt.includes('json');
+
+    const DESIGN = {
+      design: {
+        tone: 'ink',
+        type: 'modern',
+        cover: 'splitLeft',
+        spec: 'twoColumn',
+        finishes: 'grid4',
+        inside: 'photoEssay',
+        coverPhoto: 0,
+        detailPhoto: 0,
+        insidePhoto: 1,
+        statement: 'Measured for the room it stands in.'
+      },
+      copy: {
+        headline: 'A wardrobe cut for the guest room',
+        body:
+          'The guest room gives one long wall to storage, and the wardrobe takes it from end to end without crowding the bed. ' +
+          'Three shutters divide the face into equal parts, so the eye reads proportion before hardware. ' +
+          'The exterior is cream laminate, quiet against the plaster, and the interior stays white so a folded shirt is easy to find. ' +
+          'Lower drawers take the bedding, and the hanging space above takes the suitcases that arrive with visitors. ' +
+          'The handles run vertically, one set to each shutter, a thin dark line against the pale front. ' +
+          'At 600 mm deep the wardrobe holds what a guest brings and still leaves the floor clear. ' +
+          'Nothing about the piece asks for attention; it simply keeps the room ready.',
+        closing: 'Drawn to the wall it stands against.'
+      }
+    };
 
     let intake = null;
     if (isIntakeRequest) {
@@ -117,11 +145,13 @@ createServer(async (request, response) => {
 
     const content = isConnectionTest
       ? 'ok'
-      : isIntakeRequest
-        ? JSON.stringify(intake)
-        : isCopyRequest
-          ? JSON.stringify(COPY)
-          : NOTE;
+      : isDesignRequest
+        ? JSON.stringify(DESIGN)
+        : isIntakeRequest
+          ? JSON.stringify(intake)
+          : isCopyRequest
+            ? JSON.stringify(COPY)
+            : NOTE;
 
     // A small delay so latency numbers look real in the UI.
     setTimeout(() => {

@@ -115,8 +115,9 @@ export interface MaterialInput {
 export interface Render {
   id: string;
   orderId: string;
-  kind: 'voucher' | 'kit' | 'catalogue';
+  kind: 'voucher' | 'kit' | 'catalogue' | 'ai';
   templateId: string | null;
+  design?: Record<string, unknown> | null;
   pageCount: number;
   pdfUrl: string;
   pageUrls: string[];
@@ -370,6 +371,16 @@ export const api = {
       method: 'POST',
       body: { messages, draft, attachments },
       timeoutMs: 120000,
+    });
+  },
+  aiBrochure(
+    orderId: string,
+    body: { brief?: string } = {}
+  ): Promise<{ render: Render; design: Record<string, unknown>; copy: BrochureCopy }> {
+    return request(`/api/orders/${orderId}/ai-brochure`, {
+      method: 'POST',
+      body,
+      timeoutMs: 180000,
     });
   },
   generateOrderCopy(

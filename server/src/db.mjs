@@ -57,7 +57,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -260,6 +260,15 @@ export const MIGRATIONS = Object.freeze([
       // Customer photos, drawings and documents uploaded in the chat stay with
       // the order as metadata: [{ url, name, contentType, bytes }].
       addColumnIfMissing(db, 'orders', 'attachments_json', 'TEXT');
+    },
+  },
+  {
+    version: 7,
+    name: 'generated brochure design',
+    up(db) {
+      // The AI designed documents keep the composition and labels they used,
+      // so the studio can show how each brochure was made.
+      addColumnIfMissing(db, 'renders', 'design_json', 'TEXT');
     },
   },
 ]);
@@ -651,6 +660,16 @@ function renderFromRow(row) {
     render.pageUrls = [];
   }
   if (!Array.isArray(render.pageUrls)) render.pageUrls = [];
+  if (typeof render.design_json === 'string' && render.design_json.trim() !== '') {
+    try {
+      render.design = JSON.parse(render.design_json);
+    } catch {
+      render.design = null;
+    }
+  } else {
+    render.design = null;
+  }
+  delete render.design_json;
   return render;
 }
 
@@ -663,10 +682,11 @@ export function createRender(db, input) {
     pdfUrl: input.pdfUrl,
     pageUrls: input.pageUrls,
     templateId: input.templateId ?? null,
+    design: input.design ?? null,
     createdAt: input.createdAt ?? now(),
   };
   db.prepare(
-    'INSERT INTO renders (id, orderId, kind, pageCount, pdfUrl, pageUrls, templateId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO renders (id, orderId, kind, pageCount, pdfUrl, pageUrls, templateId, design_json, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
   ).run(
     render.id,
     render.orderId,
@@ -675,6 +695,7 @@ export function createRender(db, input) {
     render.pdfUrl,
     JSON.stringify(render.pageUrls),
     render.templateId,
+    render.design === null ? null : JSON.stringify(render.design),
     render.createdAt,
   );
   return plain(render);

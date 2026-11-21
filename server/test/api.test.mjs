@@ -3385,3 +3385,106 @@ test('a ready intake reply never asks for more', async () => {
   assert.doesNotMatch(body.reply, /carcass/i);
   assert.doesNotMatch(body.reply, /\?/);
 });
+
+
+const AI_DESIGN_REPLY = {
+  design: {
+    tone: 'ink',
+    type: 'modern',
+    cover: 'splitLeft',
+    spec: 'twoColumn',
+    finishes: 'grid4',
+    inside: 'photoEssay',
+    coverPhoto: 0,
+    detailPhoto: 0,
+    insidePhoto: 1,
+    statement: 'Measured for the room it stands in.',
+  },
+  copy: {
+    headline: 'A wardrobe cut for the guest room',
+    body:
+      'The guest room gives one long wall to storage, and the wardrobe takes it from end to end without crowding the bed. ' +
+      'Three shutters divide the face into equal parts, so the eye reads proportion before hardware. ' +
+      'The exterior is cream laminate, quiet against the plaster, and the interior stays white so a folded shirt is easy to find. ' +
+      'Lower drawers take the bedding, and the hanging space above takes the suitcases that arrive with visitors. ' +
+      'The handles run vertically, one set to each shutter, a thin dark line against the pale front. ' +
+      'At 600 mm deep the wardrobe holds what a guest brings and still leaves the floor clear. ' +
+      'Nothing about the piece asks for attention; it simply keeps the room ready.',
+    closing: 'Drawn to the wall it stands against.',
+  },
+};
+
+test('the model designs a brochure from scratch and it prints', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(AI_DESIGN_REPLY) });
+
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  const raw = await response.text();
+  assert.equal(response.status, 201, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.render.kind, 'ai');
+  assert.equal(body.render.templateId, null);
+  assert.equal(body.render.pageCount, 4);
+  assert.equal(body.render.design.tone, 'ink');
+  assert.equal(body.render.design.cover, 'splitLeft');
+  assert.match(body.render.design.label, /modern/i);
+  assert.equal(body.copy.headline, AI_DESIGN_REPLY.copy.headline);
+
+  const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
+  const flat = normaliseText(text);
+  assert.ok(
+    flat.toLowerCase().includes(AI_DESIGN_REPLY.copy.headline.toLowerCase()),
+    'the AI headline is printed',
+  );
+  assert.ok(flat.includes(AI_DESIGN_REPLY.copy.closing), 'the AI closing is printed');
+  assert.ok(flat.includes('Wardrobe') || flat.includes('wardrobe'), 'the title is printed');
+  assert.ok(/2[46]00 mm/.test(flat), 'the order width is printed');
+
+  const detail = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
+  assert.equal(detail.copy.headline, AI_DESIGN_REPLY.copy.headline);
+
+  const renders = await (await fetch(`${baseUrl}/api/renders`)).json();
+  const stored = renders.find((render) => render.id === body.render.id);
+  assert.equal(stored.kind, 'ai');
+  assert.equal(stored.design.cover, 'splitLeft');
+});
+
+test('two designs produce two different documents', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(AI_DESIGN_REPLY) });
+  const first = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
+
+  const secondDesign = {
+    ...AI_DESIGN_REPLY,
+    design: {
+      ...AI_DESIGN_REPLY.design,
+      tone: 'olive',
+      type: 'classic',
+      cover: 'masthead',
+      spec: 'ledger',
+      finishes: 'filmstrip',
+      inside: 'diptych',
+    },
+    copy: { ...AI_DESIGN_REPLY.copy, headline: 'A wall given to the guest room' },
+  };
+  resetMockProvider({ reply: JSON.stringify(secondDesign) });
+  const second = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
+  assert.notEqual(second.render.id, first.render.id);
+  assert.equal(second.render.design.cover, 'masthead');
+  const firstPage = hashBytes(Buffer.from(await (await fetch(`${baseUrl}${first.render.pageUrls[0]}`)).arrayBuffer()));
+  const secondPage = hashBytes(Buffer.from(await (await fetch(`${baseUrl}${second.render.pageUrls[0]}`)).arrayBuffer()));
+  assert.notEqual(firstPage, secondPage, 'different designs print different covers');
+});
+
+test('an unreadable design is retried once and then fails cleanly', { timeout: 120_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: 'I made you a lovely brochure in my head.' });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.equal(body.error.type, 'invalid_reply');
+  assert.equal(mockProviderState.requests.length, 2, 'one retry, then the failure is surfaced');
+});

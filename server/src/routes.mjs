@@ -43,6 +43,12 @@ import {
   parsePositiveInt,
 } from './config.mjs';
 import { installHttpHardening, isExecutable, uploadBodyLimit } from './http.mjs';
+import {
+  buildAiBrochureMessages,
+  compileAiBrochure,
+  designLabel,
+  parseAiDesign,
+} from './ai-brochure.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
   INTAKE_MAX_MESSAGE_CHARS,
@@ -1190,6 +1196,110 @@ export function createApp(options) {
         model: result.model,
         latencyMs: result.latencyMs,
       });
+    } catch (error) {
+      return llmFailureResponse(c, error);
+    }
+  });
+
+  // The AI art director: the model designs a fresh four page document for this
+  // order and writes its copy in the same pass. The design is validated here,
+  // compiled to print safe HTML and rendered like any other document.
+  app.post('/api/orders/:id/ai-brochure', async (c) => {
+    let order = getOrder(db, c.req.param('id'));
+    if (!order) return fail(c, 404, 'Order not found.');
+
+    const parsed = await readOptionalJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const body = parsed.body ?? {};
+    let brief = order.brief ?? '';
+    if (body.brief !== undefined) {
+      if (typeof body.brief !== 'string') return fail(c, 400, 'Field "brief" must be a string.');
+      brief = body.brief.trim().slice(0, 2000);
+      if (brief !== order.brief) order = updateOrder(db, order.id, { brief });
+    }
+
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+
+    const photoPaths = voucherPhotoFiles(order, path.join(dataDir, 'media'));
+    const photoCount = photoPaths.length > 0 ? photoPaths.length : 4;
+    const messages = buildAiBrochureMessages(order, brief, photoCount);
+
+    try {
+      let result = await requestChat({
+        endpoint: config.endpoint,
+        model: config.model,
+        apiKey: config.apiKey,
+        messages,
+        maxTokens: 3200,
+        temperature: 0.75,
+      });
+      let generated;
+      try {
+        generated = parseAiDesign(result.content, photoCount);
+      } catch (error) {
+        if (error?.type !== 'invalid_reply') throw error;
+        logger.warn('AI brochure design could not be read, asking once more.', { reason: error.message });
+        result = await requestChat({
+          endpoint: config.endpoint,
+          model: config.model,
+          apiKey: config.apiKey,
+          messages: [
+            ...messages,
+            { role: 'assistant', content: capText(result.content, 1500) },
+            {
+              role: 'user',
+              content:
+                'That reply was not usable. Reply with the strict JSON object only, no prose, using the exact field names and allowed values.',
+            },
+          ],
+          maxTokens: 3200,
+          temperature: 0.4,
+        });
+        generated = parseAiDesign(result.content, photoCount);
+      }
+
+      let copy = generated.copy;
+      let issues = copyQualityIssues(copy, order);
+      if (issues.length > 0) {
+        logger.warn('AI brochure copy needs a repair pass.', { issues });
+        const repair = await requestChat({
+          endpoint: config.endpoint,
+          model: config.model,
+          apiKey: config.apiKey,
+          messages: buildCopyRepairMessages(order, brief, copy, issues),
+          maxTokens: COPY_MAX_TOKENS,
+          temperature: COPY_TEMPERATURE,
+        });
+        copy = parseCopyReply(repair.content);
+        issues = copyQualityIssues(copy, order);
+        if (issues.length > 0) logger.warn('AI brochure copy still has issues.', { issues });
+      }
+
+      const palette = variants.palettesById.get(generated.design.tone) ?? variants.palettes[0];
+      const html = compileAiBrochure({
+        order,
+        materials: listMaterials(db),
+        palette,
+        design: generated.design,
+        copy,
+        templatesDir,
+        attachmentImages: photoPaths,
+      });
+      const renderId = newRenderId();
+      const rendered = await renderer.renderHtml({ html, renderId });
+      const render = createRender(db, {
+        id: renderId,
+        orderId: order.id,
+        kind: 'ai',
+        pageCount: rendered.pageCount,
+        pdfUrl: rendered.pdfUrl,
+        pageUrls: rendered.pageUrls,
+        templateId: null,
+        design: { ...generated.design, label: designLabel(generated.design) },
+      });
+      setOrderCopy(db, order.id, copy);
+      return c.json({ render, design: generated.design, copy, model: result.model, latencyMs: result.latencyMs }, 201);
     } catch (error) {
       return llmFailureResponse(c, error);
     }

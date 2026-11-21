@@ -130,6 +130,7 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | GET | `/api/orders/:id` | | `Order` |
 | PATCH | `/api/orders/:id` | partial order fields | `Order` |
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
+| POST | `/api/orders/:id/ai-brochure` | `{ brief? }` | `{ render, design, copy, model, latencyMs }` (kinds `ai`) |
 | POST | `/api/orders/:id/render` | `{ kind: "voucher" \| "kit", templateId? }` | `Render` (201) |
 | POST | `/api/intake` | `{ messages: [{ role, content }], draft? }` | `{ reply, draft, missing, ready, model, latencyMs }` |
 | POST | `/api/orders/:id/copy` | `{ brief?, regenerate? }` | `{ copy: { headline, body, closing }, model, latencyMs, cached }` |
@@ -267,6 +268,22 @@ so WeasyPrint embeds them in the PDF.
 Copy and notes are cached in the `llm_cache` table, keyed by a SHA-256 of the provider endpoint, the model and every prompt message. A repeated request returns the stored reply with `cached: true` and `latencyMs: 0`, and never calls the provider. `regenerate: true` bypasses the lookup and replaces the cached entry with the new copy.
 
 Entries expire after `LLM_CACHE_TTL_HOURS` (default 168, 0 disables). Expiry is enforced on read and expired rows are also pruned at boot. Because the prompt text is part of the key, a prompt change or a new brief can never serve stale words.
+
+## Generated brochures
+
+`POST /api/orders/:id/ai-brochure` asks the model for a complete design and its
+copy in one reply:
+
+```json
+{"design":{"tone":"...","type":"...","cover":"...","spec":"...","finishes":"...","inside":"...","coverPhoto":0,"detailPhoto":1,"insidePhoto":2,"statement":"..."},"copy":{"headline":"...","body":"...","closing":"..."}}
+```
+
+Allowed values are checked, photo indexes are clamped, and the copy passes the
+same quality gate as the classic path. The server compiles the design to HTML
+and CSS from print safe primitives; the provider never writes markup. The
+resulting render has `kind: "ai"`, `templateId: null` and a `design` object with
+the composition and a human label. Designs are cached by prompt like other model
+replies.
 
 ## Rendering
 

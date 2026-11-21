@@ -192,8 +192,16 @@ export default function ChatScreen() {
             .map((message) => message.content)
             .join(' ')
             .slice(0, 2000);
-        await api.generateOrderCopy(order.id, { brief });
-        const render = await api.renderOrder(order.id, 'voucher');
+        // The model designs this brochure from scratch. If that fails, fall back
+        // to a classic design so the studio still gets a document to open.
+        let render: Render;
+        try {
+          const designed = await api.aiBrochure(order.id, brief ? { brief } : {});
+          render = designed.render;
+        } catch {
+          await api.generateOrderCopy(order.id, { brief }).catch(() => null);
+          render = await api.renderOrder(order.id, 'voucher');
+        }
 
         setBubbles((current) => [
           ...current,
