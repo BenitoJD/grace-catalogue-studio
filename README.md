@@ -23,7 +23,7 @@ Three documents come out of the same data.
 | Info kit | Any order, Info kit | 5 | Company brochure: workshop, materials, process |
 | Trade rate card | Materials, Print rate card | 1 to 2 | Rates from the material list, three layouts |
 
-![Info kit](docs/screenshots/e2e/06e-info-kit.png)
+![Info kit](docs/screenshots/info-kit.png)
 
 ![Rate card](docs/screenshots/rate-card.png)
 
