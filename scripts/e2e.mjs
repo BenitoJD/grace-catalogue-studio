@@ -345,22 +345,30 @@ try {
   );
   check("chat accepts the dump", await clickText(page, "Send"));
   check("chat asks for the missing details", await waitForBodyText(page, "what is the height", 90000));
+  const ordersBeforeChat = (await (await fetch(`${API}/api/orders`)).json()).length;
   await setValueByPlaceholder(page, chatInput, "Height 2100, depth 600, three shutters.");
   check("chat takes the answer", await clickText(page, "Send"));
-  const readyToCook = await waitForBodyText(page, "ready to make the brochure", 90000);
-  check("chat knows it has enough", readyToCook);
-  await page.screenshot({ path: `${shots}/06f-chat-ready.png` });
-
-  check("cook button present", await clickText(page, "Cook the brochure"));
   const cooked = await waitForBodyText(page, "the brochure is ready", 180000);
-  check("cook produces a brochure", cooked);
+  check("chat creates the order on its own", cooked);
   const chatPageOk = await page.evaluate(() =>
     [...document.querySelectorAll("img")].some(
       (image) => image.src.includes("/pages/") && image.naturalWidth > 100
     )
   );
   check("chat shows the first page", chatPageOk);
+  const ordersAfterChat = (await (await fetch(`${API}/api/orders`)).json()).length;
+  check("one chat made one order", ordersAfterChat === ordersBeforeChat + 1, `${ordersBeforeChat} to ${ordersAfterChat}`);
   await page.screenshot({ path: `${shots}/06g-chat-brochure.png` });
+
+  // The next message belongs to a new order, so the old conversation is cleared.
+  await setValueByPlaceholder(page, chatInput, "Another client needs a wardrobe.");
+  check("chat takes the next customer", await clickText(page, "Send"));
+  const freshChat = await waitForBodyText(page, "what is the height", 90000);
+  check("a new chat starts after an order", freshChat);
+  const cleared = await page.evaluate(
+    () => document.body.innerText.includes("Paste everything the customer told you")
+  );
+  check("the old conversation is cleared", cleared);
 
   const noteOrders = await (await fetch(`${API}/api/orders`)).json();
   // The chat flow above created its own order. The note and copy steps belong to

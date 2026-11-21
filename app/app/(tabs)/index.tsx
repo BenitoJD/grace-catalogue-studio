@@ -53,6 +53,8 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [cooking, setCooking] = useState(false);
+  const [orderCreated, setOrderCreated] = useState(false);
+  const [createFailed, setCreateFailed] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 80);
@@ -65,11 +67,114 @@ export default function ChatScreen() {
       .map((bubble) => ({ role: bubble.role, content: bubble.content }));
   }, [bubbles]);
 
+  const startNewChat = useCallback(() => {
+    if (sending || cooking) return;
+    setBubbles([{ id: nextId(), role: 'assistant', kind: 'text', content: WELCOME }]);
+    setDraft({});
+    setMissing([]);
+    setReady(false);
+    setOrderCreated(false);
+    setCreateFailed(false);
+    setInput('');
+  }, [cooking, sending]);
+
+  // One chat is one order. As soon as the intake says it has enough, the order
+  // is created, the copy is written and the voucher is rendered.
+  const createOrderFor = useCallback(
+    async (orderDraft: Record<string, string>) => {
+      setCooking(true);
+      setCreateFailed(false);
+      try {
+        const customer = await api.createCustomer({ name: orderDraft.customerName });
+        const order = await api.createOrder({
+          customerId: customer.id,
+          title: orderDraft.title,
+          room: orderDraft.room,
+          width: orderDraft.width,
+          height: orderDraft.height,
+          depth: orderDraft.depth,
+          shutters: orderDraft.shutters,
+          carcass: orderDraft.carcass,
+          backPanel: orderDraft.backPanel,
+          shuttersMat: orderDraft.shuttersMat,
+          drawers: orderDraft.drawers,
+          exterior: orderDraft.exterior,
+          interior: orderDraft.interior,
+          edgeShutter: orderDraft.edgeShutter,
+          edgeCarcass: orderDraft.edgeCarcass,
+          edgeNote: orderDraft.edgeNote,
+          handle: orderDraft.handle,
+          handleNote: orderDraft.handleNote,
+          finishExt: orderDraft.finishExt,
+          finishInt: orderDraft.finishInt,
+        } as Parameters<typeof api.createOrder>[0]);
+
+        const brief =
+          orderDraft.brief ??
+          history()
+            .filter((message) => message.role === 'user')
+            .map((message) => message.content)
+            .join(' ')
+            .slice(0, 2000);
+        await api.generateOrderCopy(order.id, { brief });
+        const render = await api.renderOrder(order.id, 'voucher');
+
+        setBubbles((current) => [
+          ...current,
+          {
+            id: nextId(),
+            role: 'assistant',
+            kind: 'brochure',
+            content: `Order ${order.orderNo} is created and the brochure is ready.`,
+            orderId: order.id,
+            orderNo: order.orderNo,
+            render,
+          },
+        ]);
+        setOrderCreated(true);
+        setDraft({});
+        setMissing([]);
+        setReady(false);
+        setCreateFailed(false);
+      } catch (error) {
+        setCreateFailed(true);
+        setBubbles((current) => [
+          ...current,
+          {
+            id: nextId(),
+            role: 'assistant',
+            kind: 'text',
+            content: errorMessage(error, 'I could not create the order. Try again.'),
+            failed: true,
+          },
+        ]);
+      } finally {
+        setCooking(false);
+      }
+    },
+    [history],
+  );
+
   const send = useCallback(async () => {
     const content = input.trim();
     if (content === '' || sending || cooking) return;
+
+    // A finished order closes the chat. The next message starts a new one, so
+    // one conversation never mixes two orders.
+    const startingFresh = orderCreated;
+    const base: Bubble[] = startingFresh
+      ? [{ id: nextId(), role: 'assistant', kind: 'text', content: WELCOME }]
+      : bubbles;
+    if (startingFresh) {
+      setDraft({});
+      setMissing([]);
+      setReady(false);
+      setOrderCreated(false);
+      setCreateFailed(false);
+    }
+
     const userBubble: Bubble = { id: nextId(), role: 'user', kind: 'text', content };
-    const nextBubbles = [...bubbles, userBubble];
+    const nextBubbles = [...base, userBubble];
     setBubbles(nextBubbles);
     setInput('');
     setSending(true);
@@ -77,7 +182,7 @@ export default function ChatScreen() {
       const messages = nextBubbles
         .filter((bubble) => bubble.kind === 'text')
         .map((bubble) => ({ role: bubble.role, content: bubble.content }));
-      const result = await api.intake(messages, draft);
+      const result = await api.intake(messages, startingFresh ? {} : draft);
       setDraft(result.draft);
       setMissing(result.missing);
       setReady(result.ready);
@@ -85,6 +190,9 @@ export default function ChatScreen() {
         ...current,
         { id: nextId(), role: 'assistant', kind: 'text', content: result.reply },
       ]);
+      if (result.ready) {
+        await createOrderFor(result.draft);
+      }
     } catch (error) {
       setBubbles((current) => [
         ...current,
@@ -99,91 +207,12 @@ export default function ChatScreen() {
     } finally {
       setSending(false);
     }
-  }, [bubbles, cooking, draft, input, sending]);
+  }, [bubbles, cooking, createOrderFor, draft, input, orderCreated, sending]);
 
-  const cook = useCallback(async () => {
-    if (cooking || sending) return;
-    if (!ready) {
-      const list = missing.length > 0 ? missing.join(', ') : 'a few details';
-      setBubbles((current) => [
-        ...current,
-        {
-          id: nextId(),
-          role: 'assistant',
-          kind: 'text',
-          content: `I still need ${list}. Send those and I will make the brochure.`,
-        },
-      ]);
-      return;
-    }
-    setCooking(true);
-    try {
-      const customer = await api.createCustomer({ name: draft.customerName });
-      const order = await api.createOrder({
-        customerId: customer.id,
-        title: draft.title,
-        room: draft.room,
-        width: draft.width,
-        height: draft.height,
-        depth: draft.depth,
-        shutters: draft.shutters,
-        carcass: draft.carcass,
-        backPanel: draft.backPanel,
-        shuttersMat: draft.shuttersMat,
-        drawers: draft.drawers,
-        exterior: draft.exterior,
-        interior: draft.interior,
-        edgeShutter: draft.edgeShutter,
-        edgeCarcass: draft.edgeCarcass,
-        edgeNote: draft.edgeNote,
-        handle: draft.handle,
-        handleNote: draft.handleNote,
-        finishExt: draft.finishExt,
-        finishInt: draft.finishInt,
-      } as Parameters<typeof api.createOrder>[0]);
-
-      const brief =
-        draft.brief ??
-        history()
-          .filter((message) => message.role === 'user')
-          .map((message) => message.content)
-          .join(' ')
-          .slice(0, 2000);
-      await api.generateOrderCopy(order.id, { brief });
-      const render = await api.renderOrder(order.id, 'voucher');
-
-      setBubbles((current) => [
-        ...current,
-        {
-          id: nextId(),
-          role: 'assistant',
-          kind: 'brochure',
-          content: 'The brochure is ready. Four pages, print ready.',
-          orderId: order.id,
-          orderNo: order.orderNo,
-          render,
-        },
-      ]);
-      // Start clean: the next dump belongs to a new order, and a second press
-      // cannot create a duplicate by accident.
-      setDraft({});
-      setMissing([]);
-      setReady(false);
-    } catch (error) {
-      setBubbles((current) => [
-        ...current,
-        {
-          id: nextId(),
-          role: 'assistant',
-          kind: 'text',
-          content: errorMessage(error, 'The brochure could not be made. Try again.'),
-          failed: true,
-        },
-      ]);
-    } finally {
-      setCooking(false);
-    }
-  }, [cooking, draft, history, missing, ready, sending]);
+  const retryCreate = useCallback(async () => {
+    if (cooking || sending || !createFailed) return;
+    await createOrderFor(draft);
+  }, [cooking, createFailed, createOrderFor, draft, sending]);
 
   const fieldCount = Object.keys(draft).length;
   const busy = sending || cooking;
@@ -199,9 +228,19 @@ export default function ChatScreen() {
             <Text style={text.eyebrow}>Grace Wood</Text>
             <Text style={[text.screenTitle, styles.title]}>Studio chat</Text>
           </View>
-          <View style={styles.headerMark}>
-            <Text style={styles.headerMarkText}>GW</Text>
-          </View>
+          {bubbles.length > 1 || orderCreated ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="New order chat"
+              onPress={startNewChat}
+              style={({ pressed }) => [styles.headerAction, pressed && styles.sendPressed]}>
+              <Text style={styles.headerActionLabel}>New order</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.headerMark}>
+              <Text style={styles.headerMarkText}>GW</Text>
+            </View>
+          )}
         </View>
 
         <View style={[styles.rule]} />
@@ -222,7 +261,7 @@ export default function ChatScreen() {
                 <View style={styles.typing}>
                   <ActivityIndicator size="small" color={colors.copper} />
                   <Text style={[text.caption, styles.typingText]}>
-                    {cooking ? 'Making the brochure' : 'Reading'}
+                    {cooking ? 'Creating the order' : 'Reading'}
                   </Text>
                 </View>
               </View>
@@ -233,7 +272,11 @@ export default function ChatScreen() {
         <View style={[styles.draftBar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
           <View style={styles.draftInfo}>
             <Text style={[text.caption, styles.draftCount]}>
-              {fieldCount === 0 ? 'Nothing captured yet' : `${fieldCount} details captured`}
+              {orderCreated
+                ? 'Order created, paste the next customer'
+                : fieldCount === 0
+                  ? 'Nothing captured yet'
+                  : `${fieldCount} details captured`}
             </Text>
             {missing.length > 0 && fieldCount > 0 ? (
               <Text style={[text.caption, styles.draftMissing]} numberOfLines={1}>
@@ -249,7 +292,7 @@ export default function ChatScreen() {
             <TextInput
               value={input}
               onChangeText={setInput}
-              placeholder="Paste the customer's requirement"
+              placeholder={orderCreated ? "Paste the next customer's requirement" : "Paste the customer's requirement"}
               placeholderTextColor={colors.faint}
               multiline
               style={styles.input}
@@ -270,28 +313,30 @@ export default function ChatScreen() {
             </Pressable>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Cook the brochure"
-            onPress={() => void cook()}
-            disabled={busy}
-            style={({ pressed }) => [
-              styles.cook,
-              ready ? styles.cookReady : styles.cookIdle,
-              busy && styles.sendDisabled,
-              pressed && styles.sendPressed,
-            ]}>
-            <Text style={[styles.cookLabel, ready ? styles.cookLabelReady : null]}>
-              Cook the brochure
-            </Text>
-            <Text style={[styles.cookHint, ready ? styles.cookHintReady : null]}>
+          {createFailed ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Create the order"
+              onPress={() => void retryCreate()}
+              disabled={busy}
+              style={({ pressed }) => [
+                styles.cook,
+                styles.cookReady,
+                busy && styles.sendDisabled,
+                pressed && styles.sendPressed,
+              ]}>
+              <Text style={[styles.cookLabel, styles.cookLabelReady]}>Create the order</Text>
+              <Text style={[styles.cookHint, styles.cookHintReady]}>
+                The details are enough, the last attempt failed
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={[text.caption, styles.autoHint]}>
               {ready
-                ? 'Creates the order, writes the copy and renders the voucher'
-                : fieldCount === 0
-                  ? 'Paste a requirement first'
-                  : 'Send the missing details first'}
+                ? 'Creating the order now'
+                : 'I will create the order myself once I have enough details.'}
             </Text>
-          </Pressable>
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -393,6 +438,22 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: space.xs,
+  },
+  headerAction: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    borderRadius: 10,
+    paddingHorizontal: space.md,
+    paddingVertical: 8,
+  },
+  headerActionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  autoHint: {
+    color: colors.faint,
+    textAlign: 'center',
   },
   headerMark: {
     width: 40,

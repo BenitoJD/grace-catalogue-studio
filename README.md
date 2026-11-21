@@ -35,7 +35,9 @@ The studio opens on a chat, not a form. The client dumps everything they know in
 
 ![Conversational intake](docs/screenshots/chat-intake.png)
 
-Press **Cook the brochure** and the studio creates the order, writes the copy with the same model, renders the voucher and shows the first page in the conversation, with Open PDF and Open order.
+The assistant keeps asking until it has enough: customer, piece, room, width, height, depth, shutters. Then it creates the order by itself, writes the copy with the same model, renders the voucher and shows the first page in the conversation, with Open PDF and Open order. Nothing is pressed to make that happen.
+
+One chat is one order. Once the brochure is in the conversation, the next message starts a clean chat for the next customer, and the header button starts a new order at any time.
 
 ![Brochure from the chat](docs/screenshots/chat-brochure.png)
 
