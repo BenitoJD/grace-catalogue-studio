@@ -251,6 +251,31 @@ node scripts/mock-llm.mjs 8793   # then point Settings at http://127.0.0.1:8793/
 
 Environment fallbacks are `LLM_ENDPOINT`, `LLM_MODEL` and `LLM_API_KEY`; settings saved in the studio win.
 
+## Copy quality
+
+The model's brochure copy is measured, not eyeballed. `scripts/ai-quality.mjs` runs six realistic orders through the live provider and scores every reply against a rubric: body between 90 and 150 words, headline and closing caps, numbers that exist in the order, no money, date or festival leaks from the brief, no talk of the order, brief or specification, no durability or cleanliness claims, no parts the order does not include, no repeated verbs, no reused example phrasing, and no walking through the materials list.
+
+```bash
+# measure the prompt directly
+LLM_ENDPOINT=https://opencode.ai/zen/go/v1 LLM_MODEL=deepseek-v4.1-flash LLM_API_KEY=... \
+  node scripts/ai-quality.mjs
+
+# or measure the running product, repair pass included
+node scripts/ai-quality.mjs --api http://localhost:8787
+```
+
+Final result measured through the API across six orders: **102 of 102 checks, average body 117 words, zero repair passes needed**.
+
+The generator also protects itself in production. `copyQualityIssues` rejects a thin body, internal paperwork talk, repeated verbs, a material walk through, and any mention of the carcass or back panel. When it finds a problem it runs one corrective retry naming the exact issues, so a weak first reply does not reach the customer.
+
+Two bodies from the final run:
+
+> **Lighter oak for a small bedroom**
+> The master bedroom carries the wardrobe across one wall, 2400 mm wide and 2100 mm high, so the floor stays clear. Warm oak laminate on the outside lifts the room, and white laminate inside keeps the shelves bright when the shutters open. Three shutters and four drawers sort daily clothes from the rest, and two of those drawers lock for papers and valuables. A loft above takes the suitcases and spare bedding out of the way.
+
+> **Where the suitcases will live**
+> Suitcases take up more room than guests do. The lower section of this wardrobe is sized for them, with two drawers beside the space for folded bedding above. At 1800 mm wide and 2100 mm high, the frame sits flush against the guest room wall without crowding the bed.
+
 ## Production
 
 The API ships as a container. Full runbook in [docs/DEPLOY.md](docs/DEPLOY.md), the config template in [.env.example](.env.example).

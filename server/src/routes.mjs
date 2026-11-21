@@ -45,8 +45,10 @@ import {
   SAMPLE_MAX_CHARS,
   TEST_MAX_TOKENS,
   buildCopyMessages,
+  buildCopyRepairMessages,
   buildNoteMessages,
   capText,
+  copyQualityIssues,
   llmFailureBody,
   parseCopyReply,
   publicLlmSettings,
@@ -847,7 +849,7 @@ export function createApp(options) {
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
 
     try {
-      const result = await requestChat({
+      let result = await requestChat({
         endpoint: config.endpoint,
         model: config.model,
         apiKey: config.apiKey,
@@ -855,7 +857,24 @@ export function createApp(options) {
         maxTokens: COPY_MAX_TOKENS,
         temperature: COPY_TEMPERATURE,
       });
-      const copy = parseCopyReply(result.content);
+      let copy = parseCopyReply(result.content);
+      let issues = copyQualityIssues(copy, order);
+      if (issues.length > 0) {
+        logger.warn('Brochure copy needed a repair pass.', { issues });
+        result = await requestChat({
+          endpoint: config.endpoint,
+          model: config.model,
+          apiKey: config.apiKey,
+          messages: buildCopyRepairMessages(order, order.brief ?? '', copy, issues),
+          maxTokens: COPY_MAX_TOKENS,
+          temperature: COPY_TEMPERATURE,
+        });
+        copy = parseCopyReply(result.content);
+        issues = copyQualityIssues(copy, order);
+        if (issues.length > 0) {
+          logger.warn('Brochure copy still has issues after the repair pass.', { issues });
+        }
+      }
       setOrderCopy(db, id, copy);
       return c.json({ copy, model: result.model, latencyMs: result.latencyMs });
     } catch (error) {

@@ -70,19 +70,29 @@ const NOTE_SYSTEM_PROMPT = [
 ].join(' ');
 
 const COPY_SYSTEM_PROMPT = [
-  'You are writing the body copy for a printed brochure about one custom wardrobe or furniture order.',
-  'Grace Wood Industry is a wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
+  'You write the brochure copy for a single custom wardrobe or furniture order at Grace Wood Industry, a workshop in Nagercoil, Tamil Nadu.',
+  'The reader is the customer. The specification page in the same document already lists every dimension and material, so your job is to make the piece feel understood, not to repeat the list.',
   'Reply with strict JSON only, in exactly this shape:',
   '{"headline": "...", "body": "...", "closing": "..."}',
-  'Rules:',
-  '- headline: at most 60 characters.',
-  '- body: between 70 and 180 words, depending on how much detail was supplied.',
-  '- closing: at most 90 characters.',
-  '- Use only facts present in the order and the customer brief.',
-  '- Never invent certifications, prices, dates or brands.',
-  '- No em dashes or en dashes.',
-  '- British Indian English. Warm and concrete, with no marketing fluff.',
-  '- No prose, markdown, code fences or explanation around the JSON object.',
+  'Headline: at most 60 characters. Name something concrete from this order: a place, a use, a constraint. Do not use a relative clause with that, which or who. Do not start with "A" or "This". No question marks, no exclamation marks.',
+  'Body: 90 to 150 words. Count them: 90 is the floor even when the brief is one short line. If the brief is thin, write about the room, the proportions and the choices that were made. Open with something concrete from this order or this brief, not a general statement about rooms. Then how this piece answers the need. Then one telling detail from the brief, if there is one. Name no more than two materials, and use at most two facts from the order, the ones that matter most here. Do not walk through the materials. Vary the shape of your sentences, and never use the constructions "Nothing here is..." or "This is not X, it is Y". Use the words quiet, simple and warm at most once each.',
+  'Closing: at most 90 characters. Calm and specific. No sales pitch.',
+  'Hard rules:',
+  'Use only facts present in the order and the customer brief.',
+  'Never invent certifications, prices, dates, brands, warranties or performance claims. That includes moisture proof, heat resistant, scratch proof, easy to clean, does not show fingerprints or marks, lasts for years, made to last, holds its finish, and reachable without a stool, unless the order states them.',
+  'Never mention money, currency, discounts, dates, festivals or deadlines, even when the brief does. Do not repeat the brief back, answer it.',
+  `Never address the customer and never put their name before a comma. Do not open the body with "For [name]" or "This wardrobe for [name]". If the name appears at all, use it once as a possessive, for example "Anitha's bedroom".`,
+  'No em dashes or en dashes. No exclamation marks. No questions.',
+  'Do not repeat a verb or a sentence opening. Keep, give, hold and make may each appear only once in the body.',
+  'British Indian English. Plain words, mostly short sentences, one longer sentence is enough.',
+  'Banned words: elevate, seamless, luxurious, luxury, bespoke, premium, crafted, timeless, oasis, dream, transform, nestled, boasts, state of the art, cutting edge, game changer, must have.',
+  'Do not name the carcass, the back panel or the plywood thickness. Those belong in the specification table, not in the story.',
+  'Only mention a component the order actually includes. If there are no shutters, do not mention hinges or handles. If there are no drawers, do not mention channels.',
+  'Never mention the order, the brief, the specification or the document, not even to say what the brief asked for. The customer is reading copy, not a note about the process.',
+  'No prose, markdown, code fences or explanation around the JSON object.',
+  'Headline shape examples, do not reuse: "Where the suitcases will live", "Loft above, drawers below", "Shelving for a working study".',
+  'Voice example for a different product. Never reuse its headline, opening, sentences, phrases or shape. Match only the register:',
+  '{"headline":"A galley that works in one line","body":"The kitchen is narrow, so everything happens along one wall. Three metres of base units sit at 900 mm, with six shutters and six baskets below, so the pans and the jars stay within a step of the hob. Ash grey laminate keeps the front plain, which matters in a room where hands are often full. The handles run horizontal and sit flush, catching a hip less than a knob would. It is not a show kitchen. It is one that works every morning.","closing":"Plain lines, built for the way the kitchen is used."}'
 ].join(' ');
 
 // ---------------------------------------------------------------------------
@@ -358,6 +368,58 @@ export function providerHeaders(endpoint, apiKey) {
     headers['x-opencode-session'] = openCodeSessionId;
   }
   return headers;
+}
+
+const COPY_META_WORDS = ['the specification', 'the order', 'the brief', 'this document', 'the document'];
+const COPY_MIN_WORDS = 80;
+const COPY_MAX_WORDS = 175;
+
+/**
+ * Checks the copy against the rules the customer actually feels: length inside
+ * the printed block, and no references to the internal paperwork. Returns an
+ * empty array when the copy is good.
+ */
+export function copyQualityIssues(copy, order = null) {
+  const issues = [];
+  const body = clean(copy?.body);
+  const words = body === '' ? 0 : body.split(/\s+/).filter(Boolean).length;
+  if (words < COPY_MIN_WORDS) issues.push(`body too short (${words} words)`);
+  if (words > COPY_MAX_WORDS) issues.push(`body too long (${words} words)`);
+  const lower = body.toLowerCase();
+  for (const phrase of COPY_META_WORDS) {
+    if (lower.includes(phrase)) issues.push(`mentions internal paperwork ("${phrase}")`);
+  }
+  for (const verb of ['keeps', 'gives', 'holds', 'makes']) {
+    const uses = (lower.match(new RegExp(`\\b${verb}\\b`, 'g')) ?? []).length;
+    if (uses > 1) issues.push(`repeats "${verb}" ${uses} times`);
+  }
+  if (order) {
+    const fields = ['carcass', 'backPanel', 'shuttersMat', 'drawers', 'exterior', 'interior', 'edgeShutter', 'edgeCarcass', 'handle'];
+    const echoed = fields.filter((field) => {
+      const value = clean(order[field]).split(',')[0].trim().toLowerCase();
+      return value.length > 4 && lower.includes(value);
+    });
+    if (echoed.length > 3) issues.push(`walks through the materials (${echoed.length} named)`);
+    if (echoed.includes('carcass') || echoed.includes('backPanel')) {
+      issues.push('names the carcass or the back panel');
+    }
+  }
+  return issues;
+}
+
+/**
+ * A single corrective retry. Small models sometimes write a thin body or talk
+ * about the brief instead of the wardrobe; asking again with the exact problem
+ * fixes it without a second prompt design.
+ */
+export function buildCopyRepairMessages(order, brief, previous, issues) {
+  const messages = buildCopyMessages(order, brief);
+  messages.push({ role: 'assistant', content: JSON.stringify(previous) });
+  messages.push({
+    role: 'user',
+    content: `Rewrite the body. Problems: ${issues.join('; ')}. Body 90 to 150 words, 90 is the floor. Name no more than two materials. Never mention the order, the brief or the specification. Reply with the same strict JSON shape only.`,
+  });
+  return messages;
 }
 
 /**

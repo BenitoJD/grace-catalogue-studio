@@ -40,8 +40,10 @@ import {
   COPY_CLOSING_MAX_CHARS,
   COPY_HEADLINE_MAX_CHARS,
   TEST_MAX_TOKENS,
+  copyQualityIssues,
   LlmError,
   buildCopyMessages,
+  buildCopyRepairMessages,
   buildNoteMessages,
   parseCopyReply,
   providerBodyExtras,
@@ -1822,7 +1824,7 @@ test('language model helpers are unit testable without the internet', async () =
   assert.equal(copyMessages[1].role, 'user');
   assert.match(copyMessages[0].content, /strict JSON/i);
   assert.match(copyMessages[0].content, /at most 60 characters/i);
-  assert.match(copyMessages[0].content, /70 and 180 words/i);
+  assert.match(copyMessages[0].content, /90 to 150 words/i);
   assert.match(copyMessages[0].content, /at most 90 characters/i);
   assert.match(copyMessages[0].content, /no em dashes or en dashes/i);
   assert.match(copyMessages[0].content, /British Indian English/i);
@@ -2043,11 +2045,14 @@ test('a version 1 database upgrades in place to the current schema', () => {
 // ---------------------------------------------------------------------------
 
 const BROCHURE_COPY = {
-  headline: 'A calmer bedroom, built around you',
+  headline: 'Room for the calm to settle',
   body:
-    'The wardrobe is made in 18 mm BWP plywood with soft close hinges and a matte outside finish. ' +
-    'Every shutter and drawer was planned around the whole room, so the storage works quietly in the background of the day.',
-  closing: 'Talk to us about your bedroom.',
+    'The bedroom had the wall and not much else, so this wardrobe takes the full run and leaves the floor clear. ' +
+    'Three shutters open on soft close hinges, and the hanging section is deep enough for a full season of clothes. ' +
+    'Warm wood on the outside keeps the light gentle, and the white interior makes the shelves easy to read when the doors are open. ' +
+    'The drawers sit low, where the folded things go, and the handles are matte so the front stays quiet. ' +
+    'It is a piece built to disappear into the room and let the calm do the rest.',
+  closing: 'Measured for the room, made in Nagercoil.',
 };
 const COPY_BRIEF =
   'The customer wants a calm, uncluttered bedroom for two with plenty of hanging space and warm wood tones.';
@@ -2081,7 +2086,7 @@ test('order copy generation stores the copy and returns the three fields', async
   assert.ok(prompt.includes('Matte outside, white inside'), 'the prompt carries the finish');
   assert.match(prompt, /strict JSON/i);
   assert.match(prompt, /at most 60 characters/i);
-  assert.match(prompt, /70 and 180 words/i);
+  assert.match(prompt, /90 to 150 words/i);
   assert.match(prompt, /at most 90 characters/i);
   assert.match(prompt, /no em dashes or en dashes/i);
   assert.match(prompt, /British Indian English/i);
@@ -2106,6 +2111,27 @@ test('order copy generation stores the copy and returns the three fields', async
   const emptyBody = await fetch(`${baseUrl}/api/orders/${orderId}/copy`, { method: 'POST' });
   assert.equal(emptyBody.status, 200);
   assert.deepEqual((await emptyBody.json()).copy, BROCHURE_COPY);
+});
+
+test('a thin model reply triggers one repair pass and still returns a document', async () => {
+  resetLlmState();
+  await configureLlm();
+  const thin = {
+    headline: 'Room to breathe',
+    body: 'A short body that leaves too much unsaid for a printed page.',
+    closing: 'Made for the room.'
+  };
+  resetMockProvider({ reply: JSON.stringify(thin) });
+
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/copy`, { brief: COPY_BRIEF });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.copy.headline, thin.headline);
+  assert.equal(mockProviderState.requests.length, 2, 'one original request and one repair');
+  const repair = lastProviderRequest();
+  const repairPrompt = repair.json.messages.map((message) => message.content).join('\n');
+  assert.match(repairPrompt, /body too short/i);
+  assert.match(repairPrompt, /90 to 150 words/);
 });
 
 test('order copy parses a fenced JSON reply with prose around it', async () => {
@@ -2248,7 +2274,7 @@ test('a voucher prints the generated copy and still renders without one', { time
     'the generated headline must be printed in the PDF',
   );
   assert.ok(
-    copiedText.includes('planned around the whole room'),
+    copiedText.includes('the white interior makes the shelves easy to read'),
     'the generated body must be printed in the PDF',
   );
   assert.ok(
@@ -2739,4 +2765,42 @@ test('openCode providers are asked for direct answers, other providers get a pla
   assert.deepEqual(providerBodyExtras('https://api.openai.com/v1'), {});
   assert.deepEqual(providerBodyExtras('http://127.0.0.1:9999/v1'), {});
   assert.deepEqual(providerBodyExtras('not a url'), {});
+});
+
+
+test('copy quality gate catches thin bodies and internal paperwork talk', async () => {
+  const good = {
+    headline: 'Loft above for the winter bedding',
+    body: Array.from({ length: 110 }, (_, index) => `word${index}`).join(' '),
+    closing: 'Drawn to the wall it stands against.'
+  };
+  assert.deepEqual(copyQualityIssues(good), []);
+
+  const thin = copyQualityIssues({ ...good, body: 'Too short a body for a brochure page.' });
+  assert.equal(thin.length, 1);
+  assert.match(thin[0], /too short/);
+
+  const meta = copyQualityIssues({ ...good, body: `${good.body} the specification lists the rest` });
+  assert.equal(meta.length, 1);
+  assert.match(meta[0], /paperwork/);
+
+  const carcassOrder = { carcass: '18 mm BWP plywood', backPanel: '6 mm plywood' };
+  const carcass = copyQualityIssues(
+    { ...good, body: `${good.body} The carcass is 18 mm BWP plywood.` },
+    carcassOrder
+  );
+  assert.ok(carcass.some((issue) => /carcass/.test(issue)));
+
+  const repeated = copyQualityIssues({
+    ...good,
+    body: `${good.body} It keeps the grain calm and keeps the edge neat.`
+  });
+  assert.equal(repeated.length, 1);
+  assert.match(repeated[0], /repeats "keeps"/);
+
+  const order = { ...DEMO_ORDER, customerName: 'Anitha Selvam' };
+  const repaired = buildCopyRepairMessages(order, 'loft and lighter oak', { ...good, body: 'short' }, ['body too short (3 words)']);
+  assert.equal(repaired.at(-1).role, 'user');
+  assert.match(repaired.at(-1).content, /body too short/);
+  assert.match(repaired.at(-1).content, /90 to 150 words/);
 });
