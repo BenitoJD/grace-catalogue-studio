@@ -60,10 +60,14 @@ import {
   buildIntakeMessages,
   cleanReadyReply,
   ensureMissingMentioned,
+  fieldsFromSkipRequest,
   mergeDraft,
   missingEssentials,
   missingFields,
   parseIntakeReply,
+  skipDraftFields,
+  skipReply,
+  skipRequestFromMessage,
 } from './intake.mjs';
 import {
   CONNECTION_TEST_MESSAGES,
@@ -1129,9 +1133,34 @@ export function createApp(options) {
     if (body.draft !== undefined && (body.draft === null || typeof body.draft !== 'object')) {
       return fail(c, 400, 'Field "draft" must be an object when present.');
     }
+    if (body.skip !== undefined && !Array.isArray(body.skip)) {
+      return fail(c, 400, 'Field "skip" must be an array of missing details when present.');
+    }
 
     const config = resolveLlmConfig(db, llmEnv);
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+
+    // A customer who does not know a detail can say so, or the app can press
+    // Skip. Marking it "to be confirmed" is a local decision: no model call and
+    // no invented number.
+    const lastUserMessage = [...cleanMessages].reverse().find((message) => message.role === 'user');
+    const requestedSkip = body.skip !== undefined ? fieldsFromSkipRequest(body.skip) : null;
+    const skipFields = body.skip !== undefined
+      ? requestedSkip
+      : skipRequestFromMessage(lastUserMessage?.content ?? '', body.draft ?? {});
+    if (skipFields && skipFields.length > 0) {
+      const nextDraft = skipDraftFields(body.draft ?? {}, skipFields);
+      const missing = missingEssentials(nextDraft);
+      logger.info('Intake skipped unknown details.', { fields: skipFields });
+      return c.json({
+        reply: skipReply(nextDraft, skipFields),
+        draft: nextDraft,
+        missing,
+        ready: missing.length === 0,
+        model: 'local',
+        latencyMs: 0,
+      });
+    }
 
     try {
       const attachments = readAttachments(body);

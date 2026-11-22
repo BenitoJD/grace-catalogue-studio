@@ -54,7 +54,7 @@ const INTAKE_SYSTEM_PROMPT = [
   'Reply with strict JSON only, exactly this shape:',
   '{"reply": "what you say next", "order": {"customerName": "...", "title": "...", "room": "...", "width": "...", "height": "...", "depth": "...", "shutters": "...", "carcass": "...", "backPanel": "...", "shuttersMat": "...", "drawers": "...", "exterior": "...", "interior": "...", "edgeShutter": "...", "edgeCarcass": "...", "edgeNote": "...", "handle": "...", "handleNote": "...", "finishExt": "...", "finishInt": "...", "brief": "..."}, "ready": false}',
   'Rules for order:',
-  '- Include a field only when the customer stated it. Never invent, guess or convert a value.',
+  '- Include a field only when the customer stated it. Never invent, guess or convert a value. If the customer says they do not know a detail, leave that field empty. Do not guess it. The studio can mark it as to be confirmed.',
   '- Copy numbers with their unit as written, for example "2400 mm". If a dimension is a bare number, write it as "N mm", the workshop works in millimetres.',
   '- Write counts as digits, for example 3 shutters, 2 drawers.',
   '- title is the piece, for example "Master Bedroom Wardrobe". If the customer names the kind but no title, use that kind, for example "Wardrobe" or "Dining Bench". room is where it goes.',
@@ -214,6 +214,81 @@ export function missingEssentials(order) {
   return INTAKE_ESSENTIALS.filter(([field]) => clean(order?.[field]) === '').map(
     ([, label]) => label,
   );
+}
+
+// A customer often does not know a detail yet. The studio can mark it as to be
+// confirmed instead of inventing a number, and the brochure prints that honestly.
+export const SKIP_VALUES = Object.freeze({
+  customerName: 'Customer',
+  title: 'Wardrobe',
+  room: 'Room to confirm',
+  width: 'To be measured',
+  height: 'To be measured',
+  depth: 'To be measured',
+  shutters: 'To be confirmed',
+});
+
+const SKIP_FIELD_WORDS = [
+  ['customerName', /\b(customer|client|name)\b/i],
+  ['title', /\b(piece|wardrobe|bench|cabinet|furniture|title)\b/i],
+  ['room', /\broom\b/i],
+  ['width', /\bwidth\b/i],
+  ['height', /\bheight\b/i],
+  ['depth', /\bdepth\b/i],
+  ['shutters', /\bshutters?\b/i],
+];
+
+/** Field keys for the labels the app sends when the Skip button is pressed. */
+export function fieldsFromSkipRequest(request) {
+  if (!Array.isArray(request)) return [];
+  const fields = [];
+  for (const entry of request) {
+    const text = clean(entry).toLowerCase();
+    for (const [field, label] of INTAKE_ESSENTIALS) {
+      if (text === field.toLowerCase() || text === label.toLowerCase()) {
+        fields.push(field);
+      }
+    }
+  }
+  return [...new Set(fields)];
+}
+
+/** Skip only the details named in the message, or all missing ones for "I don't know". */
+export function skipRequestFromMessage(message, draft) {
+  const text = clean(message);
+  if (text === '' || text.length > 200 || /\d/.test(text)) return null;
+  const understandsSkip = /\b(i\s*(?:don'?t|do not)\s*know|i'?m not sure|not sure|no idea|skip|can'?t remember|cannot remember|tbd|to be confirmed|unknown|not known)\b/i;
+  if (!understandsSkip.test(text)) return null;
+  const missing = INTAKE_ESSENTIALS.filter(([field]) => clean(draft?.[field]) === '').map(
+    ([field]) => field,
+  );
+  if (missing.length === 0) return null;
+  const named = SKIP_FIELD_WORDS.filter(([field, pattern]) => missing.includes(field) && pattern.test(text)).map(
+    ([field]) => field,
+  );
+  return named.length > 0 ? named : missing;
+}
+
+/** Apply the to be confirmed values to a draft. */
+export function skipDraftFields(draft, fields) {
+  const next = { ...(draft && typeof draft === 'object' ? draft : {}) };
+  for (const field of fields) {
+    if (field in SKIP_VALUES) next[field] = SKIP_VALUES[field];
+  }
+  return next;
+}
+
+/** The exact sentence the chat shows after a skip. */
+export function skipReply(draft, fields) {
+  const labels = INTAKE_ESSENTIALS.filter(([field]) => fields.includes(field)).map(
+    ([, label]) => label,
+  );
+  const missing = missingEssentials(draft);
+  const marked = humanList(labels);
+  if (missing.length === 0) {
+    return `No problem. I marked ${marked} as to be confirmed, and the order can be made now.`;
+  }
+  return `No problem. I marked ${marked} as to be confirmed. Still needed: ${humanList(missing)}.`;
 }
 
 /**

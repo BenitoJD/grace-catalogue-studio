@@ -379,11 +379,12 @@ export const api = {
   intake(
     messages: IntakeMessage[],
     draft?: Record<string, string>,
-    attachments?: OrderAttachment[]
+    attachments?: OrderAttachment[],
+    skip?: string[]
   ): Promise<IntakeResult> {
     return request<IntakeResult>('/api/intake', {
       method: 'POST',
-      body: { messages, draft, attachments },
+      body: { messages, draft, attachments, skip },
       timeoutMs: 120000,
     });
   },

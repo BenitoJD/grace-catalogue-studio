@@ -329,6 +329,16 @@ function elevationSvg(values) {
 }
 
 function drawingBlock(values, top = 158) {
+  const known = ['width', 'height', 'depth'].every((key) => priceNumber(values[key]) !== null);
+  if (!known) {
+    return `<div class="abs" style="left:18mm; top:${top}mm; width:174mm;"><div class="goldLine" style="width:174mm;"></div>
+      <div class="abs" style="left:0; top:3mm; width:174mm; display:flex; justify-content:space-between;"><span class="micro">Measured drawing</span><span class="micro">Issued after site measurement</span></div>
+      <div class="abs" style="left:0; top:14mm; width:118mm; height:44mm; border:0.25mm solid var(--gold);"></div>
+      <div class="abs" style="left:0; top:14mm; width:118mm; height:44mm; text-align:center; font-family:var(--body); font-size:7pt; line-height:1.7; color:var(--deep); padding-top:15mm;">Dimensions to be confirmed<br>at the site measurement.</div>
+      <div class="abs" style="left:128mm; top:14mm; width:46mm; font-family:var(--body); font-size:7pt; line-height:1.6; color:var(--deep);">The factory drawing is issued once the wall is measured. No dimension is guessed.</div>
+      <div class="abs lotus" style="left:144mm; top:40mm; width:22mm; height:13mm;"></div>
+    </div>`;
+  }
   return `<div class="abs" style="left:18mm; top:${top}mm; width:174mm;"><div class="goldLine" style="width:174mm;"></div>
     <div class="abs" style="left:0; top:3mm; width:174mm; display:flex; justify-content:space-between;"><span class="micro">Measured drawing</span><span class="micro">All dimensions in mm</span></div>
     <img src="${elevationSvg(values)}" style="position:absolute; left:0; top:9mm; width:136mm; height:82mm;">

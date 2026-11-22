@@ -509,14 +509,45 @@ try {
   await page.screenshot({ path: `${shots}/06g-chat-brochure.png` });
 
   // The next message belongs to a new order, so the old conversation is cleared.
-  await setValueByPlaceholder(page, chatInput, "Another client needs a wardrobe.");
+  const nextChatInput = "Paste the next customer's requirement";
+  check(
+    "the composer asks for the next customer",
+    await setValueByPlaceholder(page, nextChatInput, "Another client needs a wardrobe.")
+  );
   check("chat takes the next customer", await clickAria(page, "Send message"));
   const freshChat = await waitForBodyText(page, "what is the height", 90000);
   check("a new chat starts after an order", freshChat);
-  const cleared = await page.evaluate(
-    () => document.body.innerText.includes("Paste everything the customer told you")
-  );
+  const cleared = await page.evaluate(() => {
+    const text = document.body.innerText;
+    return text.includes("Paste everything the customer told you") && !text.includes("Need a wardrobe for Anita");
+  });
   check("the old conversation is cleared", cleared);
+
+  // 4b. a detail the customer does not know can be skipped, and the order is
+  // still made with honest placeholders rather than invented dimensions.
+  const skipPresent = await page
+    .waitForSelector('[aria-label="I do not know these details, mark them to be confirmed"]', { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  check("chat offers a skip for unknown details", skipPresent);
+  if (skipPresent) {
+    await page.evaluate(() => {
+      const button = document.querySelector(
+        '[aria-label="I do not know these details, mark them to be confirmed"]'
+      );
+      if (button) button.click();
+    });
+  }
+  check("skipping marks the details to be confirmed", await waitForBodyText(page, "to be confirmed", 30000));
+  check(
+    "a skipped order still makes the brochure",
+    await waitForBodyText(page, "the brochure is ready", 180000)
+  );
+  const skippedOrders = await (await fetch(`${API}/api/orders`)).json();
+  const skippedOrder = skippedOrders.find(
+    (order) => order.title === "Master Bedroom Wardrobe" && order.height === "To be measured"
+  );
+  check("the skipped order keeps honest placeholders", Boolean(skippedOrder));
 
   const noteOrders = await (await fetch(`${API}/api/orders`)).json();
   // The chat flow above created its own order. The note and copy steps belong to

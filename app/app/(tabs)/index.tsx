@@ -54,7 +54,7 @@ type Bubble =
     };
 
 const WELCOME =
-  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order and ask only for what is missing, then make the brochure.\n\nFirst, choose a cover below, or pick No design and I will design one for this order.';
+  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order and ask only for what is missing, then make the brochure.\n\nIf a detail is not known yet, say so and I will mark it to be confirmed.\n\nFirst, choose a cover below, or pick No design and I will design one for this order.';
 
 
 let counter = 0;
@@ -222,6 +222,7 @@ export default function ChatScreen() {
   const [chosenDesign, setChosenDesign] = useState<string>('ai');
   const [modelReady, setModelReady] = useState<boolean | null>(null);
   const [showDesignPicker, setShowDesignPicker] = useState(true);
+  const [skipping, setSkipping] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -596,7 +597,7 @@ export default function ChatScreen() {
 
   const send = useCallback(async () => {
     const content = input.trim();
-    if ((content === '' && pendingFiles.length === 0) || sending || cooking || uploadingFiles) return;
+    if ((content === '' && pendingFiles.length === 0) || sending || cooking || skipping || uploadingFiles) return;
     if (sendingRef.current) return;
     sendingRef.current = true;
     const previousInput = input;
@@ -691,7 +692,39 @@ export default function ChatScreen() {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sending, uploadingFiles]);
+  }, [bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sending, skipping, uploadingFiles]);
+
+  const skipMissing = useCallback(async () => {
+    if (!missing.length || sending || cooking || skipping) return;
+    setSkipping(true);
+    try {
+      const result = await api.intake(history(), draft, undefined, missing);
+      setDraft(result.draft);
+      setMissing(result.missing);
+      setReady(result.ready);
+      setBubbles((current) => [
+        ...current,
+        { id: nextId(), role: 'assistant', kind: 'text', content: result.reply, at: stamp() },
+      ]);
+      if (result.ready) {
+        await createOrderFor(result.draft, orderFiles);
+      }
+    } catch (error) {
+      setBubbles((current) => [
+        ...current,
+        {
+          id: nextId(),
+          role: 'assistant',
+          kind: 'text',
+          content: errorMessage(error, 'I could not mark those details. Try again.'),
+          at: stamp(),
+          failed: true,
+        },
+      ]);
+    } finally {
+      setSkipping(false);
+    }
+  }, [cooking, createOrderFor, draft, history, missing, orderFiles, sending, skipping]);
 
   const retryCreate = useCallback(async () => {
     if (cooking || sending || !createFailed) return;
@@ -699,7 +732,7 @@ export default function ChatScreen() {
   }, [cooking, createFailed, createOrderFor, draft, orderFiles, sending]);
 
   const fieldCount = Object.keys(draft).length;
-  const busy = sending || cooking;
+  const busy = sending || cooking || skipping;
 
   return (
     <KeyboardAvoidingView
@@ -763,7 +796,7 @@ export default function ChatScreen() {
                 <Text style={styles.avatarLabel}>GW</Text>
               </View>
               <View style={[styles.bubble, styles.bubbleAssistant]}>
-                <TypingDots label={cooking ? 'Creating the order' : 'Reading'} />
+                <TypingDots label={cooking ? 'Creating the order' : skipping ? 'Marking it to be confirmed' : 'Reading'} />
               </View>
             </View>
           ) : null}
@@ -964,6 +997,15 @@ export default function ChatScreen() {
                       <Text style={styles.missingChipText}>{shortLabel(label)}</Text>
                     </Pressable>
                   ))}
+                  <Text style={styles.missingOr}>or</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="I do not know these details, mark them to be confirmed"
+                    onPress={() => void skipMissing()}
+                    disabled={busy}
+                    style={({ pressed }) => [styles.skipChip, pressed && styles.sendPressed]}>
+                    <Text style={styles.skipChipText}>I don&apos;t know</Text>
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -1638,6 +1680,22 @@ const styles = StyleSheet.create({
   missingChipText: {
     fontSize: 11.5,
     color: colors.muted,
+  },
+  missingOr: {
+    fontSize: 11,
+    color: colors.faint,
+  },
+  skipChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.copper,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  skipChipText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: colors.copper,
   },
   attachTray: {
     flexDirection: 'row',

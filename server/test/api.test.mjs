@@ -3535,3 +3535,58 @@ test('the studio can edit a generated design without asking the model again', { 
   const coverFirst = Buffer.from(await (await fetch(`${baseUrl}${first.render.pageUrls[0]}`)).arrayBuffer());
   assert.notEqual(hashBytes(coverEdited), hashBytes(coverFirst), 'the edited cover differs');
 });
+
+
+test('missing details can be skipped and marked to be confirmed', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify({ reply: 'unused', order: {}, ready: false }) });
+  const requestsBefore = mockProviderState.requests.length;
+  const partialDraft = {
+    customerName: 'Rani',
+    title: 'Wardrobe',
+    room: 'Guest bedroom',
+    width: '2400 mm',
+  };
+  const response = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'Customer name Rani. Guest bedroom wardrobe, 2400 wide.' }],
+    draft: partialDraft,
+    skip: ['height', 'depth', 'number of shutters'],
+  });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.ready, true);
+  assert.equal(body.draft.height, 'To be measured');
+  assert.equal(body.draft.depth, 'To be measured');
+  assert.equal(body.draft.shutters, 'To be confirmed');
+  assert.deepEqual(body.missing, []);
+  assert.match(body.reply, /to be confirmed/i);
+  assert.equal(mockProviderState.requests.length, requestsBefore, 'skipping makes no model call');
+});
+
+test('saying I do not know skips the detail without a model call', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify({ reply: 'unused', order: {}, ready: false }) });
+  const requestsBefore = mockProviderState.requests.length;
+  const partialDraft = {
+    customerName: 'Rani',
+    title: 'Wardrobe',
+    room: 'Guest bedroom',
+    width: '2400 mm',
+    shutters: '3',
+  };
+  const response = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: "I don't know the height and depth." }],
+    draft: partialDraft,
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.ready, true);
+  assert.equal(body.draft.height, 'To be measured');
+  assert.equal(body.draft.depth, 'To be measured');
+  assert.match(body.reply, /height and depth/i);
+  assert.match(body.reply, /to be confirmed/i);
+  assert.equal(mockProviderState.requests.length, requestsBefore);
+});
