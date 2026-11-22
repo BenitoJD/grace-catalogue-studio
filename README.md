@@ -46,6 +46,22 @@ When an order carries photographs, they replace the house photography in the vou
 
 ![Brochure from the chat](docs/screenshots/chat-brochure.png)
 
+## Generated design
+
+The brochure is not chosen from a library. When the chat finalises an order, the model acts as art director: one call returns the palette, the type pairing, the composition of all four pages and the headline, body and closing for this order. Every order gets a different document.
+
+The design is strict JSON with allowed values only, validated, then compiled to print safe HTML and CSS by the server. The model never emits markup, so nothing unsafe or unprintable can reach the press. `POST /api/orders/:id/ai-brochure` returns the render, the design and the copy, and the design is stored with the document so the studio can explain how each brochure was made.
+
+It is built as an Indian workshop brochure, not a report:
+
+1. **Cover.** One strong photograph, a deep maroon brand band, the piece in large type and the customer. Almost nothing else.
+2. **Story.** A full bleed photograph, the statement as a large line, and the copy set in a magazine column.
+3. **Materials.** A maroon header and the four finish textures at size with their names. A colour page, not a table.
+4. **Specification.** Dimensions, materials and hardware, set quietly at the back for the workshop and the client file.
+
+Warm cream stock, deep maroon, gold rules and ornament, display type at 30 to 46 point and body text at 8 point. The thirty hand-built designs remain available under Change design for a manual override, but the default path is generated per order.
+
+
 The extraction rules matter as much as the conversation. Bare dimensions become millimetres, counts become digits, unknown fields are dropped, and a reply without usable JSON is rejected with a readable error. A field is only ready when the customer actually said it, never guessed.
 
 ## Screens
@@ -182,7 +198,7 @@ npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: order book, new order, create, detail, render, open PDF, share, re-render, choose a different design, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, add a colour with an uploaded image, materials, settings, deep link, mobile viewport, and the sad path when the API is down. 94 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, add a colour with an uploaded image, the chat creating its own order and brochure, materials, settings, deep link, mobile viewport, and the sad path when the API is down. 94 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
 
 ## Design templates
 
@@ -254,7 +270,7 @@ The studio can point itself at any OpenAI compatible model. Open Settings, Langu
 
 ![Model settings](docs/screenshots/e2e/06b-model-settings.png)
 
-Once configured, the model writes the brochure body. Paste what the customer said into the brief, press Write the brochure copy, and the studio returns a headline, a body paragraph and a closing line built only from the order facts and that brief. The copy is stored on the order and printed into every design, then regenerated with the voucher.
+Once configured, the model designs the brochure and writes its words in the same call. The copy can also be regenerated on its own from the order screen: a headline, a body paragraph and a closing line built only from the order facts and the customer brief, in the premium voice measured below.
 
 ![Brochure copy](docs/screenshots/e2e/06d-brochure-copy.png)
 
