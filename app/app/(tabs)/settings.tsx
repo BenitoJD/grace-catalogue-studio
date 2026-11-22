@@ -85,6 +85,21 @@ export default function SettingsScreen() {
     }
   }, [apiKey, endpoint, model, providerId]);
 
+  const forgetKey = useCallback(async () => {
+    if (!settings?.hasKey) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const next = await api.saveLlmSettings({ apiKey: '' });
+      setSettings(next);
+      setStatus({ tone: 'good', message: 'The saved key was removed from this computer.' });
+    } catch (error) {
+      setStatus({ tone: 'bad', message: errorMessage(error, 'The key could not be removed.') });
+    } finally {
+      setSaving(false);
+    }
+  }, [settings]);
+
   const chooseProvider = useCallback(
     (provider: LlmProvider) => {
       setProviderId(provider.id);
@@ -249,6 +264,14 @@ export default function SettingsScreen() {
                     onPress={() => void test()}
                     loading={testing}
                   />
+                  {settings?.hasKey ? (
+                    <Button
+                      label="Forget saved key"
+                      variant="secondary"
+                      onPress={() => void forgetKey()}
+                      loading={saving}
+                    />
+                  ) : null}
                 </View>
 
                 {status ? (

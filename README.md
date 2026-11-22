@@ -304,7 +304,7 @@ The studio ships with presets for the providers people actually use, all through
 - The catalog is available at `GET /api/llm/providers`; the key is stored on the server, never returned to the app and never logged.
 - Server environment variables still work for deployments: `LLM_PROVIDER`, `LLM_ENDPOINT`, `LLM_MODEL`, `LLM_API_KEY`.
 
-A live check against OpenCode Go returned ok in 1.3 seconds through the preset.
+No API key ships with the app. A fresh install has none; the studio adds one on the Settings screen, and Forget saved key removes it from the computer.
 
 ## Model caching
 
