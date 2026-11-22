@@ -139,6 +139,28 @@ startup, so restart the app after changing it. `CATALOG_API_URL` wins over the
 file. The backend must be reachable from the desktop machine; no CORS setup is
 needed because the proxy calls it server-side.
 
+## Windows installer wizard
+
+`installer/GraceStudio.nsi` is a custom NSIS installer, modelled on the
+Attendance Report Studio installer. It is a normal four step wizard: Welcome,
+options, install, Finish with a Launch checkbox. It installs per-user into
+`%LOCALAPPDATA%\Programs\Grace Studio`, so Windows never asks for an
+administrator password, writes a Start Menu shortcut, offers an optional desktop
+shortcut, registers the app in Apps and Features and uninstall removes it
+cleanly. The app data folder is left alone, so reinstalling or upgrading keeps
+the orders and the language model settings.
+
+Build it from a Windows machine with NSIS 3.x installed:
+
+```powershell
+npm run build:win:all      # win-unpacked payload + portable exe
+npm run build:win:setup    # the wizard: release\Grace Studio Setup 1.0.2.exe
+```
+
+The setup script finds `makensis.exe` on PATH or in the standard Program Files
+locations. CI installs NSIS, builds the wizard, then silently installs it on the
+runner, checks the executable exists at the expected path and uninstalls it.
+
 ## Build the installers
 
 ```bash

@@ -29,7 +29,7 @@ jobs:
               desktop/release/*.zip
           - name: Windows
             runner: windows-latest
-            build-script: "build:win"
+            build-script: "build:win:all"
             artifact-name: grace-studio-windows
             artifact-paths: |
               desktop/release/*.exe
@@ -73,6 +73,34 @@ jobs:
           # No signing identity exists in CI; build unsigned artefacts.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ""
+
+      - name: Install NSIS
+        if: matrix.name == 'Windows'
+        run: choco install nsis -y --no-progress
+
+      - name: Build the setup wizard
+        if: matrix.name == 'Windows'
+        working-directory: desktop
+        shell: pwsh
+        run: ./installer/Build-Installer.ps1
+
+      - name: Smoke install the setup wizard
+        if: matrix.name == 'Windows'
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "release\Grace Studio Setup *.exe" | Select-Object -First 1
+          if (-not $setup) { throw "No setup exe was produced." }
+          Write-Host "Installing $($setup.FullName)"
+          Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
+          $exe = Join-Path $env:LOCALAPPDATA "Programs\Grace Studio\Grace Studio.exe"
+          if (-not (Test-Path $exe)) { throw "The installer did not place the app at $exe" }
+          Write-Host "Installed at $exe"
+          $uninstaller = Join-Path (Split-Path $exe) "Uninstall.exe"
+          Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 2
+          if (Test-Path $exe) { throw "The uninstaller left the app behind." }
+          Write-Host "Installer and uninstaller both work."
 
       - name: Upload the installers
         uses: actions/upload-artifact@v4

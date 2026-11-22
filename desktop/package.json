@@ -1,7 +1,7 @@
 {
   "name": "grace-studio-desktop",
   "productName": "Grace Studio",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Grace Studio desktop wrapper (Electron) around the Expo web build",
   "author": "Grace Wood Industry",
@@ -10,9 +10,12 @@
   "scripts": {
     "start": "electron .",
     "build:mac": "npm run bundle:server && electron-builder --mac",
-    "build:win": "npm run bundle:server && electron-builder --win",
     "build": "npm run bundle:server && electron-builder",
-    "bundle:server": "esbuild ../server/src/boot.mjs --bundle --platform=node --format=esm --target=node24 --external:node:* --outfile=build/server-bundle.mjs"
+    "bundle:server": "esbuild ../server/src/boot.mjs --bundle --platform=node --format=esm --target=node24 --external:node:* --outfile=build/server-bundle.mjs",
+    "build:win": "npm run bundle:server && electron-builder --win portable",
+    "build:win:payload": "npm run bundle:server && electron-builder --win dir",
+    "build:win:all": "npm run build:win:payload && npm run build:win",
+    "build:win:setup": "powershell -ExecutionPolicy Bypass -File installer/Build-Installer.ps1"
   },
   "devDependencies": {
     "electron": "^45.4.1",

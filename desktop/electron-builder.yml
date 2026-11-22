@@ -58,20 +58,13 @@ dmg:
 win:
   icon: build/icon.ico
   target:
-    - target: nsis
-      arch:
-        - x64
     - target: portable
       arch:
         - x64
 
-nsis:
-  artifactName: ${productName}-${version}-setup-${arch}.${ext}
-  oneClick: false
-  perMachine: false
-  allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
-  shortcutName: ${productName}
-
+# The install wizard is built by desktop/installer/GraceStudio.nsi, using the
+# win-unpacked payload from `electron-builder --win dir`. This mirrors the
+# installer used by the attendance tool: welcome, options, install, finish with
+# a launch checkbox, per-user install, no administrator prompt.
 portable:
   artifactName: ${productName}-${version}-portable-${arch}.${ext}
