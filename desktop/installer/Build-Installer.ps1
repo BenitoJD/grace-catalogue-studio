@@ -50,7 +50,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "NSIS failed to build the installer (exit code $LASTEXITCODE)."
 }
 
-$setup = Join-Path $outputPath "Grace Studio Setup $AppVersion.exe"
+$setup = Join-Path $outputPath "GraceStudio-Setup-$AppVersion.exe"
 if (-not (Test-Path $setup)) {
     throw "NSIS reported success but the installer is missing at $setup."
 }

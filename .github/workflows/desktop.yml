@@ -89,7 +89,7 @@ jobs:
         working-directory: desktop
         shell: pwsh
         run: |
-          $setup = Get-ChildItem "release\Grace Studio Setup *.exe" | Select-Object -First 1
+          $setup = Get-ChildItem "release\GraceStudio-Setup-*.exe" | Select-Object -First 1
           if (-not $setup) { throw "No setup exe was produced." }
           Write-Host "Installing $($setup.FullName)"
           Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait

@@ -154,7 +154,7 @@ Build it from a Windows machine with NSIS 3.x installed:
 
 ```powershell
 npm run build:win:all      # win-unpacked payload + portable exe
-npm run build:win:setup    # the wizard: release\Grace Studio Setup 1.0.2.exe
+npm run build:win:setup    # the wizard: release\GraceStudio-Setup-1.0.2.exe
 ```
 
 The setup script finds `makensis.exe` on PATH or in the standard Program Files

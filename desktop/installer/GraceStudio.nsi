@@ -28,7 +28,7 @@ Unicode true
 Name "${APP_NAME}"
 Caption "${APP_NAME} Setup"
 BrandingText "${APP_PUBLISHER}"
-OutFile "${OUTPUT_DIR}\Grace Studio Setup ${APP_VERSION}.exe"
+OutFile "${OUTPUT_DIR}\GraceStudio-Setup-${APP_VERSION}.exe"
 InstallDir "${INSTALL_DIR}"
 RequestExecutionLevel user
 SetCompressor /SOLID zlib
