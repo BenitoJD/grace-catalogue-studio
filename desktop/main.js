@@ -95,6 +95,16 @@ const MIME_TYPES = new Map([
 // operating system to special-case *.localhost. Set before app ready.
 app.commandLine.appendSwitch('host-resolver-rules', `MAP ${WINDOW_HOSTNAME} ${LOCAL_HOST}`);
 
+// Chromium has background services of its own: spellcheck dictionaries,
+// component updates, variations, safe browsing pings. The product promises
+// that only the model endpoint is external, so turn all of that off.
+app.commandLine.appendSwitch('disable-background-networking');
+app.commandLine.appendSwitch('disable-component-update');
+app.commandLine.appendSwitch('disable-domain-reliability');
+app.commandLine.appendSwitch('disable-client-side-phishing-detection');
+app.commandLine.appendSwitch('no-pings');
+app.commandLine.appendSwitch('disable-breakpad');
+
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 /** @type {import('node:http').Server | null} */
@@ -573,7 +583,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      spellcheck: true,
+      spellcheck: false,
     },
   };
   if (state && Number.isFinite(state.x) && Number.isFinite(state.y)) {
