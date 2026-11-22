@@ -87,6 +87,7 @@ import {
   copyQualityIssues,
   llmFailureBody,
   parseCopyReply,
+  parseJsonObject,
   publicLlmSettings,
   readStoredLlmSettings,
   requestChat,
@@ -1430,6 +1431,83 @@ export function createApp(options) {
       });
       setOrderCopy(db, order.id, copy);
       return c.json({ render, design, copy, direction, model: usedModel, latencyMs }, 201);
+    } catch (error) {
+      return llmFailureResponse(c, error);
+    }
+  });
+
+  // Plain language edits to an order that already has a brochure. The model
+  // turns the sentence into order fields, copy or design overrides, the server
+  // persists them, and the app re-renders the same order.
+  app.post('/api/orders/:id/edit', async (c) => {
+    const order = getOrder(db, c.req.param('id'));
+    if (!order) return fail(c, 404, 'Order not found.');
+    const parsed = await readOptionalJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const body = parsed.body ?? {};
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    if (message === '' || message.length > 1200) {
+      return fail(c, 400, 'Field "message" must be a sentence under 1200 characters.');
+    }
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+    const latest = listRendersForOrder(db, order.id)
+      .filter((render) => render.kind === 'ai' && render.design)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+    const prompt = [
+      'You edit one existing furniture order and its brochure for Grace Wood Industry, Nagercoil.',
+      'The studio will speak naturally about a change. Reply with strict JSON only:',
+      '{"reply":"one or two natural sentences saying what you changed","order":{...only changed order fields...},"copy":{...only changed copy fields, headline body closing...},"design":{...only changed design fields: tone type cover story materials spec statement...},"rerender":true}',
+      'Order fields: title room width height depth shutters carcass backPanel shuttersMat drawers exterior interior hinges channels edgeShutter edgeCarcass edgeNote handle handleNote finishExt finishInt brief.',
+      'Allowed design: tone maroon|teal|copper|sandal|peacock, type editorial|modern|classic, cover fullBleed|splitLeft|splitRight|bandTop|framed|masthead, story hero|editorial|diptych|collage, materials grid4|filmstrip|band|museum|stacked, spec twoColumn|threeColumn|ledger|cards|stacked.',
+      'Never invent dimensions or materials. If the instruction is unclear, ask a short question, set rerender false and return empty objects. No em dashes. No markdown.',
+      `Current order: ${JSON.stringify(order)}`,
+      `Current copy: ${JSON.stringify(order.copy ?? {})}`,
+      `Current design: ${JSON.stringify(latest?.design ?? {})}`,
+      `Studio says: ${message}`,
+    ].join('\n');
+    try {
+      const result = await requestChat({
+        provider: config.provider,
+        endpoint: config.endpoint,
+        model: config.model,
+        apiKey: config.apiKey,
+        messages: [
+          { role: 'system', content: 'You edit orders and brochure copy. Reply with JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        maxTokens: 1200,
+        temperature: 0.2,
+      });
+      const reply = parseJsonObject(result.content);
+      if (!reply || typeof reply !== 'object') throw new LlmError('The edit reply could not be read.', { type: 'invalid_reply' });
+      const orderPatch = {};
+      const allowedOrder = new Set(['title','room','width','height','depth','shutters','carcass','backPanel','shuttersMat','drawers','exterior','interior','hinges','channels','edgeShutter','edgeCarcass','edgeNote','handle','handleNote','finishExt','finishInt','brief']);
+      for (const [key, value] of Object.entries(reply.order && typeof reply.order === 'object' ? reply.order : {})) {
+        if (allowedOrder.has(key) && typeof value === 'string' && value.length <= 300) orderPatch[key] = value;
+      }
+      let copy = null;
+      if (reply.copy && typeof reply.copy === 'object') {
+        copy = { ...(order.copy ?? { headline: '', body: '', closing: '' }) };
+        for (const key of ['headline','body','closing']) {
+          if (typeof reply.copy[key] === 'string') copy[key] = capText(reply.copy[key], key === 'body' ? 2400 : 200);
+        }
+      }
+      const design = reply.design && typeof reply.design === 'object' ? reply.design : {};
+      let updated = order;
+      if (Object.keys(orderPatch).length > 0) updated = updateOrder(db, order.id, orderPatch);
+      if (copy) updated = setOrderCopy(db, order.id, copy);
+      const assistantReply = typeof reply.reply === 'string' && reply.reply.trim() !== ''
+        ? capText(reply.reply.trim(), 400)
+        : 'Done, I updated the order.';
+      return c.json({
+        reply: assistantReply,
+        order: updated,
+        copy: copy ?? order.copy ?? null,
+        design,
+        rerender: reply.rerender !== false && (Object.keys(design).length > 0 || copy !== null),
+        changedOrder: Object.keys(orderPatch).length > 0,
+      });
     } catch (error) {
       return llmFailureResponse(c, error);
     }

@@ -74,6 +74,7 @@ createServer(async (request, response) => {
     const prompt = messages.map((message) => String(message.content ?? '')).join('\n').toLowerCase();
     const isConnectionTest = prompt.includes('single word ok');
     const isDesignRequest = prompt.includes('art director and copywriter');
+    const isEditRequest = prompt.includes('you edit one existing furniture order');
     const isIntakeRequest = prompt.includes('order intake assistant');
     const isCopyRequest = !isIntakeRequest && prompt.includes('headline') && prompt.includes('json');
 
@@ -102,6 +103,19 @@ createServer(async (request, response) => {
           'Nothing about the piece asks for attention; it simply keeps the room ready.',
         closing: 'Drawn to the wall it stands against.'
       }
+    };
+
+    const EDIT = {
+      reply: 'Done. I changed the shutters to dark walnut and updated the brochure.',
+      order: { handle: 'Matte black aluminium', finishExt: 'Dark walnut laminate outside' },
+      copy: {
+        headline: 'A walnut wardrobe for the guest room',
+        body:
+          'The guest room keeps one long wall for storage, and the wardrobe takes it from end to end without crowding the bed. Three shutters divide the face into equal parts, so the eye reads proportion before hardware. Dark walnut laminate outside settles the wall, while the interior stays white so a folded shirt is easy to find. Lower drawers take the bedding, and the hanging space above takes the suitcases that arrive with visitors. The handles run vertically, one set to each shutter, a thin dark line against the warm front. At 600 mm deep the wardrobe holds what a guest brings and still leaves the floor clear. Nothing about the piece asks for attention; it simply keeps the room ready.',
+        closing: 'Drawn to the wall it stands against.'
+      },
+      design: { tone: 'teal', type: 'classic', cover: 'bandTop' },
+      rerender: true
     };
 
     let intake = null;
@@ -145,7 +159,9 @@ createServer(async (request, response) => {
 
     const content = isConnectionTest
       ? 'ok'
-      : isDesignRequest
+      : isEditRequest
+        ? JSON.stringify(EDIT)
+        : isDesignRequest
         ? JSON.stringify(DESIGN)
         : isIntakeRequest
           ? JSON.stringify(intake)

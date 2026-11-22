@@ -213,6 +213,8 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [cooking, setCooking] = useState(false);
   const [orderCreated, setOrderCreated] = useState(false);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [activeOrderNo, setActiveOrderNo] = useState('');
   const [createFailed, setCreateFailed] = useState(false);
   const [orderFiles, setOrderFiles] = useState<OrderAttachment[]>([]);
   const [pendingFiles, setPendingFiles] = useState<OrderAttachment[]>([]);
@@ -569,6 +571,8 @@ export default function ChatScreen() {
           },
         ]);
         setOrderCreated(true);
+        setActiveOrderId(order.id);
+        setActiveOrderNo(order.orderNo);
         setShowDesignPicker(false);
         setDraft({});
         setMissing([]);
@@ -600,6 +604,45 @@ export default function ChatScreen() {
     const content = input.trim();
     if ((content === '' && pendingFiles.length === 0) || sending || cooking || skipping || uploadingFiles) return;
     if (sendingRef.current) return;
+    // Once an order exists, the same chat edits it. Every sentence is applied to
+    // that order's design or copy, then only that order is re-rendered.
+    if (orderCreated && activeOrderId) {
+      sendingRef.current = true;
+      const previousInput = input;
+      const at = stamp();
+      setBubbles((current) => [
+        ...current,
+        { id: nextId(), role: 'user', kind: 'text', content, at },
+      ]);
+      setInput('');
+      setInputHeight(38);
+      setSending(true);
+      try {
+        const edited = await api.editOrder(activeOrderId, content);
+        let render = null;
+        if (edited.rerender) {
+          const result = await api.aiBrochure(activeOrderId, {
+            overrides: edited.design,
+            copy: edited.copy ?? undefined,
+          });
+          render = result.render;
+        }
+        setBubbles((current) => [
+          ...current,
+          { id: nextId(), role: 'assistant', kind: 'text', content: edited.reply, at: stamp() },
+          ...(render
+            ? [{ id: nextId(), role: 'assistant' as const, kind: 'brochure' as const, content: 'Updated brochure.', at: stamp(), orderId: activeOrderId, orderNo: activeOrderNo, render }]
+            : []),
+        ]);
+      } catch (error) {
+        setBubbles((current) => [...current, { id: nextId(), role: 'assistant', kind: 'text', content: errorMessage(error, 'I could not apply that change. Try again.'), at: stamp(), failed: true }]);
+        setInput(previousInput);
+      } finally {
+        sendingRef.current = false;
+        setSending(false);
+      }
+      return;
+    }
     sendingRef.current = true;
     const previousInput = input;
     const previousFiles = pendingFiles;
@@ -693,7 +736,7 @@ export default function ChatScreen() {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sending, skipping, uploadingFiles]);
+  }, [activeOrderId, activeOrderNo, bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sending, skipping, uploadingFiles]);
 
   const skipMissing = useCallback(async () => {
     if (!missing.length || sending || cooking || skipping) return;
@@ -959,7 +1002,7 @@ export default function ChatScreen() {
                   <Text style={styles.statusCheckLabel}>✓</Text>
                 </View>
                 <Text style={styles.statusTitle}>Order created</Text>
-                <Text style={styles.statusHint}>Paste the next customer to start a new chat</Text>
+                <Text style={styles.statusHint}>Ask for a change below, or press New order</Text>
               </View>
             </View>
           ) : missing.length > 0 || fieldCount > 0 ? (
@@ -1078,7 +1121,7 @@ export default function ChatScreen() {
               onChangeText={setInput}
               placeholder={
                 orderCreated
-                  ? "Paste the next customer's requirement"
+                  ? 'Ask for a change to this order'
                   : "Paste the customer's requirement"
               }
               placeholderTextColor={colors.faint}

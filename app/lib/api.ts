@@ -409,6 +409,23 @@ export const api = {
       timeoutMs: 120000,
     });
   },
+  editOrder(
+    orderId: string,
+    message: string
+  ): Promise<{
+    reply: string;
+    order: Order;
+    copy: BrochureCopy | null;
+    design: Partial<AiDesign>;
+    rerender: boolean;
+    changedOrder: boolean;
+  }> {
+    return request(`/api/orders/${orderId}/edit`, {
+      method: 'POST',
+      body: { message },
+      timeoutMs: 120000,
+    });
+  },
   aiBrochure(
     orderId: string,
     body: AiBrochureBody = {}

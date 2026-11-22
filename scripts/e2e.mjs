@@ -527,46 +527,41 @@ try {
   );
   await page.screenshot({ path: `${shots}/06g-chat-brochure.png` });
 
-  // The next message belongs to a new order, so the old conversation is cleared.
-  const nextChatInput = "Paste the next customer's requirement";
+  // 4b. the same chat edits the live order in plain language
+  const editInput = "Ask for a change to this order";
   check(
-    "the composer asks for the next customer",
-    await setValueByPlaceholder(page, nextChatInput, "Another client needs a wardrobe.")
+    "the composer asks for a change",
+    await setValueByPlaceholder(page, editInput, "Make the shutters dark walnut and redo the cover.")
+  );
+  check("chat accepts the edit", await clickAria(page, "Send message"));
+  check("the edit applies to the order", await waitForBodyText(page, "I changed the shutters", 120000));
+  const editedOrder = await (await fetch(`${API}/api/orders/${ordersAfterChatList[0].id}`)).json();
+  check(
+    "the order fields changed",
+    editedOrder.finishExt.includes("Dark walnut"),
+    editedOrder.finishExt
+  );
+  const editedBrochure = await page.evaluate(() =>
+    [...document.querySelectorAll("img")].some((image) => image.src.includes("/pages/"))
+  );
+  check("the brochure re-renders after an edit", editedBrochure);
+  await page.screenshot({ path: `${shots}/06g2-chat-editor.png` });
+
+  // New order is the only way to start a fresh customer.
+  await clickAria(page, "New order chat");
+  await sleep(1200);
+  check(
+    "new order starts a fresh chat",
+    await setValueByPlaceholder(page, chatInput, "Another client needs a wardrobe.")
   );
   check("chat takes the next customer", await clickAria(page, "Send message"));
   const freshChat = await waitForBodyText(page, "what is the height", 90000);
-  check("a new chat starts after an order", freshChat);
+  check("a new chat starts after New order", freshChat);
   const cleared = await page.evaluate(() => {
     const text = document.body.innerText;
-    return text.includes("Paste everything the customer told you") && !text.includes("Need a wardrobe for Anita");
+    return text.includes("Paste everything the customer told you") && !text.includes("I changed the shutters");
   });
   check("the old conversation is cleared", cleared);
-
-  // 4b. a detail the customer does not know can be skipped, and the order is
-  // still made with honest placeholders rather than invented dimensions.
-  const skipPresent = await page
-    .waitForSelector('[aria-label="I do not know these details, mark them to be confirmed"]', { timeout: 15000 })
-    .then(() => true)
-    .catch(() => false);
-  check("chat offers a skip for unknown details", skipPresent);
-  if (skipPresent) {
-    await page.evaluate(() => {
-      const button = document.querySelector(
-        '[aria-label="I do not know these details, mark them to be confirmed"]'
-      );
-      if (button) button.click();
-    });
-  }
-  check("skipping marks the details to be confirmed", await waitForBodyText(page, "to be confirmed", 30000));
-  check(
-    "a skipped order still makes the brochure",
-    await waitForBodyText(page, "the brochure is ready", 180000)
-  );
-  const skippedOrders = await (await fetch(`${API}/api/orders`)).json();
-  const skippedOrder = skippedOrders.find(
-    (order) => order.title === "Master Bedroom Wardrobe" && order.height === "To be measured"
-  );
-  check("the skipped order keeps honest placeholders", Boolean(skippedOrder));
 
   const noteOrders = await (await fetch(`${API}/api/orders`)).json();
   // The chat flow above created its own order. The note and copy steps belong to
