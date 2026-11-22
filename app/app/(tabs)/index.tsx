@@ -15,6 +15,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -64,6 +65,31 @@ const nextId = () => {
 
 const stamp = () =>
   new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+const ESSENTIAL_TOTAL = 7;
+const MAX_UPLOAD_MB = 50;
+
+// The intake speaks in long friendly labels ("the piece, for example a
+// wardrobe"). The composer needs short chips.
+const SHORT_LABELS: Record<string, string> = {
+  'customer name': 'Customer name',
+  'the piece, for example a wardrobe or a bench': 'Piece',
+  'the room': 'Room',
+  width: 'Width',
+  height: 'Height',
+  depth: 'Depth',
+  'number of shutters': 'Shutters',
+};
+
+function shortLabel(label: string): string {
+  return SHORT_LABELS[label] ?? label.replace(/^the /, '').slice(0, 18);
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function DesignTile({
   label,
@@ -165,12 +191,17 @@ function TypingDots({ label }: { label: string }) {
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const compact = width < 560;
   const scroll = useRef<ComponentRef<typeof ScrollView> | null>(null);
   const designScroll = useRef<ComponentRef<typeof ScrollView> | null>(null);
   const designOffset = useRef(0);
   const frameRef = useRef<any>(null);
   const inputRef = useRef<any>(null);
   const anim = useRef(new Animated.Value(0)).current;
+  const sendingRef = useRef(false);
+  const atBottomRef = useRef(true);
+  const previousBubbleCount = useRef(1);
 
   const [bubbles, setBubbles] = useState<Bubble[]>([
     { id: nextId(), role: 'assistant', kind: 'text', content: WELCOME, at: stamp() },
@@ -197,6 +228,12 @@ export default function ChatScreen() {
   const [inputHeight, setInputHeight] = useState(38);
 
   useEffect(() => {
+    // Only follow the conversation when a message arrives and the reader is
+    // already at the bottom. Mounting or expanding the cover strip must not
+    // move the chat away from its greeting.
+    const grew = bubbles.length > previousBubbleCount.current;
+    previousBubbleCount.current = bubbles.length;
+    if (!grew || !atBottomRef.current) return;
     const timer = setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 80);
     return () => clearTimeout(timer);
   }, [bubbles.length, sending, cooking]);
@@ -256,13 +293,17 @@ export default function ChatScreen() {
   }, []);
 
   const scrollToBottom = useCallback(() => {
+    atBottomRef.current = true;
+    setAtBottom(true);
     scroll.current?.scrollToEnd({ animated: true });
   }, []);
 
   const onChatScroll = useCallback((event: any) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const distance = contentSize.height - contentOffset.y - layoutMeasurement.height;
-    setAtBottom(distance < 80);
+    const nearBottom = distance < 80;
+    atBottomRef.current = nearBottom;
+    setAtBottom(nearBottom);
   }, []);
 
   const startNewChat = useCallback(() => {
@@ -281,6 +322,10 @@ export default function ChatScreen() {
     setPendingFiles([]);
     setInput('');
     setChosenDesign('ai');
+    previousBubbleCount.current = 1;
+    atBottomRef.current = true;
+    setAtBottom(true);
+    setTimeout(() => scroll.current?.scrollTo({ y: 0, animated: false }), 40);
   }, [cooking, sending]);
 
   // Files dropped or pasted into the window go through the same upload route as
@@ -289,41 +334,51 @@ export default function ChatScreen() {
     async (files: any[]) => {
       if (files.length === 0 || uploadingFiles) return;
       setUploadingFiles(true);
+      const uploaded: OrderAttachment[] = [];
+      const failures: string[] = [];
       try {
-        const uploaded: OrderAttachment[] = [];
         for (const file of files) {
-          const dataUrl: string = await new Promise((resolve, reject) => {
-            const reader = new (globalThis as any).FileReader();
-            reader.onload = () => resolve(String(reader.result ?? ''));
-            reader.onerror = () => reject(new Error('The file could not be read.'));
-            reader.readAsDataURL(file);
-          });
-          const base64 = dataUrl.includes(',') ? dataUrl.slice(dataUrl.indexOf(',') + 1) : dataUrl;
-          const stored = await api.uploadFile(
-            base64,
-            file.name ?? 'attachment',
-            file.type || 'application/octet-stream'
-          );
-          uploaded.push({
-            url: stored.url,
-            name: stored.name ?? file.name ?? 'attachment',
-            contentType: stored.contentType,
-            bytes: stored.bytes,
-          });
+          if (file.size && file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+            failures.push(`${file.name ?? 'A file'} is larger than ${MAX_UPLOAD_MB} MB`);
+            continue;
+          }
+          try {
+            const dataUrl: string = await new Promise((resolve, reject) => {
+              const reader = new (globalThis as any).FileReader();
+              reader.onload = () => resolve(String(reader.result ?? ''));
+              reader.onerror = () => reject(new Error('The file could not be read.'));
+              reader.readAsDataURL(file);
+            });
+            const base64 = dataUrl.includes(',') ? dataUrl.slice(dataUrl.indexOf(',') + 1) : dataUrl;
+            const stored = await api.uploadFile(
+              base64,
+              file.name ?? 'attachment',
+              file.type || 'application/octet-stream'
+            );
+            uploaded.push({
+              url: stored.url,
+              name: stored.name ?? file.name ?? 'attachment',
+              contentType: stored.contentType,
+              bytes: stored.bytes,
+            });
+          } catch {
+            failures.push(`${file.name ?? 'A file'} could not be uploaded`);
+          }
         }
-        setPendingFiles((current) => [...current, ...uploaded]);
-      } catch (error) {
-        setBubbles((current) => [
-          ...current,
-          {
-            id: nextId(),
-            role: 'assistant',
-            kind: 'text',
-            content: errorMessage(error, 'The file could not be uploaded. Try again.'),
-            at: stamp(),
-            failed: true,
-          },
-        ]);
+        if (uploaded.length > 0) setPendingFiles((current) => [...current, ...uploaded]);
+        if (failures.length > 0) {
+          setBubbles((current) => [
+            ...current,
+            {
+              id: nextId(),
+              role: 'assistant',
+              kind: 'text',
+              content: `I could not attach everything:\n${failures.map((line) => `- ${line}`).join('\n')}`,
+              at: stamp(),
+              failed: true,
+            },
+          ]);
+        }
       } finally {
         setUploadingFiles(false);
       }
@@ -379,30 +434,52 @@ export default function ChatScreen() {
       if (picked.canceled || !picked.assets || picked.assets.length === 0) return;
       setUploadingFiles(true);
       const uploaded: OrderAttachment[] = [];
+      const failures: string[] = [];
       for (const asset of picked.assets) {
-        let data = asset.base64 ?? '';
-        if (data === '') {
-          if (Platform.OS === 'web') {
-            data = asset.uri.includes(',') ? asset.uri.slice(asset.uri.indexOf(',') + 1) : asset.uri;
-          } else {
-            data = await FileSystem.readAsStringAsync(asset.uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-          }
+        if (asset.size && asset.size > MAX_UPLOAD_MB * 1024 * 1024) {
+          failures.push(`${asset.name ?? 'A file'} is larger than ${MAX_UPLOAD_MB} MB`);
+          continue;
         }
-        const stored = await api.uploadFile(
-          data,
-          asset.name ?? 'attachment',
-          asset.mimeType ?? 'application/octet-stream'
-        );
-        uploaded.push({
-          url: stored.url,
-          name: stored.name ?? asset.name ?? 'attachment',
-          contentType: stored.contentType,
-          bytes: stored.bytes,
-        });
+        try {
+          let data = asset.base64 ?? '';
+          if (data === '') {
+            if (Platform.OS === 'web') {
+              data = asset.uri.includes(',') ? asset.uri.slice(asset.uri.indexOf(',') + 1) : asset.uri;
+            } else {
+              data = await FileSystem.readAsStringAsync(asset.uri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+            }
+          }
+          const stored = await api.uploadFile(
+            data,
+            asset.name ?? 'attachment',
+            asset.mimeType ?? 'application/octet-stream'
+          );
+          uploaded.push({
+            url: stored.url,
+            name: stored.name ?? asset.name ?? 'attachment',
+            contentType: stored.contentType,
+            bytes: stored.bytes,
+          });
+        } catch {
+          failures.push(`${asset.name ?? 'A file'} could not be uploaded`);
+        }
       }
-      setPendingFiles((current) => [...current, ...uploaded]);
+      if (uploaded.length > 0) setPendingFiles((current) => [...current, ...uploaded]);
+      if (failures.length > 0) {
+        setBubbles((current) => [
+          ...current,
+          {
+            id: nextId(),
+            role: 'assistant',
+            kind: 'text',
+            content: `I could not attach everything:\n${failures.map((line) => `- ${line}`).join('\n')}`,
+            at: stamp(),
+            failed: true,
+          },
+        ]);
+      }
     } catch (error) {
       setBubbles((current) => [
         ...current,
@@ -411,6 +488,7 @@ export default function ChatScreen() {
           role: 'assistant',
           kind: 'text',
           content: errorMessage(error, 'The file could not be uploaded. Try again.'),
+          at: stamp(),
           failed: true,
         },
       ]);
@@ -518,7 +596,13 @@ export default function ChatScreen() {
 
   const send = useCallback(async () => {
     const content = input.trim();
-    if ((content === '' && pendingFiles.length === 0) || sending || cooking) return;
+    if ((content === '' && pendingFiles.length === 0) || sending || cooking || uploadingFiles) return;
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+    const previousInput = input;
+    const previousFiles = pendingFiles;
+    const previousOrderFiles = orderFiles;
+    const previousHeight = inputHeight;
 
     // A finished order closes the chat. The next message starts a new one, so
     // one conversation never mixes two orders.
@@ -549,12 +633,15 @@ export default function ChatScreen() {
     };
     const nextBubbles = [...base, userBubble];
     const allFiles = startingFresh ? attached : [...orderFiles, ...attached];
+    if (startingFresh) previousBubbleCount.current = 1;
     setBubbles(nextBubbles);
     setInput('');
     setInputHeight(38);
     setPendingFiles([]);
     setOrderFiles(allFiles);
     setShowDesignPicker(false);
+    atBottomRef.current = true;
+    setAtBottom(true);
     setSending(true);
     try {
       const messages = nextBubbles
@@ -576,21 +663,35 @@ export default function ChatScreen() {
         await createOrderFor(result.draft, allFiles);
       }
     } catch (error) {
-      setBubbles((current) => [
-        ...current,
-        {
-          id: nextId(),
-          role: 'assistant',
-          kind: 'text',
-          content: errorMessage(error, 'I could not read that. Send it again.'),
-          at: stamp(),
-          failed: true,
-        },
-      ]);
+      // A failed send must not eat the message. Take the user bubble back out
+      // of the thread, put the text and attachments back in the composer, and
+      // explain what happened.
+      setBubbles((current) =>
+        current
+          .filter((bubble) => bubble.id !== userBubble.id)
+          .concat([
+            {
+              id: nextId(),
+              role: 'assistant',
+              kind: 'text',
+              content: `That message did not go through, so nothing was saved. It is back in the box. Check the model in Settings, then send again.${(() => {
+                const detail = errorMessage(error, '');
+                return detail ? `\n\n${detail}` : '';
+              })()}`,
+              at: stamp(),
+              failed: true,
+            },
+          ])
+      );
+      setInput(previousInput);
+      setInputHeight(previousHeight);
+      setPendingFiles(previousFiles);
+      setOrderFiles(previousOrderFiles);
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
-  }, [bubbles, cooking, createOrderFor, draft, input, orderCreated, orderFiles, pendingFiles, sending]);
+  }, [bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sending, uploadingFiles]);
 
   const retryCreate = useCallback(async () => {
     if (cooking || sending || !createFailed) return;
@@ -622,7 +723,7 @@ export default function ChatScreen() {
                 <View style={[styles.statusDot, styles.statusDotOff]} />
                 <Text style={styles.modelPillLabel}>Add model</Text>
               </Pressable>
-            ) : modelReady ? (
+            ) : modelReady && !compact ? (
               <View style={[styles.modelPill, styles.modelPillOn]}>
                 <View style={[styles.statusDot, styles.statusDotOn]} />
                 <Text style={styles.modelPillLabel}>Model ready</Text>
@@ -670,7 +771,10 @@ export default function ChatScreen() {
           {bubbles.length === 1 && !busy ? (
             <View style={styles.suggestions}>
               <Text style={styles.suggestionsTitle}>Start with what you have</Text>
-              <View style={styles.suggestionRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.suggestionRow}>
                 <SuggestionCard
                   glyph="Aa"
                   title="Paste a WhatsApp message"
@@ -692,7 +796,7 @@ export default function ChatScreen() {
                     setTimeout(scrollToBottom, 60);
                   }}
                 />
-              </View>
+              </ScrollView>
             </View>
           ) : null}
 
@@ -788,10 +892,12 @@ export default function ChatScreen() {
               accessibilityLabel="Change cover"
               onPress={() => setShowDesignPicker(true)}
               style={({ pressed }) => [styles.coverSummary, pressed && styles.sendPressed]}>
-              <Text style={styles.coverSummaryLabel}>
-                Cover with this order:{' '}
+              <Text style={styles.coverSummaryLabel} numberOfLines={1}>
+                {compact ? 'Cover: ' : 'Cover with this order: '}
                 {chosenDesign === 'ai'
-                  ? 'No design, the model decides'
+                  ? compact
+                    ? 'No design'
+                    : 'No design, the model decides'
                   : templates.find((template) => template.id === chosenDesign)?.name ?? 'selected design'}
               </Text>
               <Text style={styles.coverSummaryAction}>Change</Text>
@@ -812,41 +918,97 @@ export default function ChatScreen() {
               <Text style={styles.modelBannerAction}>Open Settings</Text>
             </Pressable>
           ) : null}
-          <View style={styles.draftInfo}>
-            <Text style={[text.caption, styles.draftCount]}>
-              {orderCreated
-                ? 'Order created, paste the next customer'
-                : fieldCount === 0
-                  ? 'Nothing captured yet'
-                  : `${fieldCount} details captured`}
-            </Text>
-            {missing.length > 0 && fieldCount > 0 ? (
-              <Text style={[text.caption, styles.draftMissing]} numberOfLines={1}>
-                Still needed: {missing.join(', ')}
-              </Text>
-            ) : null}
-            {ready ? (
-              <Text style={[text.caption, styles.draftReady]}>Ready to make the brochure</Text>
-            ) : null}
-          </View>
+          {orderCreated ? (
+            <View style={styles.statusCard}>
+              <View style={styles.statusTop}>
+                <View style={styles.statusCheck}>
+                  <Text style={styles.statusCheckLabel}>✓</Text>
+                </View>
+                <Text style={styles.statusTitle}>Order created</Text>
+                <Text style={styles.statusHint}>Paste the next customer to start a new chat</Text>
+              </View>
+            </View>
+          ) : missing.length > 0 || fieldCount > 0 ? (
+            <View style={styles.statusCard}>
+              <View style={styles.statusTop}>
+                <Text style={styles.statusTitle}>
+                  {ready ? 'Ready to build' : `${Math.min(ESSENTIAL_TOTAL, Math.max(0, ESSENTIAL_TOTAL - missing.length))} of ${ESSENTIAL_TOTAL} details`}
+                </Text>
+                <View style={styles.progressTrack}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${Math.round((Math.min(ESSENTIAL_TOTAL, Math.max(0, ESSENTIAL_TOTAL - missing.length)) / ESSENTIAL_TOTAL) * 100)}%` },
+                      ready && styles.progressFillReady,
+                    ]}
+                  />
+                </View>
+                <Text style={styles.statusPct}>
+                  {Math.round((Math.min(ESSENTIAL_TOTAL, Math.max(0, ESSENTIAL_TOTAL - missing.length)) / ESSENTIAL_TOTAL) * 100)}%
+                </Text>
+              </View>
+              {ready ? (
+                <Text style={styles.statusHint}>
+                  The order and brochure are being made automatically. Check the thread for the PDF.
+                </Text>
+              ) : (
+                <View style={styles.missingWrap}>
+                  <Text style={styles.missingTitle}>Still needed</Text>
+                  {missing.slice(0, 6).map((label) => (
+                    <Pressable
+                      key={label}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Missing ${shortLabel(label)}, focus the message box`}
+                      onPress={() => inputRef.current?.focus()}
+                      style={({ pressed }) => [styles.missingChip, pressed && styles.sendPressed]}>
+                      <Text style={styles.missingChipText}>{shortLabel(label)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : null}
 
-          {pendingFiles.length > 0 ? (
-            <View style={styles.pendingRow}>
+          {pendingFiles.length > 0 || uploadingFiles ? (
+            <View style={styles.attachTray}>
               {pendingFiles.map((file) => (
-                <Pressable
-                  key={file.url}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${file.name}`}
-                  onPress={() =>
-                    setPendingFiles((current) => current.filter((entry) => entry.url !== file.url))
-                  }
-                  style={styles.pendingChip}>
-                  <Text numberOfLines={1} style={styles.pendingName}>
-                    {file.name}
-                  </Text>
-                  <Text style={styles.pendingRemove}>×</Text>
-                </Pressable>
+                <View key={file.url} style={styles.attachCard}>
+                  {file.contentType.startsWith('image/') ? (
+                    <Image
+                      source={{ uri: fileUrl(file.url) }}
+                      style={styles.attachThumb}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.attachIcon}>
+                      <Text style={styles.attachIconLabel}>
+                        {(file.name.split('.').pop() ?? 'FILE').slice(0, 4).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.attachMeta}>
+                    <Text numberOfLines={1} style={styles.attachName}>
+                      {file.name}
+                    </Text>
+                    <Text style={styles.attachSize}>{formatBytes(file.bytes)}</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${file.name}`}
+                    onPress={() =>
+                      setPendingFiles((current) => current.filter((entry) => entry.url !== file.url))
+                    }
+                    style={({ pressed }) => [styles.attachRemove, pressed && styles.sendPressed]}>
+                    <Text style={styles.attachRemoveLabel}>×</Text>
+                  </Pressable>
+                </View>
               ))}
+              {uploadingFiles ? (
+                <View style={[styles.attachCard, styles.attachUploading]}>
+                  <ActivityIndicator size="small" color={colors.copper} />
+                  <Text style={styles.attachUploadingText}>Uploading</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -886,7 +1048,8 @@ export default function ChatScreen() {
               }}
               onKeyPress={(event) => {
                 const native = event.nativeEvent as unknown as { key?: string; shiftKey?: boolean };
-                if (Platform.OS === 'web' && native.key === 'Enter' && !native.shiftKey) {
+                const composing = (event.nativeEvent as unknown as { isComposing?: boolean }).isComposing;
+                if (Platform.OS === 'web' && native.key === 'Enter' && !native.shiftKey && !composing) {
                   event.preventDefault?.();
                   void send();
                 }
@@ -895,24 +1058,30 @@ export default function ChatScreen() {
             />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Send message"
+              accessibilityLabel={busy ? 'Sending message' : 'Send message'}
               onPress={() => void send()}
-              disabled={busy || (input.trim() === '' && pendingFiles.length === 0)}
+              disabled={busy || uploadingFiles || (input.trim() === '' && pendingFiles.length === 0)}
               style={({ pressed }) => [
                 styles.send,
                 (busy || (input.trim() === '' && pendingFiles.length === 0)) && styles.sendDisabled,
                 pressed && styles.sendPressed,
               ]}>
-              <Text style={styles.sendLabel}>↑</Text>
+              {busy ? (
+                <ActivityIndicator size="small" color={colors.surface} />
+              ) : (
+                <Text style={styles.sendLabel}>↑</Text>
+              )}
             </Pressable>
           </View>
           <View style={styles.composerHint}>
             <Text style={styles.composerHintText}>
-              {Platform.OS === 'web'
-                ? dragging
-                  ? 'Drop to attach'
-                  : 'Enter to send · Shift+Enter for a new line · Drop or paste files'
-                : 'Attach photos, plans or PDFs with +'}
+              {compact
+                ? 'Attach photos or plans with + · Send when ready'
+                : Platform.OS === 'web'
+                  ? dragging
+                    ? 'Drop to attach'
+                    : 'Enter to send · Shift+Enter for a new line · Drop or paste files'
+                  : 'Attach photos, plans or PDFs with +'}
             </Text>
           </View>
 
@@ -933,14 +1102,14 @@ export default function ChatScreen() {
                 The details are enough, the last attempt failed
               </Text>
             </Pressable>
-          ) : (
-            <Text style={[text.caption, styles.autoHint]}>
-              {ready
-                ? 'Creating the order now'
-                : 'I will create the order myself once I have enough details.'}
-            </Text>
-          )}
+          ) : null}
         </View>
+        {dragging ? (
+          <View style={styles.dropOverlay} pointerEvents="none">
+            <Text style={styles.dropOverlayTitle}>Drop to attach</Text>
+            <Text style={styles.dropOverlayBody}>Photos, plans, PDFs, anything the customer sent</Text>
+          </View>
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
@@ -1178,8 +1347,7 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   suggestionCard: {
-    flexGrow: 1,
-    flexBasis: 180,
+    width: 220,
     backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1389,6 +1557,183 @@ const styles = StyleSheet.create({
     paddingTop: space.sm,
     gap: space.sm,
   },
+  statusCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  statusTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  statusCheck: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#EAF3E7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusCheckLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#3F7A3F',
+  },
+  statusTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  statusHint: {
+    fontSize: 12,
+    color: colors.muted,
+    flexShrink: 1,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.fill,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.copper,
+  },
+  progressFillReady: {
+    backgroundColor: '#4C8A4C',
+  },
+  statusPct: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.muted,
+    minWidth: 30,
+    textAlign: 'right',
+  },
+  missingWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  missingTitle: {
+    fontSize: 11,
+    color: colors.faint,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginRight: 2,
+  },
+  missingChip: {
+    borderRadius: 999,
+    backgroundColor: colors.fill,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  missingChipText: {
+    fontSize: 11.5,
+    color: colors.muted,
+  },
+  attachTray: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  attachCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: 280,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    borderRadius: 12,
+    padding: 6,
+    paddingRight: 8,
+  },
+  attachThumb: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: colors.fill,
+  },
+  attachIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: colors.fill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachIconLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: colors.muted,
+  },
+  attachMeta: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  attachName: {
+    fontSize: 12,
+    color: colors.ink,
+    fontWeight: '500',
+  },
+  attachSize: {
+    fontSize: 10.5,
+    color: colors.faint,
+  },
+  attachRemove: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.fill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachRemoveLabel: {
+    fontSize: 13,
+    color: colors.muted,
+    lineHeight: 15,
+  },
+  attachUploading: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  attachUploadingText: {
+    fontSize: 11,
+    color: colors.muted,
+  },
+  dropOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.86)',
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.copper,
+  },
+  dropOverlayTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  dropOverlayBody: {
+    fontSize: 13,
+    color: colors.muted,
+  },
   draftInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1458,9 +1803,9 @@ const styles = StyleSheet.create({
     color: colors.faint,
   },
   plus: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.fill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1483,9 +1828,9 @@ const styles = StyleSheet.create({
     paddingBottom: 7,
   },
   send: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.copper,
     alignItems: 'center',
     justifyContent: 'center',

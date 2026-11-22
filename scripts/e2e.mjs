@@ -461,6 +461,10 @@ try {
     attachedFile = await waitForBodyText(page, "plan.txt", 30000);
   }
   check("chat accepts an uploaded file of any type", attachedFile);
+  check(
+    "the attachment waits in the composer tray",
+    (await page.$('[aria-label="Remove plan.txt"]')) !== null
+  );
   await setValueByPlaceholder(
     page,
     chatInput,
@@ -468,6 +472,11 @@ try {
   );
   check("chat accepts the dump", await clickAria(page, "Send message"));
   check("chat asks for the missing details", await waitForBodyText(page, "what is the height", 90000));
+  check("the brief shows its progress", await hasText(page, "of 7 details"));
+  check(
+    "missing details are named as chips",
+    (await page.$$('[aria-label^="Missing "]')).length > 0
+  );
   const ordersBeforeChat = (await (await fetch(`${API}/api/orders`)).json()).length;
   await setValueByPlaceholder(page, chatInput, "Height 2100, depth 600, three shutters.");
   check("chat takes the answer", await clickAria(page, "Send message"));
