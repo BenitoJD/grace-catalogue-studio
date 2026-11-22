@@ -59,7 +59,9 @@ It is built as an Indian workshop brochure, not a report:
 3. **Materials.** A maroon header and the four finish textures at size with their names. A colour page, not a table.
 4. **Specification.** Dimensions, materials and hardware, set quietly at the back for the workshop and the client file.
 
-Warm cream stock, deep maroon, gold rules and Indian ornament: a jaali border across the head of the page, paisley and lotus motifs, a rangoli mark and a temple arch behind the framed photograph. The brand appears in English and Tamil (கிரேஸ் வூட் இண்டஸ்ட்ரி) on the cover, the contact strip is bilingual, and the tones are Indian: maroon, teal, copper, sandal and peacock. Display type runs 30 to 46 point and body text 8 point.
+Warm cream stock, deep maroon, metallic gold rules and Indian ornament: a jaali border across the head of the page, paisley and lotus motifs, a rangoli mark and a temple arch behind the framed photograph. The brand appears in English and Tamil (கிரேஸ் வூட் இண்டஸ்ட்ரி) on the cover, the room name appears in Tamil under the English title, the contact strip is bilingual, and the tones are Indian: maroon, teal, copper, sandal and peacock. Display type runs 30 to 46 point and body text 8 point.
+
+Finishing details: the cover carries a Made in Nagercoil line, the story page opens with a display drop cap, the four finishes are numbered and framed in gold on the materials page, and the specification page closes with a measured front elevation and plan drawn from the confirmed order, with width, height and depth marked in millimetres.
 
 The studio app carries the same Tamil brand line under its headers.
 

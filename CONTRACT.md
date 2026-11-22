@@ -282,7 +282,7 @@ Allowed values are checked, photo indexes are clamped, and the copy passes the
 same quality gate as the classic path. The tone selects one of five Indian
 palettes (maroon, teal, copper, sandal, peacock) over warm cream stock with gold
 rules, a Tamil brand line and Indian ornament (jaali border, paisley, lotus,
-rangoli, temple arch). The server compiles the design to HTML
+rangoli, temple arch). The specification page also carries a measured front elevation and plan generated from the order dimensions; the story page opens with a drop cap and the covers carry the room name in Tamil. The server compiles the design to HTML
 and CSS from print safe primitives; the provider never writes markup. The
 resulting render has `kind: "ai"`, `templateId: null` and a `design` object with
 the composition and a human label. Designs are cached by prompt like other model

@@ -188,8 +188,11 @@ const BASE_CSS = `
   .body2col { display:flex; gap:7mm; }
   .body2col > div { flex:1; font-family:var(--body); font-size:8pt; line-height:1.56; color:var(--ink); }
   .band { background:var(--deep); color:var(--cream); }
-  .goldLine { height:0.35mm; background:var(--gold); }
+  .goldLine { height:0.4mm; background:linear-gradient(90deg,#9A6A22 0%,#D9AE62 45%,#A8792E 100%); }
   .diamond { width:1.7mm; height:1.7mm; background:var(--gold); transform:rotate(45deg); }
+  .swatchName { font-family:var(--display); font-size:10.5pt; line-height:1.2; color:var(--deep); margin-top:3mm; }
+  .swatchIndex { font-family:var(--body); font-size:6.5pt; letter-spacing:.18em; color:var(--gold); margin-right:2.4mm; }
+  .dropcap { font-family:var(--display); font-size:20pt; line-height:.8; float:left; padding:0 1.8mm 0 0; color:var(--accent); }
   .tamil { font-family:'Noto Sans Tamil', var(--body); letter-spacing:0; text-transform:none; }
   .jaali { background-image:url(../assets/indian/jaali.svg); background-repeat:repeat-x; background-size:auto 6mm; }
   .paisley { background-image:url(../assets/indian/paisley.svg); background-repeat:no-repeat; background-size:contain; }
@@ -245,6 +248,87 @@ function specGroups(values) {
   ];
 }
 
+const TAMIL_ROOMS = [
+  ['guest', 'விருந்தினர் அறை'],
+  ['master', 'முதன்மை படுக்கையறை'],
+  ['bed', 'படுக்கையறை'],
+  ['kitchen', 'சமையலறை'],
+  ['dining', 'உணவறை'],
+  ['study', 'படிப்பறை'],
+  ['living', 'வரவேற்பறை'],
+  ['pooja', 'பூஜை அறை'],
+  ['kids', 'குழந்தைகள் அறை'],
+  ['wardrobe', 'ஆடை அலமாரி'],
+  ['storage', 'சேமிப்பு அலமாரி'],
+];
+
+function tamilRoom(values) {
+  const haystack = `${values.room ?? ''} ${values.title ?? ''}`.toLowerCase();
+  const found = TAMIL_ROOMS.find(([key]) => haystack.includes(key));
+  return found ? found[1] : 'தளவாடங்கள்';
+}
+
+function priceNumber(text) {
+  const match = String(text ?? '').replace(/,/g, '').match(/\d+(?:\.\d+)?/);
+  return match ? Number.parseFloat(match[0]) : null;
+}
+
+/** A measured front elevation and plan for the specification page. */
+function elevationSvg(values) {
+  const width = priceNumber(values.width) || 2400;
+  const height = priceNumber(values.height) || 2100;
+  const depth = priceNumber(values.depth) || 600;
+  const shutters = Math.min(6, Math.max(1, Math.round(priceNumber(values.shutters) || 2)));
+  const boxW = 118;
+  const boxH = 96;
+  const scale = Math.min(boxW / width, boxH / height);
+  const w = width * scale;
+  const h = height * scale;
+  const x0 = 30;
+  const y0 = 14;
+  const ink = '#3A2415';
+  const gold = '#B4863F';
+  const lines = [];
+  lines.push(`<rect x="${x0}" y="${y0}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="none" stroke="${ink}" stroke-width="1.1"/>`);
+  for (let index = 1; index < shutters; index += 1) {
+    const x = x0 + (w / shutters) * index;
+    lines.push(`<line x1="${x.toFixed(1)}" y1="${y0}" x2="${x.toFixed(1)}" y2="${(y0 + h).toFixed(1)}" stroke="${ink}" stroke-width="0.8"/>`);
+    lines.push(`<line x1="${(x - 4).toFixed(1)}" y1="${(y0 + h * 0.42).toFixed(1)}" x2="${(x - 4).toFixed(1)}" y2="${(y0 + h * 0.58).toFixed(1)}" stroke="${gold}" stroke-width="1.6"/>`);
+  }
+  // bottom dimension
+  lines.push(`<line x1="${x0}" y1="${(y0 + h + 10).toFixed(1)}" x2="${(x0 + w).toFixed(1)}" y2="${(y0 + h + 10).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
+  lines.push(`<line x1="${x0}" y1="${(y0 + h + 7).toFixed(1)}" x2="${x0}" y2="${(y0 + h + 13).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
+  lines.push(`<line x1="${(x0 + w).toFixed(1)}" y1="${(y0 + h + 7).toFixed(1)}" x2="${(x0 + w).toFixed(1)}" y2="${(y0 + h + 13).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
+  lines.push(`<text x="${(x0 + w / 2).toFixed(1)}" y="${(y0 + h + 19).toFixed(1)}" text-anchor="middle" font-family="Barlow" font-size="7" letter-spacing="1" fill="${ink}">${Math.round(width)}</text>`);
+  // left dimension
+  lines.push(`<line x1="${x0 - 10}" y1="${y0}" x2="${x0 - 10}" y2="${(y0 + h).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
+  lines.push(`<line x1="${x0 - 13}" y1="${y0}" x2="${x0 - 7}" y2="${y0}" stroke="${gold}" stroke-width="0.7"/>`);
+  lines.push(`<line x1="${x0 - 13}" y1="${(y0 + h).toFixed(1)}" x2="${x0 - 7}" y2="${(y0 + h).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
+  lines.push(`<text x="${x0 - 15}" y="${(y0 + h / 2).toFixed(1)}" text-anchor="middle" font-family="Barlow" font-size="7" letter-spacing="1" fill="${ink}" transform="rotate(-90 ${x0 - 15} ${(y0 + h / 2).toFixed(1)})">${Math.round(height)}</text>`);
+  // plan view
+  const planW = 118;
+  const planD = Math.max(12, depth * scale);
+  const px = x0 + w + 26;
+  const py = y0 + 18;
+  lines.push(`<text x="${px}" y="${(py - 8).toFixed(1)}" font-family="Barlow" font-size="6" letter-spacing="2" fill="${gold}">PLAN</text>`);
+  lines.push(`<rect x="${px}" y="${py.toFixed(1)}" width="${planW}" height="${planD.toFixed(1)}" fill="none" stroke="${ink}" stroke-width="1"/>`);
+  lines.push(`<line x1="${px}" y1="${(py + planD / 2).toFixed(1)}" x2="${(px + planW).toFixed(1)}" y2="${(py + planD / 2).toFixed(1)}" stroke="${ink}" stroke-width="0.5" stroke-dasharray="2 2"/>`);
+  lines.push(`<text x="${(px + planW / 2).toFixed(1)}" y="${(py + planD + 9).toFixed(1)}" text-anchor="middle" font-family="Barlow" font-size="6.5" letter-spacing="1" fill="${ink}">${Math.round(depth)} deep</text>`);
+  lines.push(`<text x="${px}" y="${(py + planD + 22).toFixed(1)}" font-family="Barlow" font-size="6" letter-spacing="1.5" fill="${gold}">ELEVATION</text>`);
+  lines.push(`<text x="${px}" y="${(py + planD + 31).toFixed(1)}" font-family="Barlow" font-size="6" letter-spacing="1" fill="${ink}">${shutters} shutters, floor to ceiling</text>`);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 150" fill="none">${lines.join('')}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function drawingBlock(values, top = 158) {
+  return `<div class="abs" style="left:18mm; top:${top}mm; width:174mm;"><div class="goldLine" style="width:174mm;"></div>
+    <div class="abs" style="left:0; top:3mm; width:174mm; display:flex; justify-content:space-between;"><span class="micro">Measured drawing</span><span class="micro">All dimensions in mm</span></div>
+    <img src="${elevationSvg(values)}" style="position:absolute; left:0; top:9mm; width:136mm; height:82mm;">
+    <div class="abs" style="left:142mm; top:12mm; width:32mm; font-family:var(--body); font-size:7pt; line-height:1.6; color:var(--deep);">Drawn from the confirmed order, for the workshop and the site. Checked against the wall before cutting.</div>
+    <div class="abs lotus" style="left:144mm; top:42mm; width:22mm; height:13mm;"></div>
+  </div>`;
+}
+
 function columnsHtml(text, columns = 2) {
   const sentences = String(text)
     .split(/(?<=[.!?])\s+/)
@@ -265,7 +349,11 @@ function columnsHtml(text, columns = 2) {
   }
   if (current !== '') chunks.push(current);
   while (chunks.length < columns) chunks.push('');
-  return `<div class="body2col">${chunks.slice(0, columns).map((chunk) => `<div>${escapeHtml(chunk)}</div>`).join('')}</div>`;
+  return `<div class="body2col">${chunks.slice(0, columns).map((chunk, index) => {
+    const escaped = escapeHtml(chunk);
+    const withCap = index === 0 ? escaped.replace(/^(\S)/, '<span class="dropcap">$1</span>') : escaped;
+    return `<div>${withCap}</div>`;
+  }).join('')}</div>`;
 }
 
 function folio(page, dark = false) {
@@ -294,6 +382,7 @@ function coverHtml(values, design, photos) {
   const room = escapeHtml(values.room);
   const customer = escapeHtml(values.customerName);
   const meta = `${escapeHtml(values.orderNo)} · ${escapeHtml(values.date)}`;
+  const taRoom = tamilRoom(values);
   const sizes = `${escapeHtml(values.width)} · ${escapeHtml(values.height)} · ${escapeHtml(values.depth)}`;
   const logo = (width = 26, top = 15) =>
     `<img class="abs" src="../assets/grace-logo.png" style="left:${(210 - width) / 2}mm; top:${top}mm; width:${width}mm;">`;
@@ -311,7 +400,8 @@ function coverHtml(values, design, photos) {
       <div class="abs goldLine" style="left:-3mm; top:15.5mm; width:216mm;"></div>
       <div class="abs paisley" style="left:10mm; top:24mm; width:16mm; height:22mm; opacity:0.9;"></div>
       <div class="abs paisley" style="right:10mm; bottom:26mm; width:16mm; height:22mm; opacity:0.9; transform:rotate(180deg);"></div>
-      <div class="abs head" style="left:18mm; top:186mm; width:174mm; font-size:46pt; color:var(--cream);">${title}</div>
+      <div class="abs head" style="left:18mm; top:182mm; width:174mm; font-size:44pt; color:var(--cream);">${title}</div>
+      <div class="abs tamil" style="left:18mm; top:228mm; width:174mm; font-size:9pt; color:var(--gold);">${taRoom}</div>
       ${goldRule(18, 238, 26)}
       <div class="abs" style="left:18mm; top:246mm; width:174mm; font-family:var(--body); font-size:8pt; letter-spacing:.12em; text-transform:uppercase; color:var(--cream);">${customer} · ${room} · ${sizes}</div>
       ${contactBand()}
@@ -332,6 +422,7 @@ function coverHtml(values, design, photos) {
       <div class="abs micro" style="left:${textLeft}mm; top:30mm; width:${textWidth}mm;">${meta}</div>
       <div class="abs paisley" style="left:${textLeft}mm; top:196mm; width:14mm; height:20mm;"></div>
       <div class="abs head" style="left:${textLeft}mm; top:78mm; width:${textWidth}mm; font-size:34pt;">${title}</div>
+      <div class="abs tamil" style="left:${textLeft}mm; top:156mm; width:${textWidth}mm; font-size:8pt; color:var(--accent);">${taRoom}</div>
       ${goldRule(textLeft, 168, 24)}
       <div class="abs" style="left:${textLeft}mm; top:176mm; width:${textWidth}mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:2mm;">${sizes}</div></div>
       <div class="abs" style="left:${textLeft}mm; top:232mm; width:${textWidth}mm; font-family:var(--display); font-size:14pt; color:var(--deep);">${customer}</div>
@@ -347,11 +438,13 @@ function coverHtml(values, design, photos) {
       ${wordmark(50)}
       <div class="abs tamil" style="left:0; top:56mm; width:210mm; text-align:center; font-size:8.4pt; color:var(--accent);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
       <div class="abs head" style="left:18mm; top:66mm; width:174mm; text-align:center; font-size:42pt;">${title}</div>
-      <div class="abs lotus" style="left:88mm; top:108mm; width:34mm; height:19mm;"></div>
-      <div class="abs" style="left:18mm; top:128mm; width:174mm; text-align:center; font-family:var(--body); font-size:8pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${customer} · ${room}</div>
-      <div class="abs ornament" style="left:8.5mm; top:140mm; width:193mm; height:114mm;"></div>
-      <div class="abs ph" style="left:10mm; top:142mm; width:190mm; height:110mm; background-image:url(${photo});"></div>
+      <div class="abs lotus" style="left:88mm; top:99mm; width:30mm; height:16mm;"></div>
+      <div class="abs" style="left:18mm; top:120mm; width:174mm; text-align:center; font-family:var(--body); font-size:8pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${customer} · ${room}</div>
+      <div class="abs tamil" style="left:0; top:128mm; width:210mm; text-align:center; font-size:8.4pt; color:var(--accent);">${taRoom}</div>
+      <div class="abs ornament" style="left:8.5mm; top:142mm; width:193mm; height:110mm;"></div>
+      <div class="abs ph" style="left:10mm; top:144mm; width:190mm; height:106mm; background-image:url(${photo});"></div>
       <div class="abs micro" style="left:18mm; top:258mm; width:174mm; text-align:center;">${meta}</div>
+      <div class="abs" style="left:18mm; top:278mm; width:174mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent);">Made in Nagercoil · தமிழ்நாடு</div>
       ${contactBand()}
     </div></div>`;
   }
@@ -364,11 +457,13 @@ function coverHtml(values, design, photos) {
       ${wordmark(50)}
       <div class="abs tamil" style="left:0; top:56mm; width:210mm; text-align:center; font-size:8pt; color:var(--accent);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
       <div class="abs head" style="left:18mm; top:64mm; width:174mm; text-align:center; font-size:36pt;">${title}</div>
-      <div class="abs" style="left:18mm; top:104mm; width:174mm; text-align:center; font-family:var(--body); font-size:7.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${room} · ${sizes}</div>
-      <div class="abs arch" style="left:45mm; top:118mm; width:120mm; height:132mm;"></div>
-      <div class="abs ph" style="left:54mm; top:130mm; width:102mm; height:104mm; background-image:url(${photo});"></div>
-      <div class="abs lotus" style="left:88mm; top:244mm; width:30mm; height:17mm;"></div>
-      <div class="abs" style="left:0; top:258mm; width:210mm; text-align:center; font-family:var(--display); font-size:15pt; color:var(--deep);">${customer}</div>
+      <div class="abs tamil" style="left:0; top:98mm; width:210mm; text-align:center; font-size:8.4pt; color:var(--accent);">${taRoom}</div>
+      <div class="abs" style="left:18mm; top:106mm; width:174mm; text-align:center; font-family:var(--body); font-size:7.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${room} · ${sizes}</div>
+      <div class="abs arch" style="left:45mm; top:124mm; width:120mm; height:126mm;"></div>
+      <div class="abs ph" style="left:54mm; top:136mm; width:102mm; height:98mm; background-image:url(${photo});"></div>
+      <div class="abs lotus" style="left:88mm; top:238mm; width:30mm; height:17mm;"></div>
+      <div class="abs" style="left:0; top:254mm; width:210mm; text-align:center; font-family:var(--display); font-size:15pt; color:var(--deep);">${customer}</div>
+      <div class="abs" style="left:18mm; top:278mm; width:174mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent);">Made in Nagercoil · தமிழ்நாடு</div>
       ${contactBand()}
     </div></div>`;
   }
@@ -385,8 +480,10 @@ function coverHtml(values, design, photos) {
     <div class="abs paisley" style="right:18mm; top:176mm; width:16mm; height:22mm;"></div>
     <div class="abs head" style="left:18mm; top:182mm; width:174mm; font-size:42pt;">${title}</div>
     ${goldRule(18, 232, 24)}
+    <div class="abs tamil" style="left:18mm; top:224mm; width:174mm; font-size:8.4pt; color:var(--accent);">${taRoom}</div>
     <div class="abs" style="left:18mm; top:240mm; width:100mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:2mm;">${sizes}</div></div>
     <div class="abs" style="right:18mm; top:240mm; width:62mm; text-align:right; font-family:var(--display); font-size:14pt; color:var(--deep);">${customer}</div>
+    <div class="abs" style="left:18mm; top:278mm; width:174mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent);">Made in Nagercoil · தமிழ்நாடு</div>
     ${contactBand()}
   </div></div>`;
 }
@@ -454,6 +551,8 @@ function finishCards(values) {
 
 function materialsHtml(values, design) {
   const cards = finishCards(values);
+  const nameTag = (entry, index) =>
+    `<div class="swatchName"><span class="swatchIndex">0${index + 1}</span>${escapeHtml(entry.name)}</div>`;
   const head = `<div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:40mm;"></div>
     <div class="abs" style="left:18mm; top:7mm; width:130mm; font-family:var(--display); font-size:26pt; color:var(--cream);">Materials</div>
     <div class="abs" style="right:18mm; top:11mm; width:80mm; text-align:right; font-family:var(--body); font-size:6.6pt; letter-spacing:.18em; text-transform:uppercase; color:var(--cream);">${escapeHtml(values.orderNo)}</div>
@@ -468,8 +567,8 @@ function materialsHtml(values, design) {
         .map(
           (entry, index) =>
             `<div class="abs" style="left:${18 + index * 43}mm; top:50mm; width:38mm;">
-              <div class="ph" style="width:38mm; height:152mm; background-image:url(${entry.image});"></div>
-              <div class="label" style="margin-top:3mm;">${escapeHtml(entry.name)}</div>
+              <div class="ph" style="border:0.45mm solid var(--gold); padding:1.4mm; background-color:#fff; width:38mm; height:152mm; background-image:url(${entry.image});"></div>
+              ${nameTag(entry, index)}
             </div>`,
         )
         .join('')}
@@ -481,26 +580,26 @@ function materialsHtml(values, design) {
         ${cards
           .map(
             (entry) =>
-              `<div style="width:54mm; height:110mm; background-image:url(${entry.image}); background-size:cover; background-position:center;"></div>`,
+              `<div style="border:0.45mm solid var(--gold); border-right:none; background-color:#fff; width:54mm; height:110mm; background-image:url(${entry.image}); background-size:cover; background-position:center;"></div>`,
           )
           .join('')}
       </div>
       <div class="abs" style="left:18mm; top:168mm; width:174mm; display:flex;">
-        ${cards.map((entry) => `<div style="width:43mm;"><div class="label">${escapeHtml(entry.name)}</div></div>`).join('')}
+        ${cards.map((entry, index) => `<div style="width:43mm;">${nameTag(entry, index)}</div>`).join('')}
       </div>
       ${finishLine}${folio(3)}</div></div>`;
   }
   if (design.materials === 'museum') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs ph" style="left:18mm; top:50mm; width:114mm; height:164mm; background-image:url(${cards[0].image});"></div>
-      <div class="abs label" style="left:18mm; top:217mm; width:114mm;">${escapeHtml(cards[0].name)}</div>
+      <div class="abs ph" style="border:0.45mm solid var(--gold); padding:1.8mm; background-color:#fff; left:18mm; top:50mm; width:114mm; height:164mm; background-image:url(${cards[0].image});"></div>
+      <div class="abs swatchName" style="left:18mm; top:217mm; width:114mm;"><span class="swatchIndex">01</span>${escapeHtml(cards[0].name)}</div>
       ${cards
         .slice(1)
         .map(
           (entry, index) =>
             `<div class="abs" style="left:142mm; top:${50 + index * 56}mm; width:50mm;">
-              <div class="ph" style="width:50mm; height:42mm; background-image:url(${entry.image});"></div>
-              <div class="label" style="margin-top:2mm;">${escapeHtml(entry.name)}</div>
+              <div class="ph" style="border:0.45mm solid var(--gold); padding:1.4mm; background-color:#fff; width:50mm; height:42mm; background-image:url(${entry.image});"></div>
+              ${nameTag(entry, index)}
             </div>`,
         )
         .join('')}
@@ -513,8 +612,8 @@ function materialsHtml(values, design) {
         ${cards
           .slice(1)
           .map(
-            (entry) =>
-              `<div style="width:57mm;"><div class="ph" style="width:53mm; height:53mm; background-image:url(${entry.image});"></div><div class="label" style="margin-top:2.5mm;">${escapeHtml(entry.name)}</div></div>`,
+            (entry, index) =>
+              `<div style="width:57mm;"><div class="ph" style="border:0.45mm solid var(--gold); padding:1.4mm; background-color:#fff; width:53mm; height:53mm; background-image:url(${entry.image});"></div>${nameTag(entry, index + 1)}</div>`,
           )
           .join('')}
       </div>
@@ -526,8 +625,8 @@ function materialsHtml(values, design) {
       .map(
         (entry, index) =>
           `<div class="abs" style="left:${18 + (index % 2) * 88}mm; top:${52 + Math.floor(index / 2) * 92}mm; width:84mm;">
-            <div class="ph" style="width:84mm; height:72mm; background-image:url(${entry.image});"></div>
-            <div class="label" style="margin-top:3mm;">${escapeHtml(entry.name)}</div>
+            <div class="ph" style="border:0.45mm solid var(--gold); padding:1.6mm; background-color:#fff; width:84mm; height:72mm; background-image:url(${entry.image});"></div>
+            ${nameTag(entry, index)}
           </div>`,
       )
       .join('')}
@@ -537,6 +636,7 @@ function materialsHtml(values, design) {
 function specificationHtml(values, design) {
   const groups = specGroups(values);
   const allFacts = groups.flatMap((group) => group.facts);
+  const drawingTop = design.spec === 'ledger' ? 172 : design.spec === 'cards' ? 164 : 158;
   const head = `<div class="abs" style="left:18mm; top:14mm; width:140mm; font-family:var(--body); font-size:8pt; letter-spacing:.26em; text-transform:uppercase; color:var(--deep);">Specification</div>
     <div class="abs micro" style="right:18mm; top:14mm;">${escapeHtml(values.orderNo)}</div>
     <div class="abs goldLine" style="left:18mm; top:23mm; width:174mm;"></div>
@@ -550,7 +650,7 @@ function specificationHtml(values, design) {
     return `<div class="page"><div class="sheet">${head}
       <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
       <div class="abs" style="left:18mm; top:56mm; width:174mm;">${rowsHtml(allFacts)}</div>
-      ${contact}${folio(4)}</div></div>`;
+      ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
   }
   if (design.spec === 'cards') {
     return `<div class="page"><div class="sheet">${head}
@@ -558,13 +658,13 @@ function specificationHtml(values, design) {
       ${groups
         .map(
           (group, index) =>
-            `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${58 + Math.floor(index / 2) * 62}mm; width:80mm; border-top:0.35mm solid var(--gold); padding-top:4mm;">
+            `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${56 + Math.floor(index / 2) * 54}mm; width:80mm; border-top:0.35mm solid var(--gold); padding-top:4mm;">
               <div class="label" style="margin-bottom:3mm;">${escapeHtml(group.title)}</div>
               ${rowsHtml(group.facts)}
             </div>`,
         )
         .join('')}
-      ${contact}${folio(4)}</div></div>`;
+      ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
   }
   if (design.spec === 'threeColumn') {
     return `<div class="page"><div class="sheet">${head}
@@ -578,28 +678,30 @@ function specificationHtml(values, design) {
             </div>`,
         )
         .join('')}
-      ${contact}${folio(4)}</div></div>`;
+      ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
   }
   if (design.spec === 'stacked') {
     return `<div class="page"><div class="sheet">${head}
       <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
-      ${groups
-        .map(
-          (group, index) =>
-            `<div class="abs" style="left:18mm; top:${56 + index * 64}mm; width:174mm;">
-              <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(group.title)}</div>
-              ${rowsHtml(group.facts)}
-            </div>`,
-        )
-        .join('')}
-      ${contact}${folio(4)}</div></div>`;
+      <div class="abs" style="left:18mm; top:56mm; width:82mm;">
+        <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(groups[0].title)}</div>
+        ${rowsHtml(groups[0].facts)}
+        <div class="label" style="margin:5mm 0 2.5mm;">${escapeHtml(groups[2].title)}</div>
+        ${rowsHtml(groups[2].facts)}
+      </div>
+      <div class="abs" style="left:110mm; top:56mm; width:82mm;">
+        <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(groups[1].title)}</div>
+        ${rowsHtml(groups[1].facts)}
+      </div>
+      ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
   }
+
   // twoColumn
   return `<div class="page"><div class="sheet">${head}
     <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
     <div class="abs" style="left:18mm; top:58mm; width:82mm;">${rowsHtml([...groups[0].facts, ...groups[2].facts])}</div>
     <div class="abs" style="left:110mm; top:58mm; width:82mm;">${rowsHtml(groups[1].facts)}</div>
-    ${contact}${folio(4)}</div></div>`;
+    ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
 }
 
 /** Compile a validated design into one print ready HTML document. */
