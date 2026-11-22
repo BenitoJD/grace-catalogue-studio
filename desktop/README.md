@@ -50,9 +50,10 @@ On launch `main.js`:
 3. Opens a BrowserWindow (1280×860, minimum 900×700) at that server, restores
    the previous window bounds from the userData directory, and keeps a single
    instance running (a second launch focuses the existing window).
-4. Adds a native menu: **Reload**, **Open data folder**, **Open server settings**
-   and **Quit**. The language model settings live in the app and are edited on
-   the Settings screen, not in a file.
+4. Adds a native menu: **Edit** (undo, cut, copy, paste, select all), **View**,
+   **Open data folder** and **Quit**. The Edit menu is what makes Cmd/Ctrl+C and
+   Cmd/Ctrl+V work inside the app. The language model settings live in
+   Settings, not in a file.
 
 Because the SPA and the proxy are the same origin, the app needs no CORS
 configuration and no rebuild with `EXPO_PUBLIC_API_URL`: requests such as
@@ -112,7 +113,7 @@ Every launch also writes `desktop-server.json` (`port`, `url`, `loopbackUrl`,
 `apiUrl`, `webRoot`, `spaReady`) to the userData directory, so the embedded
 server can be checked with `curl` even without the terminal output.
 
-## External API (development only)
+## Development notes
 
 Either set the environment variable:
 

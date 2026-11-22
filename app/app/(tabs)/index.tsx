@@ -2,7 +2,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import * as Clipboard from 'expo-clipboard';
 import {
   ActivityIndicator,
   Animated,
@@ -29,6 +28,7 @@ import {
   type Template,
 } from '@/lib/api';
 import { openUrl } from '@/lib/actions';
+import { copyText } from '@/lib/clipboard';
 import { colors, space, text } from '@/lib/theme';
 import { TamilLine } from '@/components/TamilLine';
 
@@ -288,7 +288,8 @@ export default function ChatScreen() {
 
   const copyMessage = useCallback(async (bubble: Bubble) => {
     if (bubble.kind !== 'text') return;
-    await Clipboard.setStringAsync(bubble.content);
+    const ok = await copyText(bubble.content);
+    if (!ok) return;
     setCopiedId(bubble.id);
     setTimeout(() => setCopiedId(null), 1600);
   }, []);

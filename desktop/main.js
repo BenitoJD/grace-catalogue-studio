@@ -7,21 +7,21 @@
  * API. It has no knowledge of Electron: it is loaded over HTTP, so fetch(),
  * cookies and the file/image URLs all behave exactly like they do in a browser.
  *
- * At startup this process:
- *   1. resolves the backend API base URL (env CATALOG_API_URL, then
- *      <userData>/desktop-config.json, then http://localhost:8787),
- *   2. starts an HTTP server on a free loopback port that serves app/dist with
- *      an SPA fallback and reverse proxies the API path prefixes to the
- *      backend, and
- *   3. opens a BrowserWindow on that server.
+ * There is no external server. At startup this process:
+ *   1. starts the catalogue engine from bundled server code, with data in the
+ *      app's userData folder,
+ *   2. starts a loopback HTTP server that serves app/dist and reverse proxies
+ *      the engine paths to it, and
+ *   3. opens a BrowserWindow on that loopback address.
  *
  * Because the SPA is served by the same server that proxies the API, the API
  * looks same-origin to the renderer: no CORS setup and no rebuild with
  * EXPO_PUBLIC_API_URL are needed.
  *
- * One wrinkle: app/lib/api.ts treats the hostnames "localhost", "127.0.0.1"
- * and "0.0.0.0" as the development setup and hardcodes http://localhost:8787
- * for them. The window is therefore loaded from the loopback alias
+ * The window is loaded through grace-studio.localhost so the SPA uses
+ * window.location.origin. app/lib/api.ts treats "localhost", "127.0.0.1" and
+ * "0.0.0.0" as the development setup and would otherwise hardcode
+ * http://localhost:8787. The window is therefore loaded from the loopback alias
  * "grace-studio.localhost" (localhost.* always resolves to loopback). That is
  * not one of the development hostnames, so the app uses window.location.origin
  * and goes through the proxy below. If the alias cannot be resolved the
@@ -37,7 +37,6 @@ const path = require('node:path');
 const { URL, pathToFileURL } = require('node:url');
 
 const APP_NAME = 'Grace Studio';
-const DEFAULT_API_URL = 'http://localhost:8787';
 const WINDOW_HOSTNAME = 'grace-studio.localhost';
 const LOCAL_HOST = '127.0.0.1';
 const DEFAULT_WIDTH = 1280;
@@ -105,7 +104,7 @@ let serverPort = null;
 let appUrl = null;
 /** Loopback URL, useful for curl and the --print-port output. */
 let loopbackUrl = null;
-let apiBaseUrl = DEFAULT_API_URL;
+let apiBaseUrl = '';
 let webRoot = null;
 let spaReady = false;
 /** Embedded catalogue server when the app runs standalone. */
@@ -118,48 +117,6 @@ function log(message) {
   console.log(`[grace-studio] ${message}`);
 }
 
-function configFile() {
-  return path.join(app.getPath('userData'), 'desktop-config.json');
-}
-
-function windowStateFile() {
-  return path.join(app.getPath('userData'), 'window-state.json');
-}
-
-function serverInfoFile() {
-  return path.join(app.getPath('userData'), 'desktop-server.json');
-}
-
-/**
- * Trim a configured API URL and reject anything that is not http(s).
- * Returns null when the value cannot be used.
- */
-function normaliseBaseUrl(value) {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().replace(/\/+$/, '');
-  if (!trimmed) return null;
-  try {
-    const parsed = new URL(trimmed);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-    return trimmed;
-  } catch {
-    return null;
-  }
-}
-
-/** Write the default config file on first run so the menu item has something to reveal. */
-function ensureConfigFile() {
-  const file = configFile();
-  if (fs.existsSync(file)) return;
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify({ apiUrl: DEFAULT_API_URL }, null, 2)}\n`, 'utf8');
-}
-
-/**
- * Where the API code and the templates live. In a checkout they sit next to
- * the desktop folder; in an installed app electron-builder copies them into
- * Resources.
- */
 function apiPaths() {
   if (app.isPackaged) {
     const resources = process.resourcesPath;
@@ -175,9 +132,9 @@ function apiPaths() {
 }
 
 /**
- * Start the catalogue server inside the app. There is no separate server to
- * install: its data lives in the app's user data folder and the print engine
- * is Electron itself.
+ * Start the local catalogue engine inside the app. There is no server to
+ * install: data lives in the app's user data folder, printing uses Electron and
+ * the window talks to this loopback engine only.
  */
 async function startEmbeddedApi() {
   const dataDir = path.join(app.getPath('userData'), 'data');
@@ -185,7 +142,7 @@ async function startEmbeddedApi() {
   embeddedDataDir = dataDir;
 
   if (!fs.existsSync(apiPaths().boot)) {
-    throw new Error(`The catalogue server is missing at ${apiPaths().boot}.`);
+    throw new Error(`The catalogue engine is missing at ${apiPaths().boot}.`);
   }
   if (!fs.existsSync(templatesDir)) {
     throw new Error(`The brochure templates are missing at ${templatesDir}.`);
@@ -207,44 +164,18 @@ async function startEmbeddedApi() {
     templatesDir,
     pdfEngine,
   });
-  log(`Embedded catalogue server at ${embeddedServer.url}`);
+  log(`Local catalogue engine at ${embeddedServer.url}`);
   return embeddedServer.url;
 }
 
-/** env CATALOG_API_URL -> <userData>/desktop-config.json -> http://localhost:8787 */
-function resolveApiBaseUrl() {
-  const fromEnv = normaliseBaseUrl(process.env.CATALOG_API_URL);
-  if (process.env.CATALOG_API_URL && !fromEnv) {
-    log(`Ignoring CATALOG_API_URL: ${process.env.CATALOG_API_URL} is not an http(s) URL.`);
-  }
-  if (fromEnv) {
-    log(`API base URL from CATALOG_API_URL: ${fromEnv}`);
-    return fromEnv;
-  }
-  try {
-    const raw = fs.readFileSync(configFile(), 'utf8');
-    const parsed = JSON.parse(raw);
-    const fromFile = normaliseBaseUrl(parsed?.apiUrl);
-    if (fromFile) {
-      log(`API base URL from ${configFile()}: ${fromFile}`);
-      return fromFile;
-    }
-    if (parsed?.apiUrl !== undefined) {
-      log(`Ignoring apiUrl in ${configFile()}: expected an http(s) URL.`);
-    }
-  } catch (error) {
-    if (error?.code !== 'ENOENT') {
-      log(`Could not read ${configFile()}: ${error.message}`);
-    }
-  }
-  log(`API base URL from built-in default: ${DEFAULT_API_URL}`);
-  return DEFAULT_API_URL;
+function windowStateFile() {
+  return path.join(app.getPath('userData'), 'window-state.json');
 }
 
-/**
- * The exported SPA lives in app/dist in a checkout and in
- * Contents/Resources/app/dist (or resources/app/dist) in a packaged app.
- */
+function serverInfoFile() {
+  return path.join(app.getPath('userData'), 'desktop-server.json');
+}
+
 function resolveWebRoot() {
   const fromEnv = process.env.GRACE_STUDIO_WEB_ROOT;
   if (fromEnv) return path.resolve(fromEnv);
@@ -660,6 +591,8 @@ function createWindow() {
 
   // The SPA is the only thing this window should display; links to the wider
   // web belong in the user's browser.
+  installContextMenu(window);
+
   window.webContents.setWindowOpenHandler(({ url }) => {
     showExternal(url);
     return { action: 'deny' };
@@ -690,28 +623,13 @@ function createWindow() {
   return window;
 }
 
-function openServerSettings() {
-  try {
-    ensureConfigFile();
-    shell.showItemInFolder(configFile());
-  } catch (error) {
-    log(`Could not reveal ${configFile()}: ${error.message}`);
-  }
-}
-
 function installMenu() {
   const template = [
     {
       label: APP_NAME,
       submenu: [
-        {
-          label: 'Reload',
-          accelerator: 'CmdOrCtrl+R',
-          click: () => {
-            const window = BrowserWindow.getFocusedWindow() ?? mainWindow;
-            window?.reload();
-          },
-        },
+        { role: 'about' },
+        { type: 'separator' },
         {
           label: 'Open data folder',
           click: () => {
@@ -722,20 +640,62 @@ function installMenu() {
             }
           },
         },
-        {
-          label: 'Open server settings',
-          click: openServerSettings,
-        },
         { type: 'separator' },
-        {
-          label: 'Quit',
-          accelerator: 'CmdOrCtrl+Q',
-          click: () => app.quit(),
-        },
+        { role: 'quit' },
       ],
     },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    { role: 'windowMenu' },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/** Native right click menu for copying text and pasting into fields. */
+function installContextMenu(window) {
+  window.webContents.on('context-menu', (_event, params) => {
+    const items = [];
+    if (params.isEditable) {
+      items.push(
+        { role: 'undo', enabled: params.editFlags.canUndo },
+        { role: 'redo', enabled: params.editFlags.canRedo },
+        { type: 'separator' },
+        { role: 'cut', enabled: params.editFlags.canCut },
+        { role: 'copy', enabled: params.editFlags.canCopy },
+        { role: 'paste', enabled: params.editFlags.canPaste },
+        { role: 'selectAll', enabled: params.editFlags.canSelectAll },
+      );
+    } else if (params.selectionText) {
+      items.push({ role: 'copy' });
+    }
+    if (items.length > 0) {
+      Menu.buildFromTemplate(items).popup({ window });
+    }
+  });
 }
 
 function writeServerInfo() {
@@ -760,17 +720,9 @@ function writeServerInfo() {
 }
 
 async function start() {
-  ensureConfigFile();
-
-  // Standalone by default: the app carries the API and the print engine. The
-  // external URL path stays for development against a running dev server.
-  const externalApi = normaliseBaseUrl(process.env.CATALOG_API_URL);
-  if (externalApi) {
-    apiBaseUrl = externalApi;
-    log(`Using external API ${apiBaseUrl}`);
-  } else {
-    apiBaseUrl = await startEmbeddedApi();
-  }
+  // There is no external server. The app starts its own local engine in this
+  // process and talks to it over loopback only.
+  apiBaseUrl = await startEmbeddedApi();
 
   webRoot = resolveWebRoot();
   spaReady = fs.existsSync(path.join(webRoot, 'index.html'));
@@ -792,6 +744,17 @@ async function start() {
   }
 
   installMenu();
+  if (process.argv.includes('--print-menu')) {
+    const menu = Menu.getApplicationMenu();
+    console.log(
+      `GRACE_STUDIO_MENU=${JSON.stringify(
+        (menu?.items ?? []).map((item) => ({
+          label: item.label,
+          roles: (item.submenu?.items ?? []).map((entry) => entry.role).filter(Boolean),
+        }))
+      )}`
+    );
+  }
   createWindow();
 
   if (printPort) log(`Server info written to ${serverInfoFile()}`);

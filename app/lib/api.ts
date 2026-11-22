@@ -342,7 +342,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       throw new ApiError('The API took too long to answer. Try again.', url);
     }
     throw new ApiError(
-      `Cannot reach the API at ${API_BASE_URL}. Check that the server is running.`,
+      'Cannot reach the studio engine. Close and reopen the app, then try again.',
       url,
     );
   } finally {

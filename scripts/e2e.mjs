@@ -652,7 +652,8 @@ try {
   // 6. settings tab
   await page.goto(`${WEB}/settings`, { waitUntil: "networkidle2" });
   check("settings screen opens", await hasText(page, "Settings"));
-  check("settings shows api base", await hasText(page, "8787"));
+  check("settings says the app runs locally", await hasText(page, "This computer, entirely"));
+  check("settings never mentions an api server", !(await hasText(page, "API base", 1000)));
 
   // 7. deep link straight into an order
   const orders = await (await fetch(`${API}/api/orders`)).json();

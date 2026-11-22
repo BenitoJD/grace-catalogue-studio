@@ -8,7 +8,6 @@ import { Field } from '@/components/Field';
 import { Screen } from '@/components/Screen';
 import { LoadingState } from '@/components/StateViews';
 import {
-  API_BASE_URL,
   api,
   errorMessage,
   testLlmConnection,
@@ -130,19 +129,7 @@ export default function SettingsScreen() {
             <Text style={text.eyebrow}>Grace Wood</Text>
             <TamilLine />
             <Text style={[text.screenTitle, styles.title]}>Settings</Text>
-            <Text style={[text.muted, styles.subtitle]}>Connection, model and app details.</Text>
-          </View>
-
-
-          <View style={styles.section}>
-            <Text style={text.sectionLabel}>Connection</Text>
-            <Text style={[text.caption, styles.label]}>API base URL</Text>
-            <Text style={styles.url} selectable>
-              {API_BASE_URL}
-            </Text>
-            <Text style={[text.caption, styles.hint]}>
-              Set EXPO_PUBLIC_API_URL before building to point the app at another server.
-            </Text>
+            <Text style={[text.muted, styles.subtitle]}>Model and app details. Everything runs on this computer.</Text>
           </View>
 
 
@@ -245,7 +232,7 @@ export default function SettingsScreen() {
                 />
                 <Text style={[text.caption, styles.hint]}>
                   {settings?.hasKey
-                    ? `A key is already saved (${settings.source === 'env' ? 'from the server environment' : 'set in the studio'}).`
+                    ? `A key is already saved (${settings.source === 'env' ? 'from the environment' : 'set in the studio'}).`
                     : settings?.keyOptional
                       ? 'No key needed for this provider.'
                       : 'No key saved yet.'}
@@ -284,6 +271,8 @@ export default function SettingsScreen() {
             <Text style={text.sectionLabel}>App</Text>
             <InfoRow label="Version" value={APP_VERSION} />
             <InfoRow label="Platform" value={PLATFORM_LABEL} />
+            <InfoRow label="Runs on" value="This computer, entirely" />
+            <InfoRow label="Data" value="Stays on this device" />
             <InfoRow label="Expo SDK" value={SDK_VERSION} />
           </View>
 

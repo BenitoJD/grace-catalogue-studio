@@ -12,7 +12,6 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -21,6 +20,7 @@ import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ErrorState, LoadingState } from '@/components/StateViews';
 import { openUrl, shareLink } from '@/lib/actions';
+import { copyText } from '@/lib/clipboard';
 import {
   api,
   errorMessage,
@@ -462,12 +462,8 @@ export default function OrderDetailScreen() {
     if (!note) {
       return;
     }
-    try {
-      await Clipboard.setStringAsync(note.note);
-      setNoteStatus('Note copied to the clipboard.');
-    } catch {
-      setNoteStatus('Could not copy. Select the text and copy it by hand.');
-    }
+    const ok = await copyText(note.note);
+    setNoteStatus(ok ? 'Note copied to the clipboard.' : 'Could not copy. Select the text and copy it by hand.');
   }, [note]);
 
   const pdfUrl = render ? fileUrl(render.pdfUrl) : null;

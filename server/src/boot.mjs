@@ -163,7 +163,7 @@ export async function startCatalogServer(options = {}) {
     }
   }
 
-  logger.info('Grace catalogue API listening.', {
+  logger.info('Local catalogue engine listening.', {
     url,
     database: dbPath,
     mode: options.pdfEngine ? 'desktop print engine' : 'weasyprint',
