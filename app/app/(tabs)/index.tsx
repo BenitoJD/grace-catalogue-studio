@@ -26,6 +26,7 @@ import {
 } from '@/lib/api';
 import { openUrl } from '@/lib/actions';
 import { colors, space, text } from '@/lib/theme';
+import { TamilLine } from '@/components/TamilLine';
 
 type Bubble =
   | {
@@ -330,6 +331,7 @@ export default function ChatScreen() {
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={text.eyebrow}>Grace Wood</Text>
+            <TamilLine />
             <Text style={[text.screenTitle, styles.title]}>Studio chat</Text>
           </View>
           {bubbles.length > 1 || orderCreated ? (

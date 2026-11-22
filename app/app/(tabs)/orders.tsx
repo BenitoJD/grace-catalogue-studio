@@ -9,6 +9,7 @@ import { openUrl } from '@/lib/actions';
 import { useBootstrap } from '@/lib/bootstrap';
 import { orderDimensions, sortOrders, statusLabel } from '@/lib/format';
 import { layout, shared, space, text, colors } from '@/lib/theme';
+import { TamilLine } from '@/components/TamilLine';
 
 export default function OrdersScreen() {
   const { data, loading, error, reload } = useBootstrap();
@@ -57,6 +58,7 @@ export default function OrdersScreen() {
     <View>
       <View style={styles.header}>
         <Text style={text.eyebrow}>Catalogue studio</Text>
+        <TamilLine />
         <Text style={[text.display, styles.title]}>Grace Wood</Text>
         <Text style={[text.muted, styles.subtitle]}>
           Every order the chat has made, with the brochure it produced.

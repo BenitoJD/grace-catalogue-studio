@@ -59,7 +59,11 @@ It is built as an Indian workshop brochure, not a report:
 3. **Materials.** A maroon header and the four finish textures at size with their names. A colour page, not a table.
 4. **Specification.** Dimensions, materials and hardware, set quietly at the back for the workshop and the client file.
 
-Warm cream stock, deep maroon, gold rules and ornament, display type at 30 to 46 point and body text at 8 point. The thirty hand-built designs remain available under Change design for a manual override, but the default path is generated per order.
+Warm cream stock, deep maroon, gold rules and Indian ornament: a jaali border across the head of the page, paisley and lotus motifs, a rangoli mark and a temple arch behind the framed photograph. The brand appears in English and Tamil (கிரேஸ் வூட் இண்டஸ்ட்ரி) on the cover, the contact strip is bilingual, and the tones are Indian: maroon, teal, copper, sandal and peacock. Display type runs 30 to 46 point and body text 8 point.
+
+The studio app carries the same Tamil brand line under its headers.
+
+The thirty hand-built designs remain available under Change design for a manual override, but the default path is generated per order.
 
 
 The extraction rules matter as much as the conversation. Bare dimensions become millimetres, counts become digits, unknown fields are dropped, and a reply without usable JSON is rejected with a readable error. A field is only ready when the customer actually said it, never guessed.

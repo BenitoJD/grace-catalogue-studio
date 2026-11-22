@@ -8,7 +8,15 @@
 import { LlmError, capText, clean, parseJsonObject } from './llm.mjs';
 import { buildVoucherValues, escapeHtml } from './render.mjs';
 
-export const TONES = ['copper', 'ink', 'olive', 'indigo', 'sand'];
+export const TONES = ['maroon', 'teal', 'copper', 'sandal', 'peacock'];
+const TONE_ALIASES = { ink: 'maroon', olive: 'teal', indigo: 'peacock', sand: 'sandal', gold: 'sandal' };
+const INDIAN_PALETTES = {
+  maroon: { id: 'maroon', accent: '#7C2A22', accentOnDark: '#E8C27A', accentSoft: '#F0D9C4', paper: '#FBF3E4', coverPaper: '#F8EDD8', ink: '#2A1512', muted: '#6B4A3E', faint: '#9C7A62', hair: '#E3D2B8', onDark: '#FBF3E4', dark: '#4A1116' },
+  teal: { id: 'teal', accent: '#1E5C5A', accentOnDark: '#D9B76A', accentSoft: '#DDE9E2', paper: '#F8F3E6', coverPaper: '#F2EAD6', ink: '#142A28', muted: '#4C615C', faint: '#8A9C93', hair: '#D9D2BC', onDark: '#F8F3E6', dark: '#123B3A' },
+  copper: { id: 'copper', accent: '#A65E22', accentOnDark: '#E8C27A', accentSoft: '#F0DCC4', paper: '#FBF4E7', coverPaper: '#F7EAD4', ink: '#2B1A0F', muted: '#6B4E36', faint: '#9E7E60', hair: '#E4D3B8', onDark: '#FBF4E7', dark: '#5A2A1E' },
+  sandal: { id: 'sandal', accent: '#B4863F', accentOnDark: '#F0D9A8', accentSoft: '#F3E5C8', paper: '#FCF6E9', coverPaper: '#F8EDD5', ink: '#2E2113', muted: '#6E5738', faint: '#A08862', hair: '#E7D8BA', onDark: '#FCF6E9', dark: '#5B3A1B' },
+  peacock: { id: 'peacock', accent: '#16537E', accentOnDark: '#E8C27A', accentSoft: '#DCE5EC', paper: '#F8F2E3', coverPaper: '#F2E8D2', ink: '#12222E', muted: '#4A5B66', faint: '#87949C', hair: '#D8D0BC', onDark: '#F8F2E3', dark: '#0D3350' },
+};
 export const TYPES = ['editorial', 'modern', 'classic'];
 export const COVERS = ['fullBleed', 'splitLeft', 'splitRight', 'bandTop', 'framed', 'masthead'];
 export const SPECS = ['twoColumn', 'threeColumn', 'ledger', 'cards', 'stacked'];
@@ -36,14 +44,14 @@ const DESIGN_KIT = [
   'This is a brochure, not a report: it is picture led, quiet and premium, the kind of book a client keeps. The customer photographs and the material textures carry it; words are few and well set.',
   'Design four A4 portrait pages and write their words in one reply.',
   'Reply with strict JSON only, exactly this shape:',
-  '{"design":{"tone":"copper|ink|olive|indigo|sand","type":"editorial|modern|classic","cover":"fullBleed|splitLeft|splitRight|bandTop|framed|masthead","story":"hero|editorial|diptych|collage","materials":"grid4|filmstrip|band|museum|stacked","spec":"twoColumn|threeColumn|ledger|cards|stacked","coverPhoto":0,"storyPhoto":1,"detailPhoto":2,"statement":"one calm line, at most 80 characters"},"copy":{"headline":"...","body":"...","closing":"..."}}',
+  '{"design":{"tone":"maroon|teal|copper|sandal|peacock","type":"editorial|modern|classic","cover":"fullBleed|splitLeft|splitRight|bandTop|framed|masthead","story":"hero|editorial|diptych|collage","materials":"grid4|filmstrip|band|museum|stacked","spec":"twoColumn|threeColumn|ledger|cards|stacked","coverPhoto":0,"storyPhoto":1,"detailPhoto":2,"statement":"one calm line, at most 80 characters"},"copy":{"headline":"...","body":"...","closing":"..."}}',
   'The four pages:',
   '1. Cover. A strong photograph, the brand, the piece and the customer. Almost nothing else.',
   '2. Story. One or two photographs and the statement as a large line. The body sits small in a column, like a caption in a magazine.',
   '3. Materials. The four finish textures at size, names in small caps. This is a colour page, not a table.',
   '4. Specification. The technical details, set quietly at the back for the workshop and the client file, not the reason to open the brochure.',
   'Design rules:',
-  '- Choose the tone and type that suit the room and the piece. Vary them from order to order.',
+  '- Choose the tone and type that suit the room and the piece: maroon for classic warmth, teal for calm, copper for wood, sandal for gold, peacock for depth. Vary them from order to order.',
   '- Avoid the obvious default. A split cover with editorial type is the safe answer, so use it for at most one order in three. Prefer masthead, bandTop or framed covers, and mix modern and classic type.',
   '- Choose the cover that suits the photographs: fullBleed for one strong photo, split for two, framed for a quieter document, masthead or bandTop for a graphic one.',
   '- coverPhoto, storyPhoto and detailPhoto are indexes into the available photographs, starting at 0. They may repeat if there is only one photo.',
@@ -122,7 +130,7 @@ export function parseAiDesign(content, photoCount = 1) {
   const story = STORY_ALIASES[rawStory] ?? pickEnum(rawStory, STORY_LAYOUTS, 'story', 'editorial');
   const rawMaterials = clean(parsed.design.materials ?? parsed.design.finishes);
   const design = {
-    tone: pickEnum(parsed.design.tone, TONES, 'tone', 'copper'),
+    tone: pickEnum(TONE_ALIASES[clean(parsed.design.tone).toLowerCase()] ?? parsed.design.tone, TONES, 'tone', 'maroon'),
     type: pickEnum(parsed.design.type, TYPES, 'type', 'editorial'),
     cover: pickEnum(parsed.design.cover, COVERS, 'cover', 'fullBleed'),
     story,
@@ -182,6 +190,12 @@ const BASE_CSS = `
   .band { background:var(--deep); color:var(--cream); }
   .goldLine { height:0.35mm; background:var(--gold); }
   .diamond { width:1.7mm; height:1.7mm; background:var(--gold); transform:rotate(45deg); }
+  .tamil { font-family:'Noto Sans Tamil', var(--body); letter-spacing:0; text-transform:none; }
+  .jaali { background-image:url(../assets/indian/jaali.svg); background-repeat:repeat-x; background-size:auto 6mm; }
+  .paisley { background-image:url(../assets/indian/paisley.svg); background-repeat:no-repeat; background-size:contain; }
+  .lotus { background-image:url(../assets/indian/lotus.svg); background-repeat:no-repeat; background-size:contain; }
+  .rangoli { background-image:url(../assets/indian/rangoli.svg); background-repeat:no-repeat; background-size:contain; }
+  .arch { background-image:url(../assets/indian/temple-arch.svg); background-repeat:no-repeat; background-size:100% 100%; }
   .ornament { border:0.4mm solid var(--gold); }
   .ornamentInner { border:0.14mm solid var(--gold); }
   .white { color:var(--on-dark); }
@@ -255,7 +269,7 @@ function columnsHtml(text, columns = 2) {
 }
 
 function folio(page, dark = false) {
-  return `<div class="folio ${dark ? 'folioDark' : ''}"><span>Grace Wood Industry · Nagercoil</span><span>0${page} / 04</span></div>`;
+  return `<div class="folio ${dark ? 'folioDark' : ''}"><span>Grace Wood Industry · Nagercoil · <span class="tamil">நாகர்கோவில்</span></span><span>0${page} / 04</span></div>`;
 }
 
 function ornamentFrame() {
@@ -291,9 +305,12 @@ function coverHtml(values, design, photos) {
       <div class="abs" style="left:-3mm; top:140mm; width:216mm; height:166mm; background:linear-gradient(to top, rgba(40,12,8,0.88) 0%, rgba(40,12,8,0.42) 55%, rgba(40,12,8,0) 100%);"></div>
       ${ornamentFrame()}
       <div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:15mm;"></div>
-      <div class="abs" style="left:18mm; top:3.6mm; width:120mm; font-family:var(--body); font-size:7.2pt; letter-spacing:.3em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry</div>
+      <div class="abs" style="left:18mm; top:3mm; width:120mm; font-family:var(--body); font-size:6.8pt; letter-spacing:.28em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry</div>
+      <div class="abs tamil" style="left:18mm; top:7.6mm; width:120mm; font-size:6.6pt; color:var(--gold);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
       <div class="abs" style="right:18mm; top:4mm; width:82mm; text-align:right; font-family:var(--body); font-size:6.2pt; letter-spacing:.14em; color:var(--cream);">${meta}</div>
-      <div class="abs goldLine" style="left:-3mm; top:14.5mm; width:216mm;"></div>
+      <div class="abs goldLine" style="left:-3mm; top:15.5mm; width:216mm;"></div>
+      <div class="abs paisley" style="left:10mm; top:24mm; width:16mm; height:22mm; opacity:0.9;"></div>
+      <div class="abs paisley" style="right:10mm; bottom:26mm; width:16mm; height:22mm; opacity:0.9; transform:rotate(180deg);"></div>
       <div class="abs head" style="left:18mm; top:186mm; width:174mm; font-size:46pt; color:var(--cream);">${title}</div>
       ${goldRule(18, 238, 26)}
       <div class="abs" style="left:18mm; top:246mm; width:174mm; font-family:var(--body); font-size:8pt; letter-spacing:.12em; text-transform:uppercase; color:var(--cream);">${customer} · ${room} · ${sizes}</div>
@@ -310,8 +327,10 @@ function coverHtml(values, design, photos) {
     const textWidth = 74;
     return `<div class="page cover"><div class="abs ph" style="${photoStyle} background-image:url(${photo});"></div>
       <div class="abs" style="left:${photoFirst ? 112 : 104}mm; top:0; width:0.6mm; height:297mm; background:var(--gold);"></div>
-      <div class="abs" style="left:${textLeft}mm; top:19mm; width:${textWidth}mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--gold);">Grace Wood Industry</div>
-      <div class="abs micro" style="left:${textLeft}mm; top:26mm; width:${textWidth}mm;">${meta}</div>
+      <div class="abs" style="left:${textLeft}mm; top:17mm; width:${textWidth}mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--gold);">Grace Wood Industry</div>
+      <div class="abs tamil" style="left:${textLeft}mm; top:22mm; width:${textWidth}mm; font-size:6.8pt; color:var(--deep);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
+      <div class="abs micro" style="left:${textLeft}mm; top:30mm; width:${textWidth}mm;">${meta}</div>
+      <div class="abs paisley" style="left:${textLeft}mm; top:196mm; width:14mm; height:20mm;"></div>
       <div class="abs head" style="left:${textLeft}mm; top:78mm; width:${textWidth}mm; font-size:34pt;">${title}</div>
       ${goldRule(textLeft, 168, 24)}
       <div class="abs" style="left:${textLeft}mm; top:176mm; width:${textWidth}mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:2mm;">${sizes}</div></div>
@@ -323,15 +342,16 @@ function coverHtml(values, design, photos) {
 
   if (design.cover === 'masthead') {
     return `<div class="page cover"><div class="sheet">
-      ${logo(28, 14)}
+      <div class="abs jaali" style="left:0; top:8mm; width:210mm; height:6mm; opacity:0.85;"></div>
+      ${logo(28, 16)}
       ${wordmark(50)}
-      <div class="abs head" style="left:18mm; top:60mm; width:174mm; text-align:center; font-size:44pt;">${title}</div>
-      ${motif(112)}
-      <div class="abs" style="left:18mm; top:118mm; width:174mm; text-align:center; font-family:var(--body); font-size:8pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${customer} · ${room}</div>
-      <div class="abs ornament" style="left:8.5mm; top:132mm; width:193mm; height:122mm;"></div>
-      <div class="abs ph" style="left:10mm; top:134mm; width:190mm; height:118mm; background-image:url(${photo});"></div>
-      <div class="abs" style="left:18mm; top:262mm; width:174mm; text-align:center;">${goldRule(87, 0, 36).replace('top:0mm;','top:0mm;')}</div>
-      <div class="abs micro" style="left:18mm; top:268mm; width:174mm; text-align:center;">${meta}</div>
+      <div class="abs tamil" style="left:0; top:56mm; width:210mm; text-align:center; font-size:8.4pt; color:var(--accent);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
+      <div class="abs head" style="left:18mm; top:66mm; width:174mm; text-align:center; font-size:42pt;">${title}</div>
+      <div class="abs lotus" style="left:88mm; top:108mm; width:34mm; height:19mm;"></div>
+      <div class="abs" style="left:18mm; top:128mm; width:174mm; text-align:center; font-family:var(--body); font-size:8pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${customer} · ${room}</div>
+      <div class="abs ornament" style="left:8.5mm; top:140mm; width:193mm; height:114mm;"></div>
+      <div class="abs ph" style="left:10mm; top:142mm; width:190mm; height:110mm; background-image:url(${photo});"></div>
+      <div class="abs micro" style="left:18mm; top:258mm; width:174mm; text-align:center;">${meta}</div>
       ${contactBand()}
     </div></div>`;
   }
@@ -339,15 +359,16 @@ function coverHtml(values, design, photos) {
   if (design.cover === 'framed') {
     return `<div class="page cover"><div class="sheet">
       ${ornamentFrame()}
+      <div class="abs jaali" style="left:0; top:7mm; width:210mm; height:6mm; opacity:0.85;"></div>
       ${logo(24, 18)}
       ${wordmark(50)}
-      <div class="abs head" style="left:18mm; top:62mm; width:174mm; text-align:center; font-size:38pt;">${title}</div>
-      ${motif(106)}
-      <div class="abs" style="left:18mm; top:110mm; width:174mm; text-align:center; font-family:var(--body); font-size:7.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${room} · ${sizes}</div>
-      <div class="abs ornament" style="left:51mm; top:122mm; width:108mm; height:112mm;"></div>
-      <div class="abs ph" style="left:53mm; top:124mm; width:104mm; height:108mm; background-image:url(${photo});"></div>
-      <div class="abs" style="left:0; top:246mm; width:210mm; text-align:center; font-family:var(--display); font-size:15pt; color:var(--deep);">${customer}</div>
-      <div class="abs micro" style="left:18mm; top:262mm; width:174mm; text-align:center;">${meta}</div>
+      <div class="abs tamil" style="left:0; top:56mm; width:210mm; text-align:center; font-size:8pt; color:var(--accent);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
+      <div class="abs head" style="left:18mm; top:64mm; width:174mm; text-align:center; font-size:36pt;">${title}</div>
+      <div class="abs" style="left:18mm; top:104mm; width:174mm; text-align:center; font-family:var(--body); font-size:7.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${room} · ${sizes}</div>
+      <div class="abs arch" style="left:45mm; top:118mm; width:120mm; height:132mm;"></div>
+      <div class="abs ph" style="left:54mm; top:130mm; width:102mm; height:104mm; background-image:url(${photo});"></div>
+      <div class="abs lotus" style="left:88mm; top:244mm; width:30mm; height:17mm;"></div>
+      <div class="abs" style="left:0; top:258mm; width:210mm; text-align:center; font-family:var(--display); font-size:15pt; color:var(--deep);">${customer}</div>
       ${contactBand()}
     </div></div>`;
   }
@@ -357,9 +378,11 @@ function coverHtml(values, design, photos) {
     <div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:172mm; background-image:url(${photo});"></div>
     <div class="abs" style="left:-3mm; top:169mm; width:216mm; height:0.5mm; background:var(--gold);"></div>
     <div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:15mm;"></div>
-    <div class="abs" style="left:18mm; top:3.6mm; width:120mm; font-family:var(--body); font-size:7.2pt; letter-spacing:.3em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry</div>
+    <div class="abs" style="left:18mm; top:3mm; width:120mm; font-family:var(--body); font-size:6.8pt; letter-spacing:.28em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry</div>
+    <div class="abs tamil" style="left:18mm; top:7.6mm; width:120mm; font-size:6.6pt; color:var(--gold);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
     <div class="abs" style="right:18mm; top:4mm; width:82mm; text-align:right; font-family:var(--body); font-size:6.2pt; letter-spacing:.14em; color:var(--cream);">${meta}</div>
-    <div class="abs goldLine" style="left:-3mm; top:14.5mm; width:216mm;"></div>
+    <div class="abs goldLine" style="left:-3mm; top:15.5mm; width:216mm;"></div>
+    <div class="abs paisley" style="right:18mm; top:176mm; width:16mm; height:22mm;"></div>
     <div class="abs head" style="left:18mm; top:182mm; width:174mm; font-size:42pt;">${title}</div>
     ${goldRule(18, 232, 24)}
     <div class="abs" style="left:18mm; top:240mm; width:100mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:2mm;">${sizes}</div></div>
@@ -412,6 +435,7 @@ function storyHtml(values, design, copy, photos) {
   // editorial: tall photo on the left, quiet text column on the right
   return `<div class="page"><div class="sheet">
     <div class="abs ph" style="left:-3mm; top:-3mm; width:121mm; height:303mm; background-image:url(${photo});"></div>
+    <div class="abs paisley" style="right:18mm; top:18mm; width:12mm; height:16mm;"></div>
     <div class="abs" style="left:130mm; top:24mm; width:62mm;"><div class="headlineLabel">${headline}</div></div>
     <div class="abs serif" style="left:130mm; top:32mm; width:64mm; font-size:26pt;">${statement}</div>
     <div class="abs" style="left:130mm; top:100mm; width:62mm;"><div class="rule" style="width:18mm;"></div></div>
@@ -433,7 +457,9 @@ function materialsHtml(values, design) {
   const head = `<div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:40mm;"></div>
     <div class="abs" style="left:18mm; top:7mm; width:130mm; font-family:var(--display); font-size:26pt; color:var(--cream);">Materials</div>
     <div class="abs" style="right:18mm; top:11mm; width:80mm; text-align:right; font-family:var(--body); font-size:6.6pt; letter-spacing:.18em; text-transform:uppercase; color:var(--cream);">${escapeHtml(values.orderNo)}</div>
-    <div class="abs goldLine" style="left:0; top:40mm; width:210mm;"></div>`;
+    <div class="abs paisley" style="left:152mm; top:7mm; width:12mm; height:18mm; opacity:0.95;"></div>
+    <div class="abs goldLine" style="left:0; top:40mm; width:210mm;"></div>
+    <div class="abs jaali" style="left:0; top:41mm; width:210mm; height:6mm; opacity:0.9;"></div>`;
   const finishLine = `<div class="abs caption" style="left:18mm; top:250mm; width:174mm;">${escapeHtml(values.finishExt)}. ${escapeHtml(values.finishInt)}. ${escapeHtml(values.edgeNote)}.</div><div class="abs micro" style="left:18mm; top:266mm; width:174mm;">Shown as samples, matched in person</div>`;
 
   if (design.materials === 'filmstrip') {
@@ -514,7 +540,9 @@ function specificationHtml(values, design) {
   const head = `<div class="abs" style="left:18mm; top:14mm; width:140mm; font-family:var(--body); font-size:8pt; letter-spacing:.26em; text-transform:uppercase; color:var(--deep);">Specification</div>
     <div class="abs micro" style="right:18mm; top:14mm;">${escapeHtml(values.orderNo)}</div>
     <div class="abs goldLine" style="left:18mm; top:23mm; width:174mm;"></div>
-    <div class="abs" style="left:18mm; top:25.5mm; width:174mm; height:0.14mm; background:var(--gold);"></div>`;
+    <div class="abs" style="left:18mm; top:25.5mm; width:174mm; height:0.14mm; background:var(--gold);"></div>
+    <div class="abs jaali" style="left:18mm; top:27mm; width:174mm; height:5mm; opacity:0.8;"></div>
+    <div class="abs lotus" style="right:18mm; top:12mm; width:14mm; height:8mm;"></div>`;
   const contact = `<div class="abs goldLine" style="left:18mm; top:264mm; width:174mm;"></div>
     <div class="abs" style="left:18mm; top:268mm; width:174mm; font-family:var(--body); font-size:6.6pt; line-height:1.6; letter-spacing:.04em; color:var(--deep);">Grace Wood Industry · 26J Rajjakamangalam Road, Chettikulam, Nagercoil 629001<br>+91 63740 43346 · info.gracewoodindustry@gmail.com</div>`;
 
@@ -575,7 +603,7 @@ function specificationHtml(values, design) {
 }
 
 /** Compile a validated design into one print ready HTML document. */
-export function compileAiBrochure({ order, materials, palette, design, copy, templatesDir, attachmentImages = [] }) {
+export function compileAiBrochure({ order, materials, palette: providedPalette, design, copy, templatesDir, attachmentImages = [] }) {
   const values = buildVoucherValues({
     order,
     materials,
@@ -586,15 +614,16 @@ export function compileAiBrochure({ order, materials, palette, design, copy, tem
   const photos = attachmentImages.length > 0
     ? attachmentImages
     : [values.coverImage, values.insideImage, values.insideImage2, values.detailImage];
+  const palette = INDIAN_PALETTES[design.tone] ?? providedPalette;
   const stack = TYPE_STACKS[design.type] ?? TYPE_STACKS.editorial;
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)} · ${escapeHtml(values.orderNo)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
 <style>
 :root { ${paletteCss(palette)}
-  --cream: #FBF3E4;
-  --gold: #B4863F;
-  --deep: #4A1F18;
+  --cream: ${palette.coverPaper};
+  --gold: #C79A3A;
+  --deep: ${palette.dark};
   --display: ${stack.display};
   --body: ${stack.body};
 }

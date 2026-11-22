@@ -3389,7 +3389,7 @@ test('a ready intake reply never asks for more', async () => {
 
 const AI_DESIGN_REPLY = {
   design: {
-    tone: 'ink',
+    tone: 'maroon',
     type: 'modern',
     cover: 'splitLeft',
     spec: 'twoColumn',
@@ -3426,7 +3426,7 @@ test('the model designs a brochure from scratch and it prints', { timeout: 240_0
   assert.equal(body.render.kind, 'ai');
   assert.equal(body.render.templateId, null);
   assert.equal(body.render.pageCount, 4);
-  assert.equal(body.render.design.tone, 'ink');
+  assert.equal(body.render.design.tone, 'maroon');
   assert.equal(body.render.design.cover, 'splitLeft');
   assert.match(body.render.design.label, /modern/i);
   assert.equal(body.copy.headline, AI_DESIGN_REPLY.copy.headline);
@@ -3460,7 +3460,7 @@ test('two designs produce two different documents', { timeout: 240_000 }, async 
     ...AI_DESIGN_REPLY,
     design: {
       ...AI_DESIGN_REPLY.design,
-      tone: 'olive',
+      tone: 'teal',
       type: 'classic',
       cover: 'masthead',
       spec: 'ledger',

@@ -79,7 +79,7 @@ createServer(async (request, response) => {
 
     const DESIGN = {
       design: {
-        tone: 'ink',
+        tone: 'maroon',
         type: 'modern',
         cover: 'splitLeft',
         spec: 'twoColumn',

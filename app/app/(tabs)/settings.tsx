@@ -15,6 +15,7 @@ import {
   type LlmSettings,
 } from '@/lib/api';
 import { colors, layout, shared, space, text } from '@/lib/theme';
+import { TamilLine } from '@/components/TamilLine';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 const SDK_VERSION = Constants.expoConfig?.sdkVersion ?? '58';
@@ -105,6 +106,7 @@ export default function SettingsScreen() {
         <View style={shared.frame}>
           <View style={styles.header}>
             <Text style={text.eyebrow}>Grace Wood</Text>
+            <TamilLine />
             <Text style={[text.screenTitle, styles.title]}>Settings</Text>
             <Text style={[text.muted, styles.subtitle]}>Connection, model and app details.</Text>
           </View>

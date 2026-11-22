@@ -20,6 +20,7 @@ import { ErrorState, LoadingState } from '@/components/StateViews';
 import { api, errorMessage, fileUrl, type Material } from '@/lib/api';
 import { useBootstrap } from '@/lib/bootstrap';
 import { colors, layout, shared, space, text } from '@/lib/theme';
+import { TamilLine } from '@/components/TamilLine';
 
 const GRID_GAP = space.lg;
 const HEX_PATTERN = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
@@ -43,6 +44,7 @@ export default function MaterialsScreen() {
   const header = (
     <View style={styles.header}>
       <Text style={text.eyebrow}>Grace Wood</Text>
+            <TamilLine />
       <Text style={[text.screenTitle, styles.title]}>Materials</Text>
       <Text style={[text.muted, styles.subtitle]}>Colours in the studio catalogue.</Text>
       <View style={styles.actionsRow}>
