@@ -354,6 +354,7 @@ export function createRenderer({
   dataDir,
   weasyprintBin = 'weasyprint',
   pdftoppmBin = 'pdftoppm',
+  pdfEngine = null,
 }) {
   const rendersDir = path.join(dataDir, 'renders');
   const previewsDir = path.join(dataDir, 'previews');
@@ -462,14 +463,22 @@ export function createRenderer({
     writeFileSync(builtFile, html, 'utf8');
     let succeeded = false;
     try {
-      await runWeasyPrint(weasyprintBin, builtFile, pdfPath);
-      const pageCount = await rasterisePdf(
-        pdftoppmBin,
-        pdfPath,
-        pagePrefix,
-        rendersDir,
-        renderId,
-      );
+      let pageCount;
+      if (pdfEngine) {
+        // Desktop mode: the Electron print engine writes the PDF and page
+        // images, so no Python, WeasyPrint or poppler is needed on the machine.
+        pageCount = await pdfEngine.render({ builtFile, pdfPath, renderId, rendersDir });
+        await pdfEngine.raster({ builtFile, renderId, rendersDir, pageCount });
+      } else {
+        await runWeasyPrint(weasyprintBin, builtFile, pdfPath);
+        pageCount = await rasterisePdf(
+          pdftoppmBin,
+          pdfPath,
+          pagePrefix,
+          rendersDir,
+          renderId,
+        );
+      }
       succeeded = true;
       return {
         pageCount,
@@ -506,19 +515,23 @@ export function createRenderer({
 
     writeFileSync(builtFile, html, 'utf8');
     try {
-      await runWeasyPrint(weasyprintBin, builtFile, pdfPath);
-      await runPdftoppm(pdftoppmBin, [
-        '-png',
-        '-r',
-        '96',
-        '-f',
-        '1',
-        '-l',
-        '1',
-        '-singlefile',
-        pdfPath,
-        outputPrefix,
-      ]);
+      if (pdfEngine) {
+        await pdfEngine.preview({ builtFile, outPng: outputPng });
+      } else {
+        await runWeasyPrint(weasyprintBin, builtFile, pdfPath);
+        await runPdftoppm(pdftoppmBin, [
+          '-png',
+          '-r',
+          '96',
+          '-f',
+          '1',
+          '-l',
+          '1',
+          '-singlefile',
+          pdfPath,
+          outputPrefix,
+        ]);
+      }
       if (!existsSync(outputPng)) {
         throw new RenderError('The preview PDF was built but no preview image was written.', 500);
       }

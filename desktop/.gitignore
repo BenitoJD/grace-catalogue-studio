@@ -8,3 +8,6 @@ dist/
 
 # Logs from local smoke tests
 *.log
+
+# Generated server bundle for packaging
+build/

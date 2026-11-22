@@ -259,22 +259,24 @@ Measured, not asserted: `node scripts/design-uniqueness.mjs` renders all thirty 
 
 ## Desktop app for Windows and Mac
 
-![Desktop](docs/screenshots/desktop.png)
+The product ships as a standalone desktop app. It contains the studio UI, the catalogue API, the SQLite database and the print engine, so the person installing it needs nothing else: no Node.js, no Python, no WeasyPrint, no separate server. On first launch they open **Settings → Language model**, paste the endpoint, model id and key, and work.
 
-`desktop/` wraps the web build in Electron and packages it for both platforms. The wrapper starts an embedded server on loopback that serves the app and reverse proxies `/api`, `/files`, `/pages`, `/previews`, `/media`, `/health` and `/ready` to the API, so the window sees one origin and no rebuild or CORS setup is needed.
+PDFs are printed by Electron's own Chromium through `desktop/pdf-engine.js`. The server asks the engine for the PDF and the page images, so the rendering that used to need WeasyPrint and poppler now runs inside the app.
+
+Data lives in the app data folder: `%APPDATA%\Grace Studio\data` on Windows and `~/Library/Application Support/Grace Studio/data` on macOS. The menu item **Open data folder** reveals it.
 
 ```bash
 npm run setup
-npm run desktop                      # run the wrapper in development
+npm run desktop                      # run the desktop app in development
 npm run build:mac                    # dmg and zip in desktop/release
 npm run build:win                    # nsis and portable exe, best run on Windows
 ```
 
-Point it at a deployed API with `CATALOG_API_URL`, or with `desktop-config.json` in the app data directory (the menu item Open server settings reveals it). Defaults to `http://localhost:8787`.
+The desktop process starts the server itself through `server/src/boot.mjs`. The command line server still works the same way with `npm run server`, and `CATALOG_API_URL` switches the desktop wrapper to an external API for development.
 
-`.github/workflows/desktop.yml` builds both platforms on a tag `v*` or on demand: mac on a macOS runner, Windows on a Windows runner, with the artifacts uploaded. The mac build has been produced and launched on this machine and the packaged app was verified against a live API. Windows is built only by CI.
+`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace Studio-1.0.0-setup-x64.exe` and a portable exe for Windows, dmg and zip for macOS. A `V*` tag release is the file the customer downloads. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
 
-Builds are unsigned. Gatekeeper will warn on first open on a Mac, and SmartScreen will warn on Windows. Signing needs an Apple Developer ID and a Windows code signing certificate; both are deliberately out of scope for now.
+The standalone app was built and launched on this machine: the packaged build started its embedded server, designed a brochure with the live model, and printed all four pages through the Electron engine in 1.5 seconds.
 
 ## Language model
 

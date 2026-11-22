@@ -10,6 +10,7 @@ directories:
 # a normal resource so the embedded server can read it with fs.
 files:
   - main.js
+  - pdf-engine.js
   - package.json
 
 # The exported Expo web build ends up in Contents/Resources/app/dist on macOS
@@ -17,6 +18,16 @@ files:
 extraResources:
   - from: ../app/dist
     to: app/dist
+  # The catalogue API runs inside the app. The server is bundled into one ESM
+  # file (dependencies included) so no node_modules tree has to ship.
+  - from: build/server-bundle.mjs
+    to: server/boot.mjs
+  - from: ../templates
+    to: templates
+    filter:
+      - "**/*"
+      - "!**/.DS_Store"
+      - "!previews/**"
 
 asar: true
 

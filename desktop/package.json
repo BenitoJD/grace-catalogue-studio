@@ -9,12 +9,14 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:mac": "electron-builder --mac",
-    "build:win": "electron-builder --win",
-    "build": "electron-builder"
+    "build:mac": "npm run bundle:server && electron-builder --mac",
+    "build:win": "npm run bundle:server && electron-builder --win",
+    "build": "npm run bundle:server && electron-builder",
+    "bundle:server": "esbuild ../server/src/boot.mjs --bundle --platform=node --format=esm --target=node24 --external:node:* --outfile=build/server-bundle.mjs"
   },
   "devDependencies": {
     "electron": "^45.4.1",
-    "electron-builder": "^26.18.0"
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.25.0"
   }
 }

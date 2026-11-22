@@ -1,9 +1,14 @@
 # Grace Studio desktop (Electron)
 
-An Electron wrapper around the Expo web build in `app/dist`, packaged as a
-desktop application for macOS and Windows. The repo's Node API in `server/` is
-**not** bundled: the desktop app points at an API over HTTP, either one running
-on the same machine or a deployed instance.
+A standalone desktop application for Windows and macOS. It contains the Expo web
+studio, the catalogue server and the print engine, so the person who installs it
+needs nothing else: no Node.js, no Python, no WeasyPrint, no separate server.
+
+On first launch they open **Settings → Language model**, paste the endpoint, model
+id and key, and work. Everything else starts and stops with the app.
+
+The installers are built in CI: every `v*` tag produces a Windows `setup.exe` and
+a portable `exe`, plus macOS `dmg`/`zip`, attached to the GitHub release.
 
 `desktop/package.json` uses the npm-safe package name `grace-studio-desktop`
 (npm and electron-builder reject spaces and capitals in `name`); the app name
@@ -11,36 +16,43 @@ Electron and the installers show comes from `productName`, which is
 `Grace Studio`.
 
 ```
-┌────────────────────────── Electron main process ──────────────────────────┐
-│  BrowserWindow ──> http://grace-studio.localhost:<free port>              │
-│                       │                                                   │
-│                       ▼                                                   │
-│  embedded Node HTTP server (127.0.0.1, free port)                         │
-│    • serves app/dist statically, SPA fallback to index.html               │
-│    • reverse proxies /api /files /pages /previews /media /health /ready   │
-│                       │                                                   │
-└───────────────────────┼───────────────────────────────────────────────────┘
-                        ▼
-              CATALOG_API_URL (default http://localhost:8787)
+┌──────────────────────────── Electron main process ────────────────────────────┐
+│  BrowserWindow ──> http://grace-studio.localhost:<free port>                   │
+│                       │                                                        │
+│                       ▼                                                        │
+│  static server + reverse proxy (127.0.0.1, free port)                          │
+│    • serves app/dist statically, SPA fallback to index.html                    │
+│    • proxies /api /files /pages /previews /media /health /ready                │
+│                       │                                                        │
+│                       ▼                                                        │
+│  embedded catalogue server (127.0.0.1, OS-assigned port)                       │
+│    • SQLite database in the app's userData folder                              │
+│    • model calls, intake, design compilation                                   │
+│    • PDF and page images through the Electron print engine (pdf-engine.js)     │
+└────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## How it works
 
 On launch `main.js`:
 
-1. Works out the backend base URL: `CATALOG_API_URL` env var, then
-   `desktop-config.json` in Electron's userData directory, then
-   `http://localhost:8787`.
+1. Starts the catalogue server from a bundled single-file build of `server/`
+   (`build/server-bundle.mjs`), with data in Electron's userData folder and the
+   templates from the app resources. A `CATALOG_API_URL` environment variable
+   switches the wrapper to an external API for development instead.
 2. Starts an HTTP server on `127.0.0.1` with an OS-assigned free port. It serves
    the exported Expo SPA from `app/dist` with an SPA fallback (`/orders` gets
    `index.html`) and reverse proxies the API path prefixes to the backend,
    streaming request and response bodies. `/api`, `/files`, `/pages`,
-   `/previews`, `/media`, `/health` and `/ready` are proxied.
+   `/previews`, `/media`, `/health` and `/ready` are proxied to the embedded
+   server. Printing runs inside this same Electron process, so a render needs no
+   external binaries.
 3. Opens a BrowserWindow (1280×860, minimum 900×700) at that server, restores
    the previous window bounds from the userData directory, and keeps a single
    instance running (a second launch focuses the existing window).
-4. Adds a native menu: **Reload**, **Open server settings** (reveals
-   `desktop-config.json` in Finder/Explorer) and **Quit**.
+4. Adds a native menu: **Reload**, **Open data folder**, **Open server settings**
+   and **Quit**. The language model settings live in the app and are edited on
+   the Settings screen, not in a file.
 
 Because the SPA and the proxy are the same origin, the app needs no CORS
 configuration and no rebuild with `EXPO_PUBLIC_API_URL`: requests such as
@@ -77,7 +89,8 @@ on macOS, `resources/app/dist` on Windows).
 
 ## Run from source
 
-Requires Node.js 24+ and a local copy of the repository.
+Requires Node.js 24+ and a local copy of the repository. The desktop app now
+starts the server itself, so `npm run dev` in the repository root is not needed.
 
 ```bash
 cd app && npm ci && npx expo export --platform web --output-dir dist && cd ..
@@ -99,7 +112,7 @@ Every launch also writes `desktop-server.json` (`port`, `url`, `loopbackUrl`,
 `apiUrl`, `webRoot`, `spaReady`) to the userData directory, so the embedded
 server can be checked with `curl` even without the terminal output.
 
-## Point it at a deployed API
+## External API (development only)
 
 Either set the environment variable:
 

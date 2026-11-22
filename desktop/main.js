@@ -34,7 +34,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const https = require('node:https');
 const path = require('node:path');
-const { URL } = require('node:url');
+const { URL, pathToFileURL } = require('node:url');
 
 const APP_NAME = 'Grace Studio';
 const DEFAULT_API_URL = 'http://localhost:8787';
@@ -108,6 +108,9 @@ let loopbackUrl = null;
 let apiBaseUrl = DEFAULT_API_URL;
 let webRoot = null;
 let spaReady = false;
+/** Embedded catalogue server when the app runs standalone. */
+let embeddedServer = null;
+let embeddedDataDir = null;
 
 const printPort = process.argv.includes('--print-port');
 
@@ -150,6 +153,62 @@ function ensureConfigFile() {
   if (fs.existsSync(file)) return;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify({ apiUrl: DEFAULT_API_URL }, null, 2)}\n`, 'utf8');
+}
+
+/**
+ * Where the API code and the templates live. In a checkout they sit next to
+ * the desktop folder; in an installed app electron-builder copies them into
+ * Resources.
+ */
+function apiPaths() {
+  if (app.isPackaged) {
+    const resources = process.resourcesPath;
+    return {
+      boot: path.join(resources, 'server', 'boot.mjs'),
+      templates: path.join(resources, 'templates'),
+    };
+  }
+  return {
+    boot: path.resolve(__dirname, '..', 'server', 'src', 'boot.mjs'),
+    templates: path.resolve(__dirname, '..', 'templates'),
+  };
+}
+
+/**
+ * Start the catalogue server inside the app. There is no separate server to
+ * install: its data lives in the app's user data folder and the print engine
+ * is Electron itself.
+ */
+async function startEmbeddedApi() {
+  const dataDir = path.join(app.getPath('userData'), 'data');
+  const templatesDir = apiPaths().templates;
+  embeddedDataDir = dataDir;
+
+  if (!fs.existsSync(apiPaths().boot)) {
+    throw new Error(`The catalogue server is missing at ${apiPaths().boot}.`);
+  }
+  if (!fs.existsSync(templatesDir)) {
+    throw new Error(`The brochure templates are missing at ${templatesDir}.`);
+  }
+
+  fs.mkdirSync(dataDir, { recursive: true });
+  process.env.CATALOG_DATA_DIR = dataDir;
+  process.env.CATALOG_DB = path.join(dataDir, 'catalog.db');
+  process.env.CATALOG_TEMPLATES_DIR = templatesDir;
+  process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
+
+  const { createPdfEngine } = require('./pdf-engine');
+  const pdfEngine = createPdfEngine();
+  const { startCatalogServer } = await import(pathToFileURL(apiPaths().boot).href);
+  embeddedServer = await startCatalogServer({
+    port: 0,
+    host: LOCAL_HOST,
+    dataDir,
+    templatesDir,
+    pdfEngine,
+  });
+  log(`Embedded catalogue server at ${embeddedServer.url}`);
+  return embeddedServer.url;
 }
 
 /** env CATALOG_API_URL -> <userData>/desktop-config.json -> http://localhost:8787 */
@@ -654,6 +713,16 @@ function installMenu() {
           },
         },
         {
+          label: 'Open data folder',
+          click: () => {
+            try {
+              shell.showItemInFolder(path.join(app.getPath('userData'), 'data', 'catalog.db'));
+            } catch (error) {
+              log(`Could not reveal the data folder: ${error.message}`);
+            }
+          },
+        },
+        {
           label: 'Open server settings',
           click: openServerSettings,
         },
@@ -691,8 +760,17 @@ function writeServerInfo() {
 }
 
 async function start() {
-  apiBaseUrl = resolveApiBaseUrl();
   ensureConfigFile();
+
+  // Standalone by default: the app carries the API and the print engine. The
+  // external URL path stays for development against a running dev server.
+  const externalApi = normaliseBaseUrl(process.env.CATALOG_API_URL);
+  if (externalApi) {
+    apiBaseUrl = externalApi;
+    log(`Using external API ${apiBaseUrl}`);
+  } else {
+    apiBaseUrl = await startEmbeddedApi();
+  }
 
   webRoot = resolveWebRoot();
   spaReady = fs.existsSync(path.join(webRoot, 'index.html'));
@@ -718,6 +796,17 @@ async function start() {
 
   if (printPort) log(`Server info written to ${serverInfoFile()}`);
   return info;
+}
+
+async function stopEmbeddedApi() {
+  if (!embeddedServer) return;
+  const server = embeddedServer;
+  embeddedServer = null;
+  try {
+    await server.close();
+  } catch (error) {
+    log(`Embedded server shutdown failed: ${error.message}`);
+  }
 }
 
 function stopServer() {
@@ -752,7 +841,16 @@ if (!gotSingleInstanceLock) {
     if (BrowserWindow.getAllWindows().length === 0 && appUrl) createWindow();
   });
 
-  app.on('before-quit', stopServer);
+  let embeddedCloseStarted = false;
+  app.on('before-quit', (event) => {
+    if (!embeddedServer || embeddedCloseStarted) return;
+    event.preventDefault();
+    embeddedCloseStarted = true;
+    stopServer();
+    stopEmbeddedApi()
+      .catch((error) => log(`Embedded server shutdown failed: ${error.message}`))
+      .finally(() => app.quit());
+  });
 
   app
     .whenReady()
