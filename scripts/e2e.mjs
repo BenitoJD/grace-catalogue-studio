@@ -442,6 +442,25 @@ try {
     () => document.querySelector('input[placeholder="https://provider.example.com/v1"]')?.value ?? ""
   );
   check("settings shows the endpoint", endpointValue.includes("8793"), endpointValue.slice(0, 40));
+  check("settings lists the providers", await hasText(page, "Command Code"));
+  check(
+    "provider choices are tappable",
+    (await page.$$('[aria-label^="Provider "]')).length >= 10
+  );
+  await page.evaluate(() => {
+    const chip = document.querySelector('[aria-label="Provider Command Code (Provider API)"]');
+    if (chip) chip.click();
+  });
+  const commandEndpoint = await page.evaluate(
+    () => document.querySelector('input[placeholder="https://provider.example.com/v1"]')?.value ?? ""
+  );
+  check("a provider fills its endpoint", commandEndpoint.includes("api.commandcode.ai"), commandEndpoint);
+  check(
+    "a provider suggests its models",
+    (await page.$('[aria-label="Use model deepseek-v4-flash"]')) !== null
+  );
+  await page.goto(`${WEB}/settings`, { waitUntil: "networkidle2" });
+  await sleep(1500);
   check("test connection button present", await clickText(page, "Test connection"));
   const connected = await page
     .waitForFunction(() => document.body.innerText.includes("Connected to"), { timeout: 30000 })

@@ -149,11 +149,24 @@ export interface Template {
 }
 
 export interface LlmSettings {
+  provider: string;
+  providerLabel: string;
   endpoint: string;
   model: string;
   hasKey: boolean;
+  keyOptional: boolean;
   source: 'settings' | 'env' | 'none';
   updatedAt: string | null;
+}
+
+export interface LlmProvider {
+  id: string;
+  label: string;
+  endpoint: string;
+  models: string[];
+  keyUrl: string | null;
+  keyOptional: boolean;
+  note: string;
 }
 
 export interface LlmTestResult {
@@ -373,8 +386,16 @@ export const api = {
   getLlmSettings(): Promise<LlmSettings> {
     return request<LlmSettings>('/api/llm/settings');
   },
-  saveLlmSettings(input: { endpoint?: string; model?: string; apiKey?: string }): Promise<LlmSettings> {
+  saveLlmSettings(input: {
+    provider?: string;
+    endpoint?: string;
+    model?: string;
+    apiKey?: string;
+  }): Promise<LlmSettings> {
     return request<LlmSettings>('/api/llm/settings', { method: 'PUT', body: input });
+  },
+  listProviders(): Promise<{ providers: LlmProvider[] }> {
+    return request<{ providers: LlmProvider[] }>('/api/llm/providers');
   },
   intake(
     messages: IntakeMessage[],

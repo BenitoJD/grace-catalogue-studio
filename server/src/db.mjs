@@ -737,7 +737,7 @@ export function getRender(db, id) {
 
 // The runtime configuration keys this build knows about. Keeping the list here
 // means a typo can not quietly create a setting nothing ever reads.
-export const SETTING_KEYS = Object.freeze(['llm_endpoint', 'llm_model', 'llm_api_key']);
+export const SETTING_KEYS = Object.freeze(['llm_provider', 'llm_endpoint', 'llm_model', 'llm_api_key']);
 const SETTING_KEY_SET = new Set(SETTING_KEYS);
 
 function settingFromRow(row) {

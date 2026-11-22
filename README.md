@@ -214,7 +214,7 @@ npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 98 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 102 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
 
 ## Design templates
 
@@ -280,44 +280,25 @@ The desktop process starts the server itself through `server/src/boot.mjs`. The 
 
 The Windows installer is a custom NSIS wizard in `desktop/installer/GraceStudio.nsi`, built the same way as the Attendance Report Studio installer: Welcome, options, install, Finish with a Launch checkbox. It installs for the current Windows user into `%LOCALAPPDATA%\Programs\Grace Studio`, so there is no administrator prompt, creates a Start Menu shortcut and optionally a desktop shortcut, registers a proper Apps and Features uninstall entry, and upgrades cleanly. Data in the app data folder is never touched.
 
-`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.6.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
+`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.7.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
 
 The standalone app was built and launched on this machine: the packaged build started its embedded server, designed a brochure with the live model, and printed all four pages through the Electron engine in 1.5 seconds.
 
 ## Language model
 
-The studio can point itself at any OpenAI compatible model. Open Settings, Language model, and set the endpoint, the model id and the key. Save, then Test connection. The key is stored on the server and never sent back to the app, and the test shows the provider's own error text when a call fails.
+The studio ships with presets for the providers people actually use, all through one OpenAI compatible layer: DeepSeek, OpenCode Zen Go, Command Code Provider, OpenAI, OpenRouter, Groq, Together, Mistral, Google Gemini, xAI Grok, Ollama and LM Studio, plus Custom for anything else. Pick one on the Settings screen, paste the key, choose a suggested model or type your own.
 
-![Model settings](docs/screenshots/e2e/06b-model-settings.png)
+![Provider presets in Settings](docs/screenshots/provider-settings.png)
 
-Once configured, the model designs the brochure and writes its words in the same call. The copy can also be regenerated on its own from the order screen: a headline, a body paragraph and a closing line built only from the order facts and the customer brief, in the premium voice measured below.
+- Each preset fills its endpoint and suggests its models; the endpoint stays editable.
+- OpenCode Go adds its session header automatically and asks reasoning models for a direct answer.
+- Command Code uses its Provider API endpoint, `https://api.commandcode.ai/provider/v1`, with the same key as the CLI.
+- Ollama and LM Studio run on the office machine and need no key.
+- Switching provider drops a stale endpoint so the new defaults apply instead of an old URL.
+- The catalog is available at `GET /api/llm/providers`; the key is stored on the server, never returned to the app and never logged.
+- Server environment variables still work for deployments: `LLM_PROVIDER`, `LLM_ENDPOINT`, `LLM_MODEL`, `LLM_API_KEY`.
 
-![Brochure copy](docs/screenshots/e2e/06d-brochure-copy.png)
-
-An order screen can also draft a short customer note for WhatsApp from the same data. Nothing is invented: the prompt carries the order fields, and the result is shown for review before anyone copies or prints it.
-
-![Customer note](docs/screenshots/e2e/06c-customer-note.png)
-
-Verified live against OpenCode Go:
-
-| Setting | Value |
-|---|---|
-| Endpoint | `https://opencode.ai/zen/go/v1` |
-| Model | `deepseek-v4.1-flash` |
-
-The Go endpoint requires an `x-opencode-session` header, which the server adds automatically for OpenCode hosts. It is also a reasoning model: left alone it can spend the whole token budget thinking and return nothing, so for OpenCode hosts the request asks for a direct answer with `reasoning_effort: none`. Other providers get a plain OpenAI compatible request, so no unknown field can break them.
-
-A real generation on this machine produced a 133 word body in 4.7 seconds, using only the order facts and the brief, and the text printed into the voucher:
-
-![AI written body in the voucher](docs/screenshots/ai-brochure-body.png)
-
-The standalone `https://opencode.ai/zen/v1` endpoint behaves differently: this account gets `402 Insufficient balance` on paid models there and `429 Free usage limit reached` on free ones. The studio surfaces those messages unchanged, which is what the test button is for. The offline success path also works against the bundled mock provider:
-
-```bash
-node scripts/mock-llm.mjs 8793   # then point Settings at http://127.0.0.1:8793/v1
-```
-
-Environment fallbacks are `LLM_ENDPOINT`, `LLM_MODEL` and `LLM_API_KEY`; settings saved in the studio win.
+A live check against OpenCode Go returned ok in 1.3 seconds through the preset.
 
 ## Model caching
 

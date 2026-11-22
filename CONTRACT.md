@@ -123,6 +123,7 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 |---|---|---|---|
 | GET | `/health` | | `{ ok: true, version: "1.0.0" }` |
 | GET | `/api/bootstrap` | | `{ customers, orders, materials }` |
+| GET | `/api/llm/providers` | | `{ providers }` catalog of OpenAI compatible presets |
 | POST | `/api/customers` | `{ name, phone?, address? }` | `Customer` (201) |
 | GET | `/api/customers` | | `Customer[]` |
 | POST | `/api/orders` | order fields (see above, minus id, orderNo, status, createdAt) | `Order` (201) |

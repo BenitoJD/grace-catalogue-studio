@@ -1411,9 +1411,12 @@ test('llm settings are empty and the model routes answer 400 until configured', 
   const settingsResponse = await fetch(`${baseUrl}/api/llm/settings`);
   assert.equal(settingsResponse.status, 200);
   assert.deepEqual(await settingsResponse.json(), {
+    provider: 'custom',
+    providerLabel: 'Custom / OpenAI compatible',
     endpoint: '',
     model: '',
     hasKey: false,
+    keyOptional: false,
     source: 'none',
     updatedAt: null,
   });
@@ -3589,4 +3592,64 @@ test('saying I do not know skips the detail without a model call', async () => {
   assert.match(body.reply, /height and depth/i);
   assert.match(body.reply, /to be confirmed/i);
   assert.equal(mockProviderState.requests.length, requestsBefore);
+});
+
+
+test('the provider catalog covers the major LLMs and leaks nothing', async () => {
+  const response = await fetch(`${baseUrl}/api/llm/providers`);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  const ids = body.providers.map((provider) => provider.id);
+  for (const expected of ['deepseek', 'opencode', 'commandcode', 'openai', 'openrouter', 'custom']) {
+    assert.ok(ids.includes(expected), `missing provider ${expected}`);
+  }
+  const commandCode = body.providers.find((provider) => provider.id === 'commandcode');
+  assert.equal(commandCode.endpoint, 'https://api.commandcode.ai/provider/v1');
+  assert.ok(commandCode.models.length > 0);
+  assert.ok(!JSON.stringify(body).includes('apiKey'));
+});
+
+test('a provider choice fills its defaults and switching drops a stale endpoint', async () => {
+  resetLlmState();
+  await configureLlm();
+  // Save a custom compatible endpoint first.
+  let response = await fetch(`${baseUrl}/api/llm/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'custom',
+      endpoint: `${mockProviderUrl}/`,
+      model: 'mock-flash',
+      apiKey: LLM_KEY,
+    }),
+  });
+  assert.equal(response.status, 200);
+
+  // Choosing a named provider without an endpoint drops the old URL and model,
+  // so the provider defaults resolve instead of a stale one.
+  response = await fetch(`${baseUrl}/api/llm/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'commandcode' }),
+  });
+  assert.equal(response.status, 200);
+  const settings = await response.json();
+  assert.equal(settings.provider, 'commandcode');
+  assert.equal(settings.endpoint, 'https://api.commandcode.ai/provider/v1');
+  assert.equal(settings.model, 'deepseek-v4-flash');
+  assert.equal(settings.hasKey, true);
+});
+
+test('an unknown provider is rejected without changing settings', async () => {
+  resetLlmState();
+  await configureLlm();
+  const before = await (await fetch(`${baseUrl}/api/llm/settings`)).json();
+  const response = await fetch(`${baseUrl}/api/llm/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'not-a-provider' }),
+  });
+  assert.equal(response.status, 400);
+  const after = await (await fetch(`${baseUrl}/api/llm/settings`)).json();
+  assert.deepEqual(after, before);
 });

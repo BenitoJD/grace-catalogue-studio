@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -12,6 +12,7 @@ import {
   api,
   errorMessage,
   testLlmConnection,
+  type LlmProvider,
   type LlmSettings,
 } from '@/lib/api';
 import { colors, layout, shared, space, text } from '@/lib/theme';
@@ -28,6 +29,8 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
 
   const [settings, setSettings] = useState<LlmSettings | null>(null);
+  const [providers, setProviders] = useState<LlmProvider[]>([]);
+  const [providerId, setProviderId] = useState('custom');
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [endpoint, setEndpoint] = useState('');
@@ -39,10 +42,15 @@ export default function SettingsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const next = await api.getLlmSettings();
+      const [next, catalog] = await Promise.all([
+        api.getLlmSettings(),
+        api.listProviders(),
+      ]);
       setSettings(next);
+      setProviderId(next.provider);
       setEndpoint(next.endpoint);
       setModel(next.model);
+      setProviders(catalog.providers);
       setSettingsError(null);
     } catch (error) {
       setSettingsError(errorMessage(error, 'The model settings could not be loaded.'));
@@ -62,11 +70,13 @@ export default function SettingsScreen() {
     setStatus(null);
     try {
       const next = await api.saveLlmSettings({
+        provider: providerId,
         endpoint: endpoint.trim(),
         model: model.trim(),
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
       });
       setSettings(next);
+      setProviderId(next.provider);
       setApiKey('');
       setStatus({ tone: 'good', message: 'Settings saved on the server.' });
     } catch (error) {
@@ -74,7 +84,19 @@ export default function SettingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [apiKey, endpoint, model]);
+  }, [apiKey, endpoint, model, providerId]);
+
+  const chooseProvider = useCallback(
+    (provider: LlmProvider) => {
+      setProviderId(provider.id);
+      setStatus(null);
+      if (provider.id !== 'custom') {
+        setEndpoint(provider.endpoint);
+        setModel(provider.models[0] ?? '');
+      }
+    },
+    []
+  );
 
   const test = useCallback(async () => {
     setTesting(true);
@@ -138,17 +160,42 @@ export default function SettingsScreen() {
 
             {!settingsLoading ? (
               <View style={styles.form}>
+                <Text style={[text.caption, styles.label]}>Provider</Text>
+                <View style={styles.providerWrap}>
+                  {providers.map((provider) => {
+                    const active = provider.id === providerId;
+                    return (
+                      <Pressable
+                        key={provider.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Provider ${provider.label}`}
+                        accessibilityState={{ selected: active }}
+                        onPress={() => chooseProvider(provider)}
+                        style={({ pressed }) => [
+                          styles.providerChip,
+                          active && styles.providerChipActive,
+                          pressed && styles.providerChipPressed,
+                        ]}>
+                        <Text
+                          style={[styles.providerChipText, active && styles.providerChipTextActive]}>
+                          {provider.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={[text.caption, styles.hint]}>
+                  {providers.find((provider) => provider.id === providerId)?.note ??
+                    'Pick a provider, or paste any OpenAI compatible endpoint below.'}
+                </Text>
                 <Field
-                  label="Endpoint"
+                  label={providerId === 'custom' ? 'Endpoint' : 'Endpoint, editable'}
                   value={endpoint}
                   onChangeText={setEndpoint}
                   placeholder="https://provider.example.com/v1"
                   autoCapitalize="none"
                   maxLength={300}
                 />
-                <Text style={[text.caption, styles.hint]}>
-                  OpenCode Go: endpoint https://opencode.ai/zen/go/v1 with model deepseek-v4.1-flash.
-                </Text>
                 <Field
                   label="Model"
                   value={model}
@@ -157,6 +204,36 @@ export default function SettingsScreen() {
                   autoCapitalize="none"
                   maxLength={120}
                 />
+                {providers.find((provider) => provider.id === providerId)?.models.length ? (
+                  <View style={styles.modelWrap}>
+                    <Text style={[text.caption, styles.hint]}>Suggested models</Text>
+                    <View style={styles.providerWrap}>
+                      {providers
+                        .find((provider) => provider.id === providerId)!
+                        .models.slice(0, 6)
+                        .map((suggestion) => (
+                          <Pressable
+                            key={suggestion}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Use model ${suggestion}`}
+                            onPress={() => setModel(suggestion)}
+                            style={({ pressed }) => [
+                              styles.modelChip,
+                              model === suggestion && styles.modelChipActive,
+                              pressed && styles.providerChipPressed,
+                            ]}>
+                            <Text
+                              style={[
+                                styles.modelChipText,
+                                model === suggestion && styles.providerChipTextActive,
+                              ]}>
+                              {suggestion}
+                            </Text>
+                          </Pressable>
+                        ))}
+                    </View>
+                  </View>
+                ) : null}
                 <Field
                   label="API key"
                   value={apiKey}
@@ -169,7 +246,12 @@ export default function SettingsScreen() {
                 <Text style={[text.caption, styles.hint]}>
                   {settings?.hasKey
                     ? `A key is already saved (${settings.source === 'env' ? 'from the server environment' : 'set in the studio'}).`
-                    : 'No key saved yet.'}
+                    : settings?.keyOptional
+                      ? 'No key needed for this provider.'
+                      : 'No key saved yet.'}
+                  {providers.find((provider) => provider.id === providerId)?.keyUrl
+                    ? ` Create a key at ${providers.find((provider) => provider.id === providerId)?.keyUrl}`
+                    : ''}
                 </Text>
 
                 <View style={styles.actions}>
@@ -267,6 +349,50 @@ const styles = StyleSheet.create({
     marginTop: space.lg,
     gap: space.lg,
     maxWidth: 560,
+  },
+  providerWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+  },
+  providerChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  providerChipActive: {
+    borderColor: colors.copper,
+    backgroundColor: colors.copperSoft,
+  },
+  providerChipPressed: {
+    opacity: 0.72,
+  },
+  providerChipText: {
+    fontSize: 12.5,
+    color: colors.muted,
+  },
+  providerChipTextActive: {
+    color: colors.copper,
+    fontWeight: '600',
+  },
+  modelWrap: {
+    gap: 4,
+  },
+  modelChip: {
+    borderRadius: 8,
+    backgroundColor: colors.fill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  modelChipActive: {
+    backgroundColor: colors.copperSoft,
+  },
+  modelChipText: {
+    fontSize: 11.5,
+    color: colors.muted,
   },
   actions: {
     flexDirection: 'row',

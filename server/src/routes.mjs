@@ -34,6 +34,7 @@ import {
   updateMaterial,
   updateOrder,
 } from './db.mjs';
+import { publicProviders } from './providers.mjs';
 import {
   DEFAULT_NOTE_LIMIT_PER_MIN,
   DEFAULT_RATE_LIMIT_PER_MIN,
@@ -87,11 +88,13 @@ import {
   llmFailureBody,
   parseCopyReply,
   publicLlmSettings,
+  readStoredLlmSettings,
   requestChat,
   resolveLlmConfig,
   validateApiKey,
   validateEndpoint,
   validateModel,
+  validateProvider,
 } from './llm.mjs';
 import { createLogger, parseLogLevel } from './logger.mjs';
 import { buildKitValues, createRenderer, newRenderId } from './render.mjs';
@@ -859,6 +862,10 @@ export function createApp(options) {
     return c.json(llmFailureBody(error), 502);
   }
 
+  // The provider catalog is public: presets, their default models and where to
+  // create a key. No secrets are involved.
+  app.get('/api/llm/providers', (c) => c.json({ providers: publicProviders() }));
+
   // No key is ever returned: hasKey only says whether one is available.
   app.get('/api/llm/settings', (c) =>
     c.json(publicLlmSettings(resolveLlmConfig(db, llmEnv))),
@@ -871,15 +878,21 @@ export function createApp(options) {
 
     // Reject unknown fields instead of silently ignoring a typo that would
     // leave the operator looking at unchanged settings.
-    const allowedFields = new Set(['endpoint', 'model', 'apiKey']);
+    const allowedFields = new Set(['provider', 'endpoint', 'model', 'apiKey']);
     for (const key of Object.keys(body)) {
       if (!allowedFields.has(key)) {
         return fail(
           c,
           400,
-          `Unknown field "${key}". Allowed fields are endpoint, model and apiKey.`,
+          `Unknown field "${key}". Allowed fields are provider, endpoint, model and apiKey.`,
         );
       }
+    }
+    let provider;
+    if ('provider' in body) {
+      const result = validateProvider(body.provider);
+      if (result.error) return fail(c, 400, result.error);
+      provider = result.value;
     }
 
     // Validate everything before writing anything, so a rejected request can
@@ -903,6 +916,16 @@ export function createApp(options) {
       apiKey = result.value;
     }
 
+    if (provider !== undefined) {
+      const previous = readStoredLlmSettings(db).provider ?? '';
+      setSetting(db, LLM_SETTING_KEYS.provider, provider);
+      // Switching provider without naming an endpoint or model drops the old
+      // ones, so the new provider's defaults apply instead of a stale URL.
+      if (provider !== previous) {
+        if (endpoint === undefined) deleteSetting(db, LLM_SETTING_KEYS.endpoint);
+        if (model === undefined) deleteSetting(db, LLM_SETTING_KEYS.model);
+      }
+    }
     if (endpoint !== undefined) setSetting(db, LLM_SETTING_KEYS.endpoint, endpoint);
     if (model !== undefined) setSetting(db, LLM_SETTING_KEYS.model, model);
     if (apiKey !== undefined) {
@@ -922,6 +945,7 @@ export function createApp(options) {
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
     try {
       const result = await requestChat({
+        provider: config.provider,
         endpoint: config.endpoint,
         model: config.model,
         apiKey: config.apiKey,
@@ -950,7 +974,7 @@ export function createApp(options) {
 
     const messages = buildNoteMessages(order);
     const cacheKey = cacheEnabled
-      ? buildLlmCacheKey({ endpoint: config.endpoint, model: config.model, messages })
+      ? buildLlmCacheKey({ provider: config.provider, endpoint: config.endpoint, model: config.model, messages })
       : null;
     if (cacheKey) {
       const hit = getLlmCache(db, cacheKey, cacheCutoff());
@@ -963,6 +987,7 @@ export function createApp(options) {
 
     try {
       const result = await requestChat({
+        provider: config.provider,
         endpoint: config.endpoint,
         model: config.model,
         apiKey: config.apiKey,
@@ -978,6 +1003,7 @@ export function createApp(options) {
       if (cacheKey) {
         putLlmCache(db, {
           key: cacheKey,
+          provider: config.provider,
           endpoint: config.endpoint,
           model: config.model,
           responseJson: JSON.stringify({ note: payload.note, model: payload.model }),
@@ -1033,7 +1059,7 @@ export function createApp(options) {
     // The key is built even on a regenerate: the fresh copy replaces the cached
     // one, so the next plain request cannot serve the older words.
     const cacheKey = cacheEnabled
-      ? buildLlmCacheKey({ endpoint: config.endpoint, model: config.model, messages: baseMessages })
+      ? buildLlmCacheKey({ provider: config.provider, endpoint: config.endpoint, model: config.model, messages: baseMessages })
       : null;
     if (cacheKey && !bypassCache) {
       const hit = getLlmCache(db, cacheKey, cacheCutoff());
@@ -1047,6 +1073,7 @@ export function createApp(options) {
 
     try {
       let result = await requestChat({
+        provider: config.provider,
         endpoint: config.endpoint,
         model: config.model,
         apiKey: config.apiKey,
@@ -1059,6 +1086,7 @@ export function createApp(options) {
       if (issues.length > 0) {
         logger.warn('Brochure copy needed a repair pass.', { issues });
         result = await requestChat({
+          provider: config.provider,
           endpoint: config.endpoint,
           model: config.model,
           apiKey: config.apiKey,
@@ -1076,6 +1104,7 @@ export function createApp(options) {
       if (cacheKey) {
         putLlmCache(db, {
           key: cacheKey,
+          provider: config.provider,
           endpoint: config.endpoint,
           model: config.model,
           responseJson: JSON.stringify({ copy, model: result.model }),
@@ -1175,6 +1204,7 @@ export function createApp(options) {
         attachmentContext,
       );
       let result = await requestChat({
+        provider: config.provider,
         endpoint: config.endpoint,
         model: config.model,
         apiKey: config.apiKey,
@@ -1193,6 +1223,7 @@ export function createApp(options) {
           reason: error.message,
         });
         result = await requestChat({
+          provider: config.provider,
           endpoint: config.endpoint,
           model: config.model,
           apiKey: config.apiKey,
@@ -1318,6 +1349,7 @@ export function createApp(options) {
         const messages = buildAiBrochureMessages(order, brief, photoCount, direction);
 
         let result = await requestChat({
+          provider: config.provider,
           endpoint: config.endpoint,
           model: config.model,
           apiKey: config.apiKey,
@@ -1332,6 +1364,7 @@ export function createApp(options) {
           if (error?.type !== 'invalid_reply') throw error;
           logger.warn('AI brochure design could not be read, asking once more.', { reason: error.message });
           result = await requestChat({
+            provider: config.provider,
             endpoint: config.endpoint,
             model: config.model,
             apiKey: config.apiKey,
@@ -1357,6 +1390,7 @@ export function createApp(options) {
         if (issues.length > 0) {
           logger.warn('AI brochure copy needs a repair pass.', { issues });
           const repair = await requestChat({
+            provider: config.provider,
             endpoint: config.endpoint,
             model: config.model,
             apiKey: config.apiKey,

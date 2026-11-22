@@ -11,19 +11,23 @@
 import { randomUUID } from 'node:crypto';
 
 import { listSettings } from './db.mjs';
+import { getProvider, providerForEndpoint, resolveProvider } from './providers.mjs';
 
 export const LLM_SETTING_KEYS = Object.freeze({
+  provider: 'llm_provider',
   endpoint: 'llm_endpoint',
   model: 'llm_model',
   apiKey: 'llm_api_key',
 });
 
 export const LLM_ENV_VARS = Object.freeze({
+  provider: 'LLM_PROVIDER',
   endpoint: 'LLM_ENDPOINT',
   model: 'LLM_MODEL',
   apiKey: 'LLM_API_KEY',
 });
 
+export const PROVIDER_MAX_CHARS = 40;
 export const ENDPOINT_MAX_CHARS = 300;
 export const MODEL_MAX_CHARS = 120;
 export const API_KEY_MAX_CHARS = 400;
@@ -135,23 +139,43 @@ function formatTimeout(timeoutMs) {
  * Read the stored language model settings. Each field is optional: only keys
  * present in the settings table take part in resolution.
  */
+export function validateProvider(value) {
+  const text = clean(value).toLowerCase();
+  if (text === '') return { value: '' };
+  if (!getProvider(text)) {
+    return { error: `Unknown provider "${clean(value)}". GET /api/llm/providers lists the ids.` };
+  }
+  return { value: text };
+}
+
 export function readStoredLlmSettings(db) {
-  const stored = { endpoint: undefined, model: undefined, apiKey: undefined, updatedAt: null };
+  const stored = {
+    provider: undefined,
+    endpoint: undefined,
+    model: undefined,
+    apiKey: undefined,
+    updatedAt: null,
+  };
   for (const row of listSettings(db)) {
     if (
+      row.key !== LLM_SETTING_KEYS.provider &&
       row.key !== LLM_SETTING_KEYS.endpoint &&
       row.key !== LLM_SETTING_KEYS.model &&
       row.key !== LLM_SETTING_KEYS.apiKey
     ) {
       continue;
     }
+    if (row.key === LLM_SETTING_KEYS.provider) stored.provider = row.value;
     if (row.key === LLM_SETTING_KEYS.endpoint) stored.endpoint = row.value;
     if (row.key === LLM_SETTING_KEYS.model) stored.model = row.value;
     if (row.key === LLM_SETTING_KEYS.apiKey) stored.apiKey = row.value;
     if (!stored.updatedAt || row.updatedAt > stored.updatedAt) stored.updatedAt = row.updatedAt;
   }
   stored.present =
-    stored.endpoint !== undefined || stored.model !== undefined || stored.apiKey !== undefined;
+    stored.provider !== undefined ||
+    stored.endpoint !== undefined ||
+    stored.model !== undefined ||
+    stored.apiKey !== undefined;
   return stored;
 }
 
@@ -166,19 +190,27 @@ export function resolveLlmConfig(db, env = process.env) {
   const envModel = clean(env?.LLM_MODEL);
   const envApiKey = clean(env?.LLM_API_KEY);
 
-  const endpoint = trimEndpoint(stored.endpoint !== undefined ? stored.endpoint : envEndpoint);
-  const model = clean(stored.model !== undefined ? stored.model : envModel);
+  const storedProvider = clean(stored.provider !== undefined ? stored.provider : env?.LLM_PROVIDER);
+  const endpointValue = trimEndpoint(stored.endpoint !== undefined ? stored.endpoint : envEndpoint);
+  const provider = resolveProvider(storedProvider, endpointValue);
+  const endpoint = endpointValue !== '' ? endpointValue : provider.endpoint;
+  const modelValue = clean(stored.model !== undefined ? stored.model : envModel);
+  const model = modelValue !== '' ? modelValue : provider.models[0] ?? '';
   const apiKey = clean(stored.apiKey !== undefined ? stored.apiKey : envApiKey);
 
   const hasEnv = envEndpoint !== '' || envModel !== '' || envApiKey !== '';
   const source = stored.present ? 'settings' : hasEnv ? 'env' : 'none';
+  const keyOk = apiKey !== '' || Boolean(provider.keyOptional);
 
   return {
+    provider: provider.id,
+    providerLabel: provider.label,
     endpoint,
     model,
     apiKey,
     hasKey: apiKey !== '',
-    configured: endpoint !== '' && model !== '' && apiKey !== '',
+    keyOptional: Boolean(provider.keyOptional),
+    configured: endpoint !== '' && model !== '' && keyOk,
     source,
     updatedAt: stored.updatedAt,
   };
@@ -190,9 +222,12 @@ export function resolveLlmConfig(db, env = process.env) {
  */
 export function publicLlmSettings(config) {
   return {
+    provider: config?.provider ?? 'custom',
+    providerLabel: config?.providerLabel ?? 'Custom',
     endpoint: config?.endpoint ?? '',
     model: config?.model ?? '',
     hasKey: Boolean(config?.apiKey),
+    keyOptional: Boolean(config?.keyOptional),
     source: config?.source ?? 'none',
     updatedAt: config?.updatedAt ?? null,
   };
@@ -354,20 +389,22 @@ let openCodeSessionId = null;
  * header is only added for OpenCode endpoints, so other providers get a clean
  * OpenAI compatible request.
  */
-export function providerHeaders(endpoint, apiKey) {
-  const headers = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${clean(apiKey)}`,
-  };
+export function providerHeaders(endpoint, apiKey, providerId = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (clean(apiKey) !== '') headers.Authorization = `Bearer ${clean(apiKey)}`;
+  const provider = providerId ? getProvider(providerId) : providerForEndpoint(endpoint);
   let host = '';
   try {
     host = new URL(trimEndpoint(endpoint)).hostname.toLowerCase();
   } catch {
     host = '';
   }
-  if (host === 'opencode.ai' || host.endsWith('.opencode.ai')) {
+  if (provider?.id === 'opencode' || host === 'opencode.ai' || host.endsWith('.opencode.ai')) {
     openCodeSessionId ??= `studio-${randomUUID()}`;
     headers['x-opencode-session'] = openCodeSessionId;
+  }
+  for (const [name, value] of Object.entries(provider?.headers ?? {})) {
+    headers[name] = value;
   }
   return headers;
 }
@@ -474,7 +511,9 @@ export function buildCopyRepairMessages(order, brief, previous, issues) {
  * Other providers get a plain OpenAI compatible body so an unknown field can
  * never make their request fail.
  */
-export function providerBodyExtras(endpoint) {
+export function providerBodyExtras(endpoint, providerId = null) {
+  const provider = providerId ? getProvider(providerId) : providerForEndpoint(endpoint);
+  if (provider) return { ...provider.bodyExtras };
   let host = '';
   try {
     host = new URL(trimEndpoint(endpoint)).hostname.toLowerCase();
@@ -488,6 +527,7 @@ export function providerBodyExtras(endpoint) {
 }
 
 export async function requestChat({
+  provider: providerId = null,
   endpoint,
   model,
   apiKey,
@@ -516,14 +556,14 @@ export async function requestChat({
     messages,
     max_tokens: maxTokens,
     temperature,
-    ...providerBodyExtras(base),
+    ...providerBodyExtras(base, providerId),
   };
   const startedAt = performance.now();
   let response;
   try {
     response = await fetchImpl(`${base}/chat/completions`, {
       method: 'POST',
-      headers: providerHeaders(base, apiKey),
+      headers: providerHeaders(base, apiKey, providerId),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
