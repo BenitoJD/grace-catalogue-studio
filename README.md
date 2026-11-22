@@ -66,6 +66,10 @@ The first thing the chat asks is the cover: pick one of the thirty printed desig
 
 Then paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. The model pulls out the order, asks only for what is missing, and creates the order and the brochure when it has enough.
 
+## Editing by conversation
+
+After a brochure exists the chat stays on that order. Every plain sentence is treated as a change request: the model maps it to order fields, brochure copy, a design choice or a photo slot, the server saves it on that order, the same brochure re-renders, and the assistant replies in a normal sentence saying what changed. Examples: "make the shutters dark walnut", "use the second photo on the cover", "shorten the headline", "the height is 2150". An order only change like a new height re-renders the existing design with the corrected specification. New order is the only way to start a different customer.
+
 ## Generated design
 
 The brochure is not chosen from a library. When the chat finalises an order, the model acts as art director: one call returns the palette, the type pairing, the composition of all four pages and the headline, body and closing for this order. Every order gets a different document.
@@ -286,7 +290,7 @@ The desktop process starts the server itself through `server/src/boot.mjs`. The 
 
 The Windows installer is a custom NSIS wizard in `desktop/installer/GraceStudio.nsi`, built the same way as the Attendance Report Studio installer: Welcome, options, install, Finish with a Launch checkbox. It installs for the current Windows user into `%LOCALAPPDATA%\Programs\Grace Studio`, so there is no administrator prompt, creates a Start Menu shortcut and optionally a desktop shortcut, registers a proper Apps and Features uninstall entry, and upgrades cleanly. Data in the app data folder is never touched.
 
-`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.11.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
+`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.12.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
 
 The standalone app was built and launched on this machine: the packaged build started its embedded server, designed a brochure with the live model, and printed all four pages through the Electron engine in 1.5 seconds.
 

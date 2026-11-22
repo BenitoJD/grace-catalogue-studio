@@ -1459,7 +1459,7 @@ export function createApp(options) {
       'The studio will speak naturally about a change. Reply with strict JSON only:',
       '{"reply":"one or two natural sentences saying what you changed","order":{...only changed order fields...},"copy":{...only changed copy fields, headline body closing...},"design":{...only changed design fields: tone type cover story materials spec statement...},"rerender":true}',
       'Order fields: title room width height depth shutters carcass backPanel shuttersMat drawers exterior interior hinges channels edgeShutter edgeCarcass edgeNote handle handleNote finishExt finishInt brief.',
-      'Allowed design: tone maroon|teal|copper|sandal|peacock, type editorial|modern|classic, cover fullBleed|splitLeft|splitRight|bandTop|framed|masthead, story hero|editorial|diptych|collage, materials grid4|filmstrip|band|museum|stacked, spec twoColumn|threeColumn|ledger|cards|stacked.',
+      'Allowed design: tone maroon|teal|copper|sandal|peacock, type editorial|modern|classic, cover fullBleed|splitLeft|splitRight|bandTop|framed|masthead, story hero|editorial|diptych|collage, materials grid4|filmstrip|band|museum|stacked, spec twoColumn|threeColumn|ledger|cards|stacked. Photo choice is coverPhoto, storyPhoto and detailPhoto as a zero based index into the photos attached to the order; include one only when the studio asks for a specific photo.',
       'Never invent dimensions or materials. If the instruction is unclear, ask a short question, set rerender false and return empty objects. No em dashes. No markdown.',
       `Current order: ${JSON.stringify(order)}`,
       `Current copy: ${JSON.stringify(order.copy ?? {})}`,
@@ -1505,7 +1505,9 @@ export function createApp(options) {
         order: updated,
         copy: copy ?? order.copy ?? null,
         design,
-        rerender: reply.rerender !== false && (Object.keys(design).length > 0 || copy !== null),
+        rerender:
+          reply.rerender !== false &&
+          (Object.keys(design).length > 0 || copy !== null || Object.keys(orderPatch).length > 0),
         changedOrder: Object.keys(orderPatch).length > 0,
       });
     } catch (error) {

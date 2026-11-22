@@ -623,7 +623,7 @@ export default function ChatScreen() {
         if (edited.rerender) {
           const result = await api.aiBrochure(activeOrderId, {
             overrides: edited.design,
-            copy: edited.copy ?? undefined,
+            ...(edited.copy ? { copy: edited.copy } : {}),
           });
           render = result.render;
         }

@@ -3656,6 +3656,53 @@ test('an unknown provider is rejected without changing settings', async () => {
 });
 
 
+
+test('a plain language edit changes the live order and asks for a re-render', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'Done. I changed the shutters to dark walnut.',
+      order: { finishExt: 'Dark walnut laminate outside' },
+      copy: { ...AI_DESIGN_REPLY.copy, headline: 'A walnut wardrobe for the guest room' },
+      design: { tone: 'teal' },
+      rerender: true,
+    }),
+  });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/edit`, {
+    message: 'Make the shutters dark walnut and redo the cover.',
+  });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.reply, 'Done. I changed the shutters to dark walnut.');
+  assert.equal(body.order.finishExt, 'Dark walnut laminate outside');
+  assert.equal(body.copy.headline, 'A walnut wardrobe for the guest room');
+  assert.equal(body.design.tone, 'teal');
+  assert.equal(body.rerender, true);
+  const stored = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
+  assert.equal(stored.finishExt, 'Dark walnut laminate outside');
+});
+
+test('an order-only edit still requests a re-render', async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'Noted, the height is 2150.',
+      order: { height: '2150 mm' },
+      rerender: true,
+    }),
+  });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/edit`, {
+    message: 'The height is actually 2150.',
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.rerender, true);
+  assert.equal(body.order.height, '2150 mm');
+});
+
 test('network egress only allows the configured model provider and loopback', async () => {
   const calls = [];
   const fakeFetch = async (url, init) => {
