@@ -158,27 +158,32 @@ const BASE_CSS = `
   @page { size: 216mm 303mm; margin: 0; }
   html, body { margin:0; padding:0; background:#fff; }
   * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .page { position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--paper); }
+  .page { position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--cream); }
   .page:last-child { page-break-after:auto; }
   .sheet { position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
   .abs { position:absolute; }
   .ph { background-size:cover; background-position:center; background-repeat:no-repeat; }
-  .micro { font-family:var(--body); font-size:4.9pt; letter-spacing:.24em; text-transform:uppercase; color:var(--faint); }
-  .label { font-family:var(--body); font-size:5.2pt; letter-spacing:.24em; text-transform:uppercase; color:var(--muted); }
-  .value { font-family:var(--body); font-size:6.2pt; line-height:1.4; color:var(--ink); }
-  .head { font-family:var(--display); font-weight:400; color:var(--ink); line-height:1.0; letter-spacing:-.015em; }
-  .serif { font-family:var(--display); font-weight:400; color:var(--ink); line-height:1.02; letter-spacing:-.01em; }
-  .body { font-family:var(--body); font-size:6.1pt; line-height:1.62; color:var(--muted); }
-  .caption { font-family:var(--body); font-size:5.4pt; line-height:1.5; color:var(--muted); }
+  .micro { font-family:var(--body); font-size:6.4pt; letter-spacing:.22em; text-transform:uppercase; color:var(--deep); }
+  .label { font-family:var(--body); font-size:7pt; letter-spacing:.2em; text-transform:uppercase; color:var(--deep); }
+  .value { font-family:var(--body); font-size:8.4pt; line-height:1.4; color:var(--ink); }
+  .head { font-family:var(--display); font-weight:400; color:var(--deep); line-height:1.0; letter-spacing:-.015em; }
+  .serif { font-family:var(--display); font-weight:400; color:var(--deep); line-height:1.02; letter-spacing:-.01em; }
+  .body { font-family:var(--body); font-size:8.2pt; line-height:1.58; color:var(--ink); }
+  .caption { font-family:var(--body); font-size:7pt; line-height:1.5; color:var(--deep); }
   .rule { height:0.16mm; background:var(--hair); }
   .acc { background:var(--accent); }
-  .folio { position:absolute; left:18mm; right:18mm; bottom:7.5mm; display:flex; justify-content:space-between; font-family:var(--body); font-size:4.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
+  .folio { position:absolute; left:18mm; right:18mm; bottom:7.5mm; display:flex; justify-content:space-between; font-family:var(--body); font-size:6pt; letter-spacing:.16em; text-transform:uppercase; color:var(--deep); }
   .folioDark { color:rgba(255,255,255,0.72); }
-  .row { display:flex; justify-content:space-between; align-items:baseline; gap:6mm; border-bottom:0.12mm solid var(--hair); padding:1.7mm 0; }
-  .row .k { font-family:var(--body); font-size:4.8pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
-  .row .v { font-family:var(--body); font-size:6pt; color:var(--ink); text-align:right; }
-  .body2col { display:flex; gap:6mm; }
-  .body2col > div { flex:1; font-family:var(--body); font-size:5.9pt; line-height:1.62; color:var(--muted); }
+  .row { display:flex; justify-content:space-between; align-items:baseline; gap:6mm; border-bottom:0.14mm solid var(--hair); padding:1.9mm 0; }
+  .row .k { font-family:var(--body); font-size:7pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep); }
+  .row .v { font-family:var(--body); font-size:8.2pt; color:var(--ink); text-align:right; }
+  .body2col { display:flex; gap:7mm; }
+  .body2col > div { flex:1; font-family:var(--body); font-size:8pt; line-height:1.56; color:var(--ink); }
+  .band { background:var(--deep); color:var(--cream); }
+  .goldLine { height:0.35mm; background:var(--gold); }
+  .diamond { width:1.7mm; height:1.7mm; background:var(--gold); transform:rotate(45deg); }
+  .ornament { border:0.4mm solid var(--gold); }
+  .ornamentInner { border:0.14mm solid var(--gold); }
   .white { color:var(--on-dark); }
 `;
 
@@ -227,17 +232,46 @@ function specGroups(values) {
 }
 
 function columnsHtml(text, columns = 2) {
-  const words = String(text).split(/\s+/).filter(Boolean);
-  const perColumn = Math.ceil(words.length / columns);
+  const sentences = String(text)
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  const total = sentences.join(' ').length;
+  const target = total / columns;
   const chunks = [];
-  for (let index = 0; index < columns; index += 1) {
-    chunks.push(words.slice(index * perColumn, (index + 1) * perColumn).join(' '));
+  let current = '';
+  for (const sentence of sentences) {
+    const next = current === '' ? sentence : `${current} ${sentence}`;
+    if (chunks.length < columns - 1 && next.length > target && current !== '') {
+      chunks.push(current);
+      current = sentence;
+    } else {
+      current = next;
+    }
   }
-  return `<div class="body2col">${chunks.map((chunk) => `<div>${escapeHtml(chunk)}</div>`).join('')}</div>`;
+  if (current !== '') chunks.push(current);
+  while (chunks.length < columns) chunks.push('');
+  return `<div class="body2col">${chunks.slice(0, columns).map((chunk) => `<div>${escapeHtml(chunk)}</div>`).join('')}</div>`;
 }
 
 function folio(page, dark = false) {
   return `<div class="folio ${dark ? 'folioDark' : ''}"><span>Grace Wood Industry · Nagercoil</span><span>0${page} / 04</span></div>`;
+}
+
+function ornamentFrame() {
+  return `<div class="abs ornament" style="left:9mm; top:9mm; width:192mm; height:279mm;"></div><div class="abs ornamentInner" style="left:10.5mm; top:10.5mm; width:189mm; height:276mm;"></div>`;
+}
+
+function contactBand() {
+  return `<div class="abs band" style="left:-3mm; bottom:-3mm; width:216mm; height:12mm;"></div><div class="abs" style="left:18mm; bottom:1.5mm; width:180mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.16em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry · Nagercoil · +91 63740 43346</div>`;
+}
+
+function motif(top) {
+  return `<div class="abs" style="left:0; top:${top}mm; width:210mm; display:flex; justify-content:center; gap:2.4mm;"><div class="diamond"></div><div class="diamond"></div><div class="diamond"></div></div>`;
+}
+
+function goldRule(left, top, width) {
+  return `<div class="abs goldLine" style="left:${left}mm; top:${top}mm; width:${width}mm;"></div>`;
 }
 
 function coverHtml(values, design, photos) {
@@ -246,17 +280,24 @@ function coverHtml(values, design, photos) {
   const room = escapeHtml(values.room);
   const customer = escapeHtml(values.customerName);
   const meta = `${escapeHtml(values.orderNo)} · ${escapeHtml(values.date)}`;
-  const logo = '<img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:14mm; width:12mm;">';
+  const sizes = `${escapeHtml(values.width)} · ${escapeHtml(values.height)} · ${escapeHtml(values.depth)}`;
+  const logo = (width = 26, top = 15) =>
+    `<img class="abs" src="../assets/grace-logo.png" style="left:${(210 - width) / 2}mm; top:${top}mm; width:${width}mm;">`;
+  const wordmark = (top = 46, color = 'var(--gold)') =>
+    `<div class="abs" style="left:0; top:${top}mm; width:210mm; text-align:center; font-family:var(--body); font-size:7.6pt; letter-spacing:.42em; text-transform:uppercase; color:${color};">Grace Wood Industry</div>`;
 
   if (design.cover === 'fullBleed') {
     return `<div class="page cover"><div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:303mm; background-image:url(${photo});"></div>
-      <div class="abs" style="left:-3mm; top:150mm; width:216mm; height:156mm; background:linear-gradient(to top, rgba(8,7,6,0.82) 0%, rgba(8,7,6,0.35) 55%, rgba(8,7,6,0) 100%);"></div>
-      <div class="abs micro white" style="left:18mm; top:18mm; letter-spacing:.32em;">Grace Wood Industry</div>
-      <div class="abs micro white" style="right:18mm; top:18mm; text-align:right;">${meta}</div>
-      <div class="abs head white" style="left:18mm; top:196mm; width:174mm; font-size:42pt;">${title}</div>
-      <div class="abs" style="left:18mm; top:252mm; width:174mm;"><div class="rule" style="width:24mm; background:rgba(255,255,255,0.55);"></div></div>
-      <div class="abs micro white" style="left:18mm; top:259mm; width:174mm;">${customer} · ${room} · ${escapeHtml(values.width)}</div>
-      ${folio(1, true)}
+      <div class="abs" style="left:-3mm; top:140mm; width:216mm; height:166mm; background:linear-gradient(to top, rgba(40,12,8,0.88) 0%, rgba(40,12,8,0.42) 55%, rgba(40,12,8,0) 100%);"></div>
+      ${ornamentFrame()}
+      <div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:15mm;"></div>
+      <div class="abs" style="left:18mm; top:3.6mm; width:120mm; font-family:var(--body); font-size:7.2pt; letter-spacing:.3em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry</div>
+      <div class="abs" style="right:18mm; top:4mm; width:82mm; text-align:right; font-family:var(--body); font-size:6.2pt; letter-spacing:.14em; color:var(--cream);">${meta}</div>
+      <div class="abs goldLine" style="left:-3mm; top:14.5mm; width:216mm;"></div>
+      <div class="abs head" style="left:18mm; top:186mm; width:174mm; font-size:46pt; color:var(--cream);">${title}</div>
+      ${goldRule(18, 238, 26)}
+      <div class="abs" style="left:18mm; top:246mm; width:174mm; font-family:var(--body); font-size:8pt; letter-spacing:.12em; text-transform:uppercase; color:var(--cream);">${customer} · ${room} · ${sizes}</div>
+      ${contactBand()}
     </div>`;
   }
 
@@ -265,56 +306,65 @@ function coverHtml(values, design, photos) {
     const photoStyle = photoFirst
       ? 'left:-3mm; top:-3mm; width:111mm; height:303mm;'
       : 'left:105mm; top:-3mm; width:111mm; height:303mm;';
-    const textLeft = photoFirst ? 116 : 18;
-    const textWidth = 78;
+    const textLeft = photoFirst ? 118 : 18;
+    const textWidth = 74;
     return `<div class="page cover"><div class="abs ph" style="${photoStyle} background-image:url(${photo});"></div>
-      <div class="abs micro" style="left:${textLeft}mm; top:16mm; width:${textWidth}mm;">Grace Wood Industry</div>
-      <div class="abs micro" style="left:${textLeft}mm; top:21mm; width:${textWidth}mm;">${meta}</div>
-      <div class="abs head" style="left:${textLeft}mm; top:88mm; width:${textWidth}mm; font-size:30pt;">${title}</div>
-      <div class="abs" style="left:${textLeft}mm; top:170mm; width:${textWidth}mm;"><div class="rule acc" style="width:22mm;"></div></div>
-      <div class="abs" style="left:${textLeft}mm; top:178mm; width:${textWidth}mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:1.5mm;">${escapeHtml(values.width)} · ${escapeHtml(values.height)} · ${escapeHtml(values.depth)}</div></div>
-      <div class="abs" style="left:${textLeft}mm; top:232mm; width:${textWidth}mm; font-family:var(--body); font-size:7pt; color:var(--ink);">${customer}</div>
-      <div class="abs micro" style="left:${textLeft}mm; top:284mm; width:${textWidth}mm;">Grace Wood Industry · Nagercoil</div>
-      <div class="abs micro" style="left:${photoFirst ? 116 : 18}mm; top:284mm;">01 / 04</div>
+      <div class="abs" style="left:${photoFirst ? 112 : 104}mm; top:0; width:0.6mm; height:297mm; background:var(--gold);"></div>
+      <div class="abs" style="left:${textLeft}mm; top:19mm; width:${textWidth}mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--gold);">Grace Wood Industry</div>
+      <div class="abs micro" style="left:${textLeft}mm; top:26mm; width:${textWidth}mm;">${meta}</div>
+      <div class="abs head" style="left:${textLeft}mm; top:78mm; width:${textWidth}mm; font-size:34pt;">${title}</div>
+      ${goldRule(textLeft, 168, 24)}
+      <div class="abs" style="left:${textLeft}mm; top:176mm; width:${textWidth}mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:2mm;">${sizes}</div></div>
+      <div class="abs" style="left:${textLeft}mm; top:232mm; width:${textWidth}mm; font-family:var(--display); font-size:14pt; color:var(--deep);">${customer}</div>
+      <div class="abs" style="left:${textLeft}mm; top:266mm; width:${textWidth}mm; font-family:var(--body); font-size:6.2pt; line-height:1.5; color:var(--deep);">Chettikulam, Nagercoil 629001<br>+91 63740 43346</div>
+      <div class="abs micro" style="right:18mm; bottom:8mm;">01 / 04</div>
     </div>`;
   }
 
   if (design.cover === 'masthead') {
     return `<div class="page cover"><div class="sheet">
-      ${logo}
-      <div class="abs" style="left:0; top:40mm; width:210mm; text-align:center; font-family:var(--body); font-size:6.4pt; letter-spacing:.4em; text-transform:uppercase; color:var(--accent);">Grace Wood Industry</div>
-      <div class="abs head" style="left:18mm; top:52mm; width:174mm; text-align:center; font-size:42pt;">${title}</div>
-      <div class="abs micro" style="left:18mm; top:112mm; width:174mm; text-align:center;">${customer} · ${room}</div>
-      <div class="abs ph" style="left:-3mm; top:129mm; width:216mm; height:174mm; background-image:url(${photo});"></div>
-      <div class="abs micro" style="left:18mm; top:118mm; width:174mm; text-align:center;">${meta}</div>
-      ${folio(1, true)}
+      ${logo(28, 14)}
+      ${wordmark(50)}
+      <div class="abs head" style="left:18mm; top:60mm; width:174mm; text-align:center; font-size:44pt;">${title}</div>
+      ${motif(112)}
+      <div class="abs" style="left:18mm; top:118mm; width:174mm; text-align:center; font-family:var(--body); font-size:8pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${customer} · ${room}</div>
+      <div class="abs ornament" style="left:8.5mm; top:132mm; width:193mm; height:122mm;"></div>
+      <div class="abs ph" style="left:10mm; top:134mm; width:190mm; height:118mm; background-image:url(${photo});"></div>
+      <div class="abs" style="left:18mm; top:262mm; width:174mm; text-align:center;">${goldRule(87, 0, 36).replace('top:0mm;','top:0mm;')}</div>
+      <div class="abs micro" style="left:18mm; top:268mm; width:174mm; text-align:center;">${meta}</div>
+      ${contactBand()}
     </div></div>`;
   }
 
   if (design.cover === 'framed') {
     return `<div class="page cover"><div class="sheet">
-      ${logo}
-      <div class="abs micro" style="left:18mm; top:22mm; width:174mm; text-align:center;">Grace Wood Industry</div>
-      <div class="abs" style="left:53mm; top:40mm; width:104mm; height:150mm; border:0.25mm solid var(--ink); padding:5mm;">
-        <div class="abs ph" style="left:5mm; top:5mm; width:94mm; height:140mm; background-image:url(${photo});"></div>
-      </div>
-      <div class="abs head" style="left:18mm; top:208mm; width:174mm; text-align:center; font-size:24pt;">${title}</div>
-      <div class="abs micro" style="left:18mm; top:250mm; width:174mm; text-align:center;">${customer} · ${room}</div>
-      <div class="abs micro" style="left:18mm; top:280mm; width:174mm; text-align:center;">${meta} · Grace Wood Industry</div>
-      ${folio(1)}
+      ${ornamentFrame()}
+      ${logo(24, 18)}
+      ${wordmark(50)}
+      <div class="abs head" style="left:18mm; top:62mm; width:174mm; text-align:center; font-size:38pt;">${title}</div>
+      ${motif(106)}
+      <div class="abs" style="left:18mm; top:110mm; width:174mm; text-align:center; font-family:var(--body); font-size:7.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${room} · ${sizes}</div>
+      <div class="abs ornament" style="left:51mm; top:122mm; width:108mm; height:112mm;"></div>
+      <div class="abs ph" style="left:53mm; top:124mm; width:104mm; height:108mm; background-image:url(${photo});"></div>
+      <div class="abs" style="left:0; top:246mm; width:210mm; text-align:center; font-family:var(--display); font-size:15pt; color:var(--deep);">${customer}</div>
+      <div class="abs micro" style="left:18mm; top:262mm; width:174mm; text-align:center;">${meta}</div>
+      ${contactBand()}
     </div></div>`;
   }
 
   // bandTop
   return `<div class="page cover"><div class="sheet">
-    <div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:174mm; background-image:url(${photo});"></div>
-    ${logo}
-    <div class="abs micro" style="right:18mm; top:18mm; width:70mm; text-align:right;">${meta}</div>
-    <div class="abs head" style="left:18mm; top:184mm; width:174mm; font-size:36pt;">${title}</div>
-    <div class="abs" style="left:18mm; top:232mm; width:174mm;"><div class="rule acc" style="width:22mm;"></div></div>
-    <div class="abs" style="left:18mm; top:240mm; width:96mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:1.5mm;">${escapeHtml(values.width)} · ${escapeHtml(values.height)} · ${escapeHtml(values.depth)}</div></div>
-    <div class="abs" style="right:18mm; top:240mm; width:60mm; text-align:right; font-family:var(--body); font-size:7pt; color:var(--ink);">${customer}</div>
-    ${folio(1)}
+    <div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:172mm; background-image:url(${photo});"></div>
+    <div class="abs" style="left:-3mm; top:169mm; width:216mm; height:0.5mm; background:var(--gold);"></div>
+    <div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:15mm;"></div>
+    <div class="abs" style="left:18mm; top:3.6mm; width:120mm; font-family:var(--body); font-size:7.2pt; letter-spacing:.3em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry</div>
+    <div class="abs" style="right:18mm; top:4mm; width:82mm; text-align:right; font-family:var(--body); font-size:6.2pt; letter-spacing:.14em; color:var(--cream);">${meta}</div>
+    <div class="abs goldLine" style="left:-3mm; top:14.5mm; width:216mm;"></div>
+    <div class="abs head" style="left:18mm; top:182mm; width:174mm; font-size:42pt;">${title}</div>
+    ${goldRule(18, 232, 24)}
+    <div class="abs" style="left:18mm; top:240mm; width:100mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:2mm;">${sizes}</div></div>
+    <div class="abs" style="right:18mm; top:240mm; width:62mm; text-align:right; font-family:var(--display); font-size:14pt; color:var(--deep);">${customer}</div>
+    ${contactBand()}
   </div></div>`;
 }
 
@@ -331,8 +381,8 @@ function storyHtml(values, design, copy, photos) {
       <div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:182mm; background-image:url(${photo});"></div>
       <div class="abs" style="left:18mm; top:190mm; width:174mm;"><div class="headlineLabel">${headline}</div></div>
       <div class="abs serif" style="left:18mm; top:198mm; width:174mm; font-size:26pt;">${statement}</div>
-      <div class="abs" style="left:18mm; top:244mm; width:174mm;">${bodyColumns}</div>
-      <div class="abs closingLine" style="left:18mm; top:268mm; width:174mm;">${closing}</div>
+      <div class="abs" style="left:18mm; top:236mm; width:174mm;">${bodyColumns}</div>
+      <div class="abs closingLine" style="left:18mm; top:274mm; width:174mm;">${closing}</div>
       ${folio(2)}
     </div></div>`;
   }
@@ -340,8 +390,8 @@ function storyHtml(values, design, copy, photos) {
     return `<div class="page"><div class="sheet">
       <div class="abs ph" style="left:-3mm; top:-3mm; width:111mm; height:196mm; background-image:url(${photo});"></div>
       <div class="abs ph" style="left:105mm; top:-3mm; width:111mm; height:196mm; background-image:url(${photoAlt});"></div>
-      <div class="abs" style="left:18mm; top:204mm; width:174mm;"><div class="headlineLabel">${headline}</div></div>
-      <div class="abs serif" style="left:18mm; top:212mm; width:100mm; font-size:22pt;">${statement}</div>
+      <div class="abs" style="left:18mm; top:200mm; width:174mm;"><div class="headlineLabel">${headline}</div></div>
+      <div class="abs serif" style="left:18mm; top:209mm; width:104mm; font-size:26pt;">${statement}</div>
       <div class="abs" style="left:18mm; top:252mm; width:174mm;">${bodyColumns}</div>
       <div class="abs micro" style="left:18mm; top:272mm; width:174mm;">${closing}</div>
       ${folio(2)}
@@ -349,7 +399,7 @@ function storyHtml(values, design, copy, photos) {
   }
   if (design.story === 'collage') {
     return `<div class="page"><div class="sheet">
-      <div class="abs serif" style="left:18mm; top:22mm; width:100mm; font-size:22pt;">${statement}</div>
+      <div class="abs serif" style="left:18mm; top:22mm; width:104mm; font-size:28pt;">${statement}</div>
       <div class="abs" style="left:18mm; top:70mm; width:100mm;"><div class="headlineLabel">${headline}</div></div>
       <div class="abs ph" style="left:18mm; top:80mm; width:100mm; height:132mm; background-image:url(${photo});"></div>
       <div class="abs ph" style="left:126mm; top:80mm; width:66mm; height:88mm; background-image:url(${photoAlt});"></div>
@@ -363,9 +413,9 @@ function storyHtml(values, design, copy, photos) {
   return `<div class="page"><div class="sheet">
     <div class="abs ph" style="left:-3mm; top:-3mm; width:121mm; height:303mm; background-image:url(${photo});"></div>
     <div class="abs" style="left:130mm; top:24mm; width:62mm;"><div class="headlineLabel">${headline}</div></div>
-    <div class="abs serif" style="left:130mm; top:34mm; width:62mm; font-size:21pt;">${statement}</div>
+    <div class="abs serif" style="left:130mm; top:32mm; width:64mm; font-size:26pt;">${statement}</div>
     <div class="abs" style="left:130mm; top:100mm; width:62mm;"><div class="rule" style="width:18mm;"></div></div>
-    <div class="abs" style="left:130mm; top:92mm; width:62mm;"><div class="rule" style="width:18mm; margin-bottom:4mm;"></div><div class="body">${escapeHtml(copy.body)}</div></div>
+    <div class="abs" style="left:130mm; top:96mm; width:64mm;"><div class="goldLine" style="width:20mm; margin-bottom:4mm;"></div><div class="body">${escapeHtml(copy.body)}</div></div>
     <div class="abs closingLine" style="left:130mm; top:246mm; width:62mm; font-size:8.5pt;">${closing}</div>
     <div class="folio" style="left:130mm; right:18mm;"><span>Grace Wood</span><span>02 / 04</span></div>
   </div></div>`;
@@ -380,18 +430,20 @@ function finishCards(values) {
 
 function materialsHtml(values, design) {
   const cards = finishCards(values);
-  const head = `<div class="abs label" style="left:18mm; top:18mm;">Materials</div><div class="abs micro" style="right:18mm; top:18mm;">${escapeHtml(values.orderNo)}</div><div class="abs rule" style="left:18mm; top:24mm; width:174mm;"></div><div class="abs acc" style="left:18mm; top:30mm; width:14mm; height:0.6mm;"></div>`;
-  const finishLine = `<div class="abs caption" style="left:18mm; top:258mm; width:174mm;">${escapeHtml(values.finishExt)}. ${escapeHtml(values.finishInt)}. ${escapeHtml(values.edgeNote)}.</div><div class="abs micro" style="left:18mm; top:270mm; width:174mm;">Shown as samples, matched in person</div>`;
+  const head = `<div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:40mm;"></div>
+    <div class="abs" style="left:18mm; top:7mm; width:130mm; font-family:var(--display); font-size:26pt; color:var(--cream);">Materials</div>
+    <div class="abs" style="right:18mm; top:11mm; width:80mm; text-align:right; font-family:var(--body); font-size:6.6pt; letter-spacing:.18em; text-transform:uppercase; color:var(--cream);">${escapeHtml(values.orderNo)}</div>
+    <div class="abs goldLine" style="left:0; top:40mm; width:210mm;"></div>`;
+  const finishLine = `<div class="abs caption" style="left:18mm; top:250mm; width:174mm;">${escapeHtml(values.finishExt)}. ${escapeHtml(values.finishInt)}. ${escapeHtml(values.edgeNote)}.</div><div class="abs micro" style="left:18mm; top:266mm; width:174mm;">Shown as samples, matched in person</div>`;
 
   if (design.materials === 'filmstrip') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
       ${cards
         .map(
           (entry, index) =>
-            `<div class="abs" style="left:${18 + index * 43}mm; top:60mm; width:38mm;">
-              <div class="ph" style="width:38mm; height:160mm; background-image:url(${entry.image});"></div>
-              <div class="micro" style="margin-top:2.5mm;">${escapeHtml(entry.name)}</div>
+            `<div class="abs" style="left:${18 + index * 43}mm; top:50mm; width:38mm;">
+              <div class="ph" style="width:38mm; height:152mm; background-image:url(${entry.image});"></div>
+              <div class="label" style="margin-top:3mm;">${escapeHtml(entry.name)}</div>
             </div>`,
         )
         .join('')}
@@ -399,33 +451,30 @@ function materialsHtml(values, design) {
   }
   if (design.materials === 'band') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
-      <div class="abs" style="left:-3mm; top:64mm; width:216mm; height:120mm; display:flex;">
+      <div class="abs" style="left:-3mm; top:50mm; width:216mm; height:110mm; display:flex;">
         ${cards
           .map(
             (entry) =>
-              `<div style="width:52.5mm; height:120mm; background-image:url(${entry.image}); background-size:cover; background-position:center;"></div>`,
+              `<div style="width:54mm; height:110mm; background-image:url(${entry.image}); background-size:cover; background-position:center;"></div>`,
           )
           .join('')}
       </div>
-      <div class="abs" style="left:18mm; top:190mm; width:174mm; display:flex;">
-        ${cards
-          .map((entry) => `<div style="width:43.5mm;"><div class="micro">${escapeHtml(entry.name)}</div></div>`)
-          .join('')}
+      <div class="abs" style="left:18mm; top:168mm; width:174mm; display:flex;">
+        ${cards.map((entry) => `<div style="width:43mm;"><div class="label">${escapeHtml(entry.name)}</div></div>`).join('')}
       </div>
       ${finishLine}${folio(3)}</div></div>`;
   }
   if (design.materials === 'museum') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
-      <div class="abs ph" style="left:18mm; top:58mm; width:116mm; height:170mm; background-image:url(${cards[0].image});"></div>
+      <div class="abs ph" style="left:18mm; top:50mm; width:114mm; height:164mm; background-image:url(${cards[0].image});"></div>
+      <div class="abs label" style="left:18mm; top:217mm; width:114mm;">${escapeHtml(cards[0].name)}</div>
       ${cards
         .slice(1)
         .map(
           (entry, index) =>
-            `<div class="abs" style="left:144mm; top:${58 + index * 58}mm; width:48mm;">
-              <div class="ph" style="width:48mm; height:40mm; background-image:url(${entry.image});"></div>
-              <div class="micro" style="margin-top:1.6mm;">${escapeHtml(entry.name)}</div>
+            `<div class="abs" style="left:142mm; top:${50 + index * 56}mm; width:50mm;">
+              <div class="ph" style="width:50mm; height:42mm; background-image:url(${entry.image});"></div>
+              <div class="label" style="margin-top:2mm;">${escapeHtml(entry.name)}</div>
             </div>`,
         )
         .join('')}
@@ -433,28 +482,26 @@ function materialsHtml(values, design) {
   }
   if (design.materials === 'stacked') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
-      <div class="abs ph" style="left:18mm; top:58mm; width:174mm; height:104mm; background-image:url(${cards[0].image});"></div>
-      <div class="abs" style="left:18mm; top:174mm; width:174mm; display:flex;">
+      <div class="abs ph" style="left:18mm; top:50mm; width:174mm; height:96mm; background-image:url(${cards[0].image});"></div>
+      <div class="abs" style="left:18mm; top:154mm; width:174mm; display:flex;">
         ${cards
           .slice(1)
           .map(
             (entry) =>
-              `<div style="width:56mm;"><div class="ph" style="width:52mm; height:52mm; background-image:url(${entry.image});"></div><div class="micro" style="margin-top:1.6mm;">${escapeHtml(entry.name)}</div></div>`,
+              `<div style="width:57mm;"><div class="ph" style="width:53mm; height:53mm; background-image:url(${entry.image});"></div><div class="label" style="margin-top:2.5mm;">${escapeHtml(entry.name)}</div></div>`,
           )
           .join('')}
       </div>
       ${finishLine}${folio(3)}</div></div>`;
   }
-  // grid4: four large texture squares
+  // grid4
   return `<div class="page"><div class="sheet">${head}
-    <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
     ${cards
       .map(
         (entry, index) =>
-          `<div class="abs" style="left:${18 + (index % 2) * 88}mm; top:${60 + Math.floor(index / 2) * 88}mm; width:84mm;">
+          `<div class="abs" style="left:${18 + (index % 2) * 88}mm; top:${52 + Math.floor(index / 2) * 92}mm; width:84mm;">
             <div class="ph" style="width:84mm; height:72mm; background-image:url(${entry.image});"></div>
-            <div class="micro" style="margin-top:2mm;">${escapeHtml(entry.name)}</div>
+            <div class="label" style="margin-top:3mm;">${escapeHtml(entry.name)}</div>
           </div>`,
       )
       .join('')}
@@ -464,23 +511,27 @@ function materialsHtml(values, design) {
 function specificationHtml(values, design) {
   const groups = specGroups(values);
   const allFacts = groups.flatMap((group) => group.facts);
-  const head = `<div class="abs label" style="left:18mm; top:18mm;">Specification</div><div class="abs micro" style="right:18mm; top:18mm;">${escapeHtml(values.orderNo)}</div><div class="abs rule" style="left:18mm; top:24mm; width:174mm;"></div>`;
-  const contact = `<div class="abs" style="left:18mm; top:262mm; width:174mm;"><div class="rule" style="width:174mm;"></div><div class="micro" style="margin-top:3mm;">Grace Wood Industry · Chettikulam, Nagercoil 629001 · +91 63740 43346 · info.gracewoodindustry@gmail.com</div></div>`;
+  const head = `<div class="abs" style="left:18mm; top:14mm; width:140mm; font-family:var(--body); font-size:8pt; letter-spacing:.26em; text-transform:uppercase; color:var(--deep);">Specification</div>
+    <div class="abs micro" style="right:18mm; top:14mm;">${escapeHtml(values.orderNo)}</div>
+    <div class="abs goldLine" style="left:18mm; top:23mm; width:174mm;"></div>
+    <div class="abs" style="left:18mm; top:25.5mm; width:174mm; height:0.14mm; background:var(--gold);"></div>`;
+  const contact = `<div class="abs goldLine" style="left:18mm; top:264mm; width:174mm;"></div>
+    <div class="abs" style="left:18mm; top:268mm; width:174mm; font-family:var(--body); font-size:6.6pt; line-height:1.6; letter-spacing:.04em; color:var(--deep);">Grace Wood Industry · 26J Rajjakamangalam Road, Chettikulam, Nagercoil 629001<br>+91 63740 43346 · info.gracewoodindustry@gmail.com</div>`;
 
   if (design.spec === 'ledger') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
       <div class="abs" style="left:18mm; top:56mm; width:174mm;">${rowsHtml(allFacts)}</div>
       ${contact}${folio(4)}</div></div>`;
   }
   if (design.spec === 'cards') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
       ${groups
         .map(
           (group, index) =>
-            `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${58 + Math.floor(index / 2) * 64}mm; width:80mm; border-top:0.25mm solid var(--ink); padding-top:4mm;">
-              <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(group.title)}</div>
+            `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${58 + Math.floor(index / 2) * 62}mm; width:80mm; border-top:0.35mm solid var(--gold); padding-top:4mm;">
+              <div class="label" style="margin-bottom:3mm;">${escapeHtml(group.title)}</div>
               ${rowsHtml(group.facts)}
             </div>`,
         )
@@ -489,12 +540,12 @@ function specificationHtml(values, design) {
   }
   if (design.spec === 'threeColumn') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
       ${groups
         .map(
           (group, index) =>
             `<div class="abs" style="left:${18 + index * 60}mm; top:58mm; width:54mm;">
-              <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(group.title)}</div>
+              <div class="label" style="margin-bottom:3mm;">${escapeHtml(group.title)}</div>
               ${rowsHtml(group.facts)}
             </div>`,
         )
@@ -503,12 +554,12 @@ function specificationHtml(values, design) {
   }
   if (design.spec === 'stacked') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
       ${groups
         .map(
           (group, index) =>
-            `<div class="abs" style="left:18mm; top:${58 + index * 62}mm; width:174mm;">
-              <div class="label" style="margin-bottom:2mm;">${escapeHtml(group.title)}</div>
+            `<div class="abs" style="left:18mm; top:${56 + index * 64}mm; width:174mm;">
+              <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(group.title)}</div>
               ${rowsHtml(group.facts)}
             </div>`,
         )
@@ -517,7 +568,7 @@ function specificationHtml(values, design) {
   }
   // twoColumn
   return `<div class="page"><div class="sheet">${head}
-    <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+    <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
     <div class="abs" style="left:18mm; top:58mm; width:82mm;">${rowsHtml([...groups[0].facts, ...groups[2].facts])}</div>
     <div class="abs" style="left:110mm; top:58mm; width:82mm;">${rowsHtml(groups[1].facts)}</div>
     ${contact}${folio(4)}</div></div>`;
@@ -541,6 +592,9 @@ export function compileAiBrochure({ order, materials, palette, design, copy, tem
 <link rel="stylesheet" href="../fonts/brand.css">
 <style>
 :root { ${paletteCss(palette)}
+  --cream: #FBF3E4;
+  --gold: #B4863F;
+  --deep: #4A1F18;
   --display: ${stack.display};
   --body: ${stack.body};
 }
