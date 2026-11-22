@@ -23,6 +23,7 @@ import {
   type IntakeMessage,
   type OrderAttachment,
   type Render,
+  type Template,
 } from '@/lib/api';
 import { openUrl } from '@/lib/actions';
 import { colors, space, text } from '@/lib/theme';
@@ -48,7 +49,7 @@ type Bubble =
     };
 
 const WELCOME =
-  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order and ask only for what is missing, then make the brochure.';
+  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order and ask only for what is missing, then make the brochure.\n\nFirst, choose a cover below, or pick No design and I will design one for this order.';
 
 
 let counter = 0;
@@ -57,9 +58,50 @@ const nextId = () => {
   return `m${counter}`;
 };
 
+function DesignTile({
+  label,
+  image,
+  selected,
+  noDesign = false,
+  onPress,
+}: {
+  label: string;
+  image?: string | null;
+  selected: boolean;
+  noDesign?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={noDesign ? 'Choose no design, let the model design it' : `Choose cover ${label}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.designCard,
+        selected && styles.designCardSelected,
+        pressed && styles.sendPressed,
+      ]}>
+      {noDesign ? (
+        <View style={[styles.designThumb, styles.designThumbNo]}>
+          <Text style={styles.designThumbNoLabel}>AI</Text>
+        </View>
+      ) : (
+        <Image source={{ uri: fileUrl(image ?? '') }} style={styles.designThumb} resizeMode="cover" />
+      )}
+      <Text
+        style={[styles.designName, selected && styles.designNameSelected]}
+        numberOfLines={2}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const scroll = useRef<ComponentRef<typeof ScrollView> | null>(null);
+  const designScroll = useRef<ComponentRef<typeof ScrollView> | null>(null);
+  const designOffset = useRef(0);
 
   const [bubbles, setBubbles] = useState<Bubble[]>([
     { id: nextId(), role: 'assistant', kind: 'text', content: WELCOME },
@@ -75,11 +117,29 @@ export default function ChatScreen() {
   const [orderFiles, setOrderFiles] = useState<OrderAttachment[]>([]);
   const [pendingFiles, setPendingFiles] = useState<OrderAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  // 'ai' means no template: let the model design the brochure for this order.
+  const [chosenDesign, setChosenDesign] = useState<string>('ai');
 
   useEffect(() => {
     const timer = setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 80);
     return () => clearTimeout(timer);
   }, [bubbles.length, sending, cooking]);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .listTemplates()
+      .then((next) => {
+        if (active) setTemplates(next);
+      })
+      .catch(() => {
+        // The picker stays on No design; the order can still be created.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const history = useCallback((): IntakeMessage[] => {
     return bubbles
@@ -98,6 +158,7 @@ export default function ChatScreen() {
     setOrderFiles([]);
     setPendingFiles([]);
     setInput('');
+    setChosenDesign('ai');
   }, [cooking, sending]);
 
   // Attach anything: photos, plans, PDFs, spreadsheets. There is no type filter
@@ -193,15 +254,21 @@ export default function ChatScreen() {
             .map((message) => message.content)
             .join(' ')
             .slice(0, 2000);
-        // The model designs this brochure from scratch. If that fails, fall back
-        // to a classic design so the studio still gets a document to open.
+        // If the studio picked a cover in the chat, that cover is printed with
+        // the model written copy. No design means the model designs the whole
+        // brochure for this order.
         let render: Render;
-        try {
-          const designed = await api.aiBrochure(order.id, brief ? { brief } : {});
-          render = designed.render;
-        } catch {
-          await api.generateOrderCopy(order.id, { brief }).catch(() => null);
-          render = await api.renderOrder(order.id, 'voucher');
+        if (chosenDesign !== 'ai' && chosenDesign !== '') {
+          await api.generateOrderCopy(order.id, { brief });
+          render = await api.renderOrder(order.id, 'voucher', chosenDesign);
+        } else {
+          try {
+            const designed = await api.aiBrochure(order.id, brief ? { brief } : {});
+            render = designed.render;
+          } catch {
+            await api.generateOrderCopy(order.id, { brief }).catch(() => null);
+            render = await api.renderOrder(order.id, 'voucher');
+          }
         }
 
         setBubbles((current) => [
@@ -239,7 +306,7 @@ export default function ChatScreen() {
         setCooking(false);
       }
     },
-    [history, orderFiles],
+    [chosenDesign, history, orderFiles],
   );
 
   const send = useCallback(async () => {
@@ -364,6 +431,73 @@ export default function ChatScreen() {
                   </Text>
                 </View>
               </View>
+            </View>
+          ) : null}
+
+          {!orderCreated ? (
+            <View style={styles.designPicker}>
+              <View style={styles.designPickerHead}>
+                <Text style={[text.caption, styles.designPickerTitle]}>
+                  Choose a cover. The last card is No design, where the model designs the whole
+                  brochure.
+                </Text>
+                <View style={styles.designArrows}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Scroll covers left"
+                    onPress={() =>
+                      designScroll.current?.scrollTo({
+                        x: Math.max(0, designOffset.current - 420),
+                        animated: true,
+                      })
+                    }
+                    style={styles.designArrow}>
+                    <Text style={styles.designArrowLabel}>‹</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Scroll covers right"
+                    onPress={() =>
+                      designScroll.current?.scrollTo({
+                        x: designOffset.current + 420,
+                        animated: true,
+                      })
+                    }
+                    style={styles.designArrow}>
+                    <Text style={styles.designArrowLabel}>›</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <ScrollView
+                ref={designScroll}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                onScroll={(event) => {
+                  designOffset.current = event.nativeEvent.contentOffset.x;
+                }}
+                scrollEventThrottle={48}
+                contentContainerStyle={styles.designRow}>
+                {templates.map((template) => (
+                  <DesignTile
+                    key={template.id}
+                    label={template.name}
+                    image={template.previewUrl}
+                    selected={chosenDesign === template.id}
+                    onPress={() => setChosenDesign(template.id)}
+                  />
+                ))}
+                <DesignTile
+                  label="No design"
+                  selected={chosenDesign === 'ai'}
+                  noDesign
+                  onPress={() => setChosenDesign('ai')}
+                />
+              </ScrollView>
+              <Text style={[text.caption, styles.designPickerHint]}>
+                {chosenDesign === 'ai'
+                  ? 'No design chosen: the model designs the brochure for this order.'
+                  : `Cover chosen: ${templates.find((template) => template.id === chosenDesign)?.name ?? 'a design'}. The model writes the copy.`}
+              </Text>
             </View>
           ) : null}
         </ScrollView>
@@ -757,6 +891,86 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 20,
     fontWeight: '600',
+  },
+  designPicker: {
+    marginTop: space.md,
+    gap: space.sm,
+  },
+  designPickerTitle: {
+    color: colors.muted,
+    flex: 1,
+    paddingRight: space.sm,
+  },
+  designPickerHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm,
+  },
+  designArrows: {
+    flexDirection: 'row',
+    gap: space.xs ?? 6,
+  },
+  designArrow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  designArrowLabel: {
+    fontSize: 18,
+    lineHeight: 20,
+    color: colors.copper,
+  },
+  designRow: {
+    gap: space.sm,
+    paddingVertical: space.xs ?? 0,
+  },
+  designCard: {
+    width: 96,
+    borderRadius: 10,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    backgroundColor: colors.surface,
+  },
+  designCardSelected: {
+    borderWidth: 2,
+    borderColor: colors.copper,
+  },
+  designThumb: {
+    width: '100%',
+    height: 132,
+    borderRadius: 6,
+    backgroundColor: colors.fill,
+  },
+  designThumbNo: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.copperSoft,
+  },
+  designThumbNoLabel: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: colors.copper,
+  },
+  designName: {
+    marginTop: 4,
+    fontSize: 10,
+    lineHeight: 13,
+    color: colors.muted,
+    textAlign: 'center',
+  },
+  designNameSelected: {
+    color: colors.copper,
+    fontWeight: '600',
+  },
+  designPickerHint: {
+    color: colors.faint,
   },
   autoHint: {
     color: colors.faint,

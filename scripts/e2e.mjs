@@ -240,6 +240,22 @@ try {
   check("chat loads", await hasText(page, "Studio chat"));
   check("chat explains what to paste", await hasText(page, "Paste everything the customer told you"));
   check("chat has a message box", (await page.$('textarea[placeholder="Paste the customer\'s requirement"]')) !== null);
+  check("chat asks for a cover", await hasText(page, "Choose a cover"));
+  check("chat offers the existing covers", (await page.$$('[aria-label^="Choose cover "]')).length >= 10);
+  check("chat offers no design", (await page.$('[aria-label="Choose no design, let the model design it"]')) !== null);
+  check(
+    "no design is selected by default",
+    await hasText(page, "No design chosen: the model designs the brochure")
+  );
+  check("cover strip has arrows", (await page.$('[aria-label="Scroll covers right"]')) !== null);
+  const firstCover = await page.$('[aria-label^="Choose cover "]');
+  if (firstCover) {
+    await firstCover.click();
+    check("choosing a cover updates the choice", await waitForBodyText(page, "Cover chosen:", 8000));
+    await page.screenshot({ path: `${shots}/00b-chat-design.png` });
+    const noDesign = await page.$('[aria-label="Choose no design, let the model design it"]');
+    if (noDesign) await noDesign.click();
+  }
   await page.screenshot({ path: `${shots}/00-chat.png` });
 
   await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });

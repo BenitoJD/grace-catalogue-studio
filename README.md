@@ -38,6 +38,14 @@ The studio is not stuck with what the model chose. On the order screen, under AI
 
 ## Chat first
 
+One chat is one order. The first thing the chat asks is the cover: a strip of the thirty printed designs, with **No design** as the last card. Pick a cover and that cover is printed with the model written copy; pick No design and the model designs the whole brochure for the order. The strip can be scrolled or moved with the arrows.
+
+![Choosing a cover in the chat](docs/screenshots/chat-design.png)
+
+Then paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. The model pulls out the order, asks only for what is missing, and creates the order and the brochure when it has enough.
+
+
+
 The studio opens on a chat, not a form. The client dumps everything they know in one message: a WhatsApp forward, a list, a rough note. The model pulls out the order, asks only for essentials that are still missing, and says when it has enough.
 
 ![Conversational intake](docs/screenshots/chat-intake.png)
@@ -210,7 +218,7 @@ npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 80 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 86 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
 
 ## Design templates
 
