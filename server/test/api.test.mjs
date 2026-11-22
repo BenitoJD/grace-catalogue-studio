@@ -39,6 +39,7 @@ import {
 } from '../src/db.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
+import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
 import {
   cleanReadyReply,
   ensureMissingMentioned,
@@ -3652,4 +3653,55 @@ test('an unknown provider is rejected without changing settings', async () => {
   assert.equal(response.status, 400);
   const after = await (await fetch(`${baseUrl}/api/llm/settings`)).json();
   assert.deepEqual(after, before);
+});
+
+
+test('network egress only allows the configured model provider and loopback', async () => {
+  const calls = [];
+  const fakeFetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return { ok: true };
+  };
+  const restore = installEgressGuard({
+    resolveConfig: () => ({ endpoint: 'https://api.deepseek.com/v1' }),
+    fetchImpl: fakeFetch,
+  });
+  try {
+    const config = { endpoint: 'https://api.deepseek.com/v1' };
+    assert.equal(isAllowedEgressUrl('https://api.deepseek.com/v1/chat/completions', { config }), true);
+    assert.equal(isAllowedEgressUrl('http://127.0.0.1:8787/health', { config }), true);
+    assert.equal(isAllowedEgressUrl('https://fonts.googleapis.com/css', { config }), false);
+    await globalThis.fetch('https://api.deepseek.com/v1/chat/completions', { method: 'POST' });
+    await globalThis.fetch('http://127.0.0.1:8787/health');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].init.redirect, 'manual');
+    await assert.rejects(
+      () => globalThis.fetch('https://example.com/tracker.gif'),
+      /Blocked external network call/,
+    );
+    assert.equal(calls.length, 2, 'the blocked request never reached the network');
+  } finally {
+    restore();
+  }
+});
+
+test('templates never point at remote assets', () => {
+  const problems = [];
+  function walk(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!/\.(html|css)$/i.test(entry.name)) continue;
+      const text = readFileSync(full, 'utf8');
+      for (const match of text.matchAll(/https?:\/\/[^\s)"']+/g)) {
+        if (/w3\.org|w3\.org\/2000\/svg/.test(match[0])) continue;
+        problems.push(`${path.relative(templatesDir, full)}: ${match[0]}`);
+      }
+    }
+  }
+  walk(templatesDir);
+  assert.deepEqual(problems, []);
 });

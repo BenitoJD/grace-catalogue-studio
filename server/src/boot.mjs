@@ -16,6 +16,8 @@ import { ensureMedia } from './media.mjs';
 import { createRenderer } from './render.mjs';
 import { runRetentionSweep } from './retention.mjs';
 import { createApp } from './routes.mjs';
+import { installEgressGuard } from './egress.mjs';
+import { resolveLlmConfig } from './llm.mjs';
 
 const SHUTDOWN_RENDER_TIMEOUT_MS = 20_000;
 
@@ -49,6 +51,14 @@ export async function startCatalogServer(options = {}) {
   ensureMedia(templatesDir, dataDir);
 
   const db = openDb(dbPath);
+
+  // Only the configured model provider (and loopback) may receive traffic.
+  // This is the in-code promise behind "the app works offline except for the
+  // model". CATALOG_ALLOWED_EGRESS_ORIGINS can add a specific origin later.
+  const restoreEgress = installEgressGuard({
+    resolveConfig: () => resolveLlmConfig(db),
+  });
+  logger.info('Network egress guard active.', { rule: 'configured model provider and loopback only' });
 
   const renderer = createRenderer({
     templatesDir,
@@ -148,6 +158,8 @@ export async function startCatalogServer(options = {}) {
       db.close();
     } catch {
       // Already closed.
+    } finally {
+      restoreEgress();
     }
   }
 

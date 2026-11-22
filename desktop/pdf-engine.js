@@ -12,7 +12,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { BrowserWindow } = require('electron');
+const { BrowserWindow, session } = require('electron');
 
 // A4 with 3 mm bleed, in CSS pixels at 96 dpi.
 const PAGE_WIDTH_MM = 216;
@@ -29,6 +29,22 @@ const HIDE_PAGES_CSS = `
     body > .page { display: block !important; page-break-after: always; }
   }
 `;
+
+let printSession = null;
+
+/**
+ * Brochures are printed from local files only. Block every HTTP(S) request in
+ * the hidden print windows so a stray remote font or image can never make the
+ * app depend on the network.
+ */
+function getPrintSession() {
+  if (printSession) return printSession;
+  printSession = session.fromPartition('grace-print-sandbox');
+  printSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_details, callback) => {
+    callback({ cancel: true });
+  });
+  return printSession;
+}
 
 function log(message) {
   console.log(`[grace-studio/pdf] ${message}`);
@@ -53,6 +69,7 @@ async function openDocument(builtFile) {
     useContentSize: true,
     backgroundColor: '#ffffff',
     webPreferences: {
+      session: getPrintSession(),
       backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,

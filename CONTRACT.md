@@ -298,6 +298,14 @@ resulting render has `kind: "ai"`, `templateId: null` and a `design` object with
 the composition and a human label. Designs are cached by prompt like other model
 replies.
 
+## Network egress
+
+The server installs a guard at boot: outbound fetch is limited to the configured
+model provider origin and loopback. `CATALOG_ALLOWED_EGRESS_ORIGINS` is a comma
+separated allowlist for any future integration. The desktop print windows block
+HTTP(S) requests entirely. Templates must not reference remote assets; a test
+enforces that.
+
 ## Rendering
 
 The family documents live in `templates/voucher/families/`, but the generated

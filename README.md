@@ -280,7 +280,7 @@ The desktop process starts the server itself through `server/src/boot.mjs`. The 
 
 The Windows installer is a custom NSIS wizard in `desktop/installer/GraceStudio.nsi`, built the same way as the Attendance Report Studio installer: Welcome, options, install, Finish with a Launch checkbox. It installs for the current Windows user into `%LOCALAPPDATA%\Programs\Grace Studio`, so there is no administrator prompt, creates a Start Menu shortcut and optionally a desktop shortcut, registers a proper Apps and Features uninstall entry, and upgrades cleanly. Data in the app data folder is never touched.
 
-`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.7.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
+`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.8.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
 
 The standalone app was built and launched on this machine: the packaged build started its embedded server, designed a brochure with the live model, and printed all four pages through the Electron engine in 1.5 seconds.
 
@@ -342,6 +342,20 @@ Two bodies from the final runs:
 
 > **Three shutters for the guest room wall**
 > The guest room holds its light on the long wall, and the wardrobe takes that wall from end to end. Three shutters divide the width into equal parts, each one hinged to close softly rather than snap, so the proportions read before the handles do. Matte black aluminium runs vertically down the face, one set to each shutter, and the edge banding follows the same colour as the laminate so the outline stays unbroken. Inside, white laminate keeps the interior bright when the doors are open.
+
+## Offline by design
+
+The only external service the studio uses is the language model you configure. Everything else runs on the machine:
+
+- The app, its fonts, images, templates and brochure assets are bundled. No CDN, no Google Fonts, no analytics and no update checks.
+- The database is local SQLite, attachments and PDFs live in the app data folder, and the desktop print engine is the Electron build itself.
+- The server installs a network egress guard at boot. Only the configured model provider and loopback may receive a request. A stray future fetch to any other host throws instead of leaving the machine, and redirects are never followed off the allowlist.
+- The desktop print windows additionally block every HTTP and HTTPS request, so a brochure from a local file can never pull a remote font or image.
+- A test audits the templates for remote URLs, and the egress guard has its own test.
+- The connection test and every model call go to the provider chosen in Settings. External links open only when a person clicks a PDF or a file link.
+- There is no auto-update service. A new version is installed with the setup wizard.
+
+If a future integration genuinely needs another origin, `CATALOG_ALLOWED_EGRESS_ORIGINS` adds that exact origin and nothing else.
 
 ## Production
 
