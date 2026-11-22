@@ -83,11 +83,11 @@ createServer(async (request, response) => {
         type: 'modern',
         cover: 'splitLeft',
         spec: 'twoColumn',
-        finishes: 'grid4',
-        inside: 'photoEssay',
+        materials: 'filmstrip',
+        story: 'editorial',
         coverPhoto: 0,
         detailPhoto: 0,
-        insidePhoto: 1,
+        storyPhoto: 1,
         statement: 'Measured for the room it stands in.'
       },
       copy: {

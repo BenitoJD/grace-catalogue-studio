@@ -21,17 +21,33 @@ const TYPE_STACKS = {
   classic: { display: "'Instrument Serif', Georgia, serif", body: "'Barlow', Helvetica, Arial, sans-serif" },
 };
 
+const STORY_LAYOUTS = ['hero', 'editorial', 'diptych', 'collage'];
+const MATERIALS_LAYOUTS = ['grid4', 'filmstrip', 'band', 'museum', 'stacked'];
+const STORY_ALIASES = {
+  photoEssay: 'hero',
+  heroStatement: 'hero',
+  splitStory: 'editorial',
+  storyLeft: 'editorial',
+  storyRight: 'editorial',
+};
+
 const DESIGN_KIT = [
   'You are the art director and copywriter for one printed brochure at Grace Wood Industry, a wardrobe and furniture workshop in Nagercoil.',
-  'Design a four page A4 document for this single order and write its copy. Every order gets a fresh composition; do not think of stock templates.',
+  'This is a brochure, not a report: it is picture led, quiet and premium, the kind of book a client keeps. The customer photographs and the material textures carry it; words are few and well set.',
+  'Design four A4 portrait pages and write their words in one reply.',
   'Reply with strict JSON only, exactly this shape:',
-  '{"design":{"tone":"copper|ink|olive|indigo|sand","type":"editorial|modern|classic","cover":"fullBleed|splitLeft|splitRight|bandTop|framed|masthead","spec":"twoColumn|threeColumn|ledger|cards|stacked","finishes":"grid4|filmstrip|stacked|band|museum","inside":"photoEssay|diptych|heroStatement|splitStory","coverPhoto":0,"detailPhoto":1,"insidePhoto":2,"statement":"one calm line, at most 80 characters"},"copy":{"headline":"...","body":"...","closing":"..."}}',
+  '{"design":{"tone":"copper|ink|olive|indigo|sand","type":"editorial|modern|classic","cover":"fullBleed|splitLeft|splitRight|bandTop|framed|masthead","story":"hero|editorial|diptych|collage","materials":"grid4|filmstrip|band|museum|stacked","spec":"twoColumn|threeColumn|ledger|cards|stacked","coverPhoto":0,"storyPhoto":1,"detailPhoto":2,"statement":"one calm line, at most 80 characters"},"copy":{"headline":"...","body":"...","closing":"..."}}',
+  'The four pages:',
+  '1. Cover. A strong photograph, the brand, the piece and the customer. Almost nothing else.',
+  '2. Story. One or two photographs and the statement as a large line. The body sits small in a column, like a caption in a magazine.',
+  '3. Materials. The four finish textures at size, names in small caps. This is a colour page, not a table.',
+  '4. Specification. The technical details, set quietly at the back for the workshop and the client file, not the reason to open the brochure.',
   'Design rules:',
   '- Choose the tone and type that suit the room and the piece. Vary them from order to order.',
-  '- Avoid the obvious default. A split cover with editorial type is the safe answer, so use it for at most one order in three. Prefer masthead, bandTop or framed covers, and mix modern and classic type, unless the photographs clearly need a split.',
-  '- Choose the cover layout that suits the photographs available: fullBleed for one strong photo, split for two, framed for a quieter document, bandTop or masthead for a graphic one.',
-  '- coverPhoto, detailPhoto and insidePhoto are indexes into the available photographs, starting at 0. They may repeat if there is only one photo.',
-  '- statement is the large line printed inside, understated, a phrase not a sentence of sales copy.',
+  '- Avoid the obvious default. A split cover with editorial type is the safe answer, so use it for at most one order in three. Prefer masthead, bandTop or framed covers, and mix modern and classic type.',
+  '- Choose the cover that suits the photographs: fullBleed for one strong photo, split for two, framed for a quieter document, masthead or bandTop for a graphic one.',
+  '- coverPhoto, storyPhoto and detailPhoto are indexes into the available photographs, starting at 0. They may repeat if there is only one photo.',
+  '- statement is the large line on the story page: a phrase, not a sentence of sales copy.',
   'Copy rules:',
   '- Headline at most 56 characters, understated and specific. Body 95 to 145 words. Closing at most 80 characters.',
   '- Voice: quiet confidence of a design house catalogue. Precise nouns, restrained adjectives, short rhythmic sentences with one longer line.',
@@ -43,6 +59,7 @@ const DESIGN_KIT = [
   '- Do not address the customer by name at the start of a sentence.',
   'No prose, markdown or code fences around the JSON.',
 ].join(' ');
+
 
 export function buildAiBrochureMessages(order, brief, photoCount) {
   const facts = [
@@ -101,16 +118,19 @@ export function parseAiDesign(content, photoCount = 1) {
       type: 'invalid_reply',
     });
   }
+  const rawStory = clean(parsed.design.story ?? parsed.design.inside);
+  const story = STORY_ALIASES[rawStory] ?? pickEnum(rawStory, STORY_LAYOUTS, 'story', 'editorial');
+  const rawMaterials = clean(parsed.design.materials ?? parsed.design.finishes);
   const design = {
     tone: pickEnum(parsed.design.tone, TONES, 'tone', 'copper'),
     type: pickEnum(parsed.design.type, TYPES, 'type', 'editorial'),
-    cover: pickEnum(parsed.design.cover, COVERS, 'cover', 'bandTop'),
+    cover: pickEnum(parsed.design.cover, COVERS, 'cover', 'fullBleed'),
+    story,
+    materials: pickEnum(rawMaterials, MATERIALS_LAYOUTS, 'materials', 'grid4'),
     spec: pickEnum(parsed.design.spec, SPECS, 'spec', 'twoColumn'),
-    finishes: pickEnum(parsed.design.finishes, FINISHES, 'finishes', 'grid4'),
-    inside: pickEnum(parsed.design.inside, INSIDES, 'inside', 'photoEssay'),
     coverPhoto: pickPhoto(parsed.design.coverPhoto, photoCount, 0),
+    storyPhoto: pickPhoto(parsed.design.storyPhoto ?? parsed.design.insidePhoto, photoCount, 1),
     detailPhoto: pickPhoto(parsed.design.detailPhoto, photoCount, 0),
-    insidePhoto: pickPhoto(parsed.design.insidePhoto, photoCount, 0),
     statement: capText(parsed.design.statement, 100) || 'Made for the room it stands in.',
   };
   return { design, copy };
@@ -143,18 +163,23 @@ const BASE_CSS = `
   .sheet { position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
   .abs { position:absolute; }
   .ph { background-size:cover; background-position:center; background-repeat:no-repeat; }
-  .micro { font-family:var(--body); font-size:5pt; letter-spacing:.22em; text-transform:uppercase; color:var(--faint); }
-  .label { font-family:var(--body); font-size:5pt; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
-  .value { font-family:var(--body); font-size:6.4pt; line-height:1.35; color:var(--ink); }
-  .head { font-family:var(--display); font-weight:400; color:var(--ink); line-height:1.02; letter-spacing:-.01em; }
-  .body { font-family:var(--body); font-size:6.4pt; line-height:1.65; color:var(--muted); }
+  .micro { font-family:var(--body); font-size:4.9pt; letter-spacing:.24em; text-transform:uppercase; color:var(--faint); }
+  .label { font-family:var(--body); font-size:5.2pt; letter-spacing:.24em; text-transform:uppercase; color:var(--muted); }
+  .value { font-family:var(--body); font-size:6.2pt; line-height:1.4; color:var(--ink); }
+  .head { font-family:var(--display); font-weight:400; color:var(--ink); line-height:1.0; letter-spacing:-.015em; }
+  .serif { font-family:var(--display); font-weight:400; color:var(--ink); line-height:1.02; letter-spacing:-.01em; }
+  .body { font-family:var(--body); font-size:6.1pt; line-height:1.62; color:var(--muted); }
+  .caption { font-family:var(--body); font-size:5.4pt; line-height:1.5; color:var(--muted); }
   .rule { height:0.16mm; background:var(--hair); }
   .acc { background:var(--accent); }
-  .row { display:flex; justify-content:space-between; align-items:baseline; gap:6mm; border-bottom:0.12mm solid var(--hair); padding:1.6mm 0; }
-  .row .k { font-family:var(--body); font-size:5pt; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
-  .row .v { font-family:var(--body); font-size:6.2pt; color:var(--ink); text-align:right; }
-  .plain { font-family:var(--body); font-size:5.6pt; letter-spacing:.04em; color:var(--faint); }
-  .bodycopy:empty { display:none; }
+  .folio { position:absolute; left:18mm; right:18mm; bottom:7.5mm; display:flex; justify-content:space-between; font-family:var(--body); font-size:4.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
+  .folioDark { color:rgba(255,255,255,0.72); }
+  .row { display:flex; justify-content:space-between; align-items:baseline; gap:6mm; border-bottom:0.12mm solid var(--hair); padding:1.7mm 0; }
+  .row .k { font-family:var(--body); font-size:4.8pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+  .row .v { font-family:var(--body); font-size:6pt; color:var(--ink); text-align:right; }
+  .body2col { display:flex; gap:6mm; }
+  .body2col > div { flex:1; font-family:var(--body); font-size:5.9pt; line-height:1.62; color:var(--muted); }
+  .white { color:var(--on-dark); }
 `;
 
 function rowsHtml(facts) {
@@ -201,143 +226,149 @@ function specGroups(values) {
   ];
 }
 
+function columnsHtml(text, columns = 2) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const perColumn = Math.ceil(words.length / columns);
+  const chunks = [];
+  for (let index = 0; index < columns; index += 1) {
+    chunks.push(words.slice(index * perColumn, (index + 1) * perColumn).join(' '));
+  }
+  return `<div class="body2col">${chunks.map((chunk) => `<div>${escapeHtml(chunk)}</div>`).join('')}</div>`;
+}
+
+function folio(page, dark = false) {
+  return `<div class="folio ${dark ? 'folioDark' : ''}"><span>Grace Wood Industry · Nagercoil</span><span>0${page} / 04</span></div>`;
+}
+
 function coverHtml(values, design, photos) {
   const photo = photos[design.coverPhoto] ?? photos[0] ?? values.coverImage;
   const title = escapeHtml(values.title);
-  const meta = `<div class="micro" style="left:18mm; top:18mm; width:120mm;">${escapeHtml(values.orderNo)} · ${escapeHtml(values.date)}</div>`;
-  const logo = '<img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:14mm; width:11mm;">';
-  const name = `<div class="micro" style="left:18mm; top:276mm; width:174mm;">${escapeHtml(values.customerName)} · ${escapeHtml(values.room)}</div>`;
-  const footer = `<div class="micro" style="left:18mm; top:284mm;">Grace Wood Industry · ${escapeHtml(values.shopLine)}</div><div class="micro" style="right:18mm; top:284mm;">01 / 04</div>`;
-  const titleBlock = (style) => `<div class="head abs" style="${style}">${title}</div>`;
+  const room = escapeHtml(values.room);
+  const customer = escapeHtml(values.customerName);
+  const meta = `${escapeHtml(values.orderNo)} · ${escapeHtml(values.date)}`;
+  const logo = '<img class="abs" src="../assets/grace-logo.png" style="left:18mm; top:14mm; width:12mm;">';
 
   if (design.cover === 'fullBleed') {
-    return `<div class="page cover"><div class="abs ph" style="left:0; top:0; width:216mm; height:303mm; background-image:url(${photo});"></div>
-      <div class="abs" style="left:0; top:150mm; width:216mm; height:153mm; background:linear-gradient(to top, rgba(10,9,8,0.72), rgba(10,9,8,0));"></div>
-      <div class="abs" style="left:18mm; top:20mm; width:110mm; color:var(--on-dark);">${meta}</div>
-      ${titleBlock('left:18mm; top:198mm; width:180mm; font-size:34pt; color:var(--on-dark);')}
-      <div class="abs" style="left:18mm; top:244mm; width:170mm; color:rgba(255,255,255,0.82); font-family:var(--body); font-size:7pt; line-height:1.5;">${escapeHtml(values.exterior)}, ${escapeHtml(values.interior)}</div>
-      <div class="abs" style="left:18mm; top:262mm; width:170mm; color:rgba(255,255,255,0.7);" class="micro">${escapeHtml(values.customerName)} · ${escapeHtml(values.orderNo)}</div>
+    return `<div class="page cover"><div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:303mm; background-image:url(${photo});"></div>
+      <div class="abs" style="left:-3mm; top:150mm; width:216mm; height:156mm; background:linear-gradient(to top, rgba(8,7,6,0.82) 0%, rgba(8,7,6,0.35) 55%, rgba(8,7,6,0) 100%);"></div>
+      <div class="abs micro white" style="left:18mm; top:18mm; letter-spacing:.32em;">Grace Wood Industry</div>
+      <div class="abs micro white" style="right:18mm; top:18mm; text-align:right;">${meta}</div>
+      <div class="abs head white" style="left:18mm; top:196mm; width:174mm; font-size:42pt;">${title}</div>
+      <div class="abs" style="left:18mm; top:252mm; width:174mm;"><div class="rule" style="width:24mm; background:rgba(255,255,255,0.55);"></div></div>
+      <div class="abs micro white" style="left:18mm; top:259mm; width:174mm;">${customer} · ${room} · ${escapeHtml(values.width)}</div>
+      ${folio(1, true)}
     </div>`;
   }
+
   if (design.cover === 'splitLeft' || design.cover === 'splitRight') {
-    const photoLeft = design.cover === 'splitLeft';
-    const photoStyle = photoLeft
-      ? 'left:0; top:0; width:96mm; height:303mm;'
-      : 'right:0; top:0; width:96mm; height:303mm;';
-    const textLeft = photoLeft ? 108 : 18;
+    const photoFirst = design.cover === 'splitLeft';
+    const photoStyle = photoFirst
+      ? 'left:-3mm; top:-3mm; width:111mm; height:303mm;'
+      : 'left:105mm; top:-3mm; width:111mm; height:303mm;';
+    const textLeft = photoFirst ? 116 : 18;
+    const textWidth = 78;
     return `<div class="page cover"><div class="abs ph" style="${photoStyle} background-image:url(${photo});"></div>
-      <div class="abs" style="left:${textLeft}mm; top:18mm; width:${photoLeft ? 96 : 92}mm;">${meta}</div>
-      ${titleBlock(`left:${textLeft}mm; top:72mm; width:${photoLeft ? 92 : 92}mm; font-size:30pt;`)}
-      <div class="abs rule acc" style="left:${textLeft}mm; top:${photoLeft ? 168 : 160}mm; width:26mm;"></div>
-      <div class="abs" style="left:${textLeft}mm; top:${photoLeft ? 178 : 170}mm; width:${photoLeft ? 80 : 88}mm;">${rowsHtml([
-        ['Width', values.width],
-        ['Height', values.height],
-        ['Depth', values.depth],
-        ['Handle', values.handle],
-      ])}</div>
-      <div class="abs" style="left:${textLeft}mm; top:262mm; width:${photoLeft ? 80 : 88}mm;">${escapeHtml(values.customerName)}</div>
-      <div class="abs micro" style="left:${textLeft}mm; top:284mm; width:${photoLeft ? 80 : 88}mm;">Grace Wood Industry</div>
+      <div class="abs micro" style="left:${textLeft}mm; top:16mm; width:${textWidth}mm;">Grace Wood Industry</div>
+      <div class="abs micro" style="left:${textLeft}mm; top:21mm; width:${textWidth}mm;">${meta}</div>
+      <div class="abs head" style="left:${textLeft}mm; top:88mm; width:${textWidth}mm; font-size:30pt;">${title}</div>
+      <div class="abs" style="left:${textLeft}mm; top:170mm; width:${textWidth}mm;"><div class="rule acc" style="width:22mm;"></div></div>
+      <div class="abs" style="left:${textLeft}mm; top:178mm; width:${textWidth}mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:1.5mm;">${escapeHtml(values.width)} · ${escapeHtml(values.height)} · ${escapeHtml(values.depth)}</div></div>
+      <div class="abs" style="left:${textLeft}mm; top:232mm; width:${textWidth}mm; font-family:var(--body); font-size:7pt; color:var(--ink);">${customer}</div>
+      <div class="abs micro" style="left:${textLeft}mm; top:284mm; width:${textWidth}mm;">Grace Wood Industry · Nagercoil</div>
+      <div class="abs micro" style="left:${photoFirst ? 116 : 18}mm; top:284mm;">01 / 04</div>
     </div>`;
   }
-  if (design.cover === 'framed') {
-    return `<div class="page cover"><div class="sheet">
-      <div class="abs micro" style="left:18mm; top:16mm; width:174mm; text-align:center;">${escapeHtml(values.orderNo)} · ${escapeHtml(values.date)}</div>
-      ${titleBlock('left:30mm; top:30mm; width:150mm; text-align:center; font-size:26pt;')}
-      <div class="abs" style="left:45mm; top:62mm; width:120mm; height:150mm; border:0.3mm solid var(--ink); padding:6mm;">
-        <div class="abs ph" style="left:6mm; top:6mm; width:108mm; height:138mm; background-image:url(${photo});"></div>
-      </div>
-      <div class="abs micro" style="left:18mm; top:228mm; width:174mm; text-align:center;">${escapeHtml(values.room)} · ${escapeHtml(values.width)} · ${escapeHtml(values.height)}</div>
-      <div class="abs" style="left:18mm; top:244mm; width:174mm; text-align:center; font-family:var(--body); font-size:7pt; color:var(--muted);">${escapeHtml(values.customerName)}</div>
-      <div class="abs micro" style="left:18mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
-      <div class="abs micro" style="right:18mm; top:284mm;">01 / 04</div>
-    </div></div>`;
-  }
+
   if (design.cover === 'masthead') {
     return `<div class="page cover"><div class="sheet">
       ${logo}
-      <div class="abs" style="left:18mm; top:70mm; width:174mm; font-family:var(--body); font-size:8pt; letter-spacing:.34em; text-transform:uppercase; color:var(--accent);">Grace Wood Industry</div>
-      ${titleBlock('left:18mm; top:82mm; width:174mm; font-size:44pt;')}
-      <div class="abs rule" style="left:18mm; top:168mm; width:174mm;"></div>
-      <div class="abs micro" style="left:18mm; top:172mm; width:90mm;">${escapeHtml(values.orderNo)} · ${escapeHtml(values.date)}</div>
-      <div class="abs micro" style="right:18mm; top:172mm; width:80mm; text-align:right;">${escapeHtml(values.room)}</div>
-      <div class="abs ph" style="left:18mm; top:188mm; width:174mm; height:76mm; background-image:url(${photo});"></div>
-      <div class="abs micro" style="left:18mm; top:270mm; width:174mm;">${escapeHtml(values.customerName)} · ${escapeHtml(values.width)} · ${escapeHtml(values.handle)}</div>
-      <div class="abs micro" style="left:18mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
-      <div class="abs micro" style="right:18mm; top:284mm;">01 / 04</div>
+      <div class="abs" style="left:0; top:40mm; width:210mm; text-align:center; font-family:var(--body); font-size:6.4pt; letter-spacing:.4em; text-transform:uppercase; color:var(--accent);">Grace Wood Industry</div>
+      <div class="abs head" style="left:18mm; top:52mm; width:174mm; text-align:center; font-size:42pt;">${title}</div>
+      <div class="abs micro" style="left:18mm; top:112mm; width:174mm; text-align:center;">${customer} · ${room}</div>
+      <div class="abs ph" style="left:-3mm; top:129mm; width:216mm; height:174mm; background-image:url(${photo});"></div>
+      <div class="abs micro" style="left:18mm; top:118mm; width:174mm; text-align:center;">${meta}</div>
+      ${folio(1, true)}
     </div></div>`;
   }
+
+  if (design.cover === 'framed') {
+    return `<div class="page cover"><div class="sheet">
+      ${logo}
+      <div class="abs micro" style="left:18mm; top:22mm; width:174mm; text-align:center;">Grace Wood Industry</div>
+      <div class="abs" style="left:53mm; top:40mm; width:104mm; height:150mm; border:0.25mm solid var(--ink); padding:5mm;">
+        <div class="abs ph" style="left:5mm; top:5mm; width:94mm; height:140mm; background-image:url(${photo});"></div>
+      </div>
+      <div class="abs head" style="left:18mm; top:208mm; width:174mm; text-align:center; font-size:24pt;">${title}</div>
+      <div class="abs micro" style="left:18mm; top:250mm; width:174mm; text-align:center;">${customer} · ${room}</div>
+      <div class="abs micro" style="left:18mm; top:280mm; width:174mm; text-align:center;">${meta} · Grace Wood Industry</div>
+      ${folio(1)}
+    </div></div>`;
+  }
+
   // bandTop
   return `<div class="page cover"><div class="sheet">
-    <div class="abs ph" style="left:0; top:0; width:210mm; height:132mm; background-image:url(${photo});"></div>
-    <div class="abs" style="left:18mm; top:12mm; width:174mm;">${meta}</div>
-    ${titleBlock('left:18mm; top:152mm; width:174mm; font-size:36pt;')}
-    <div class="abs rule acc" style="left:18mm; top:224mm; width:24mm;"></div>
-    <div class="abs" style="left:18mm; top:232mm; width:104mm;">${rowsHtml([
-      ['Width', values.width],
-      ['Height', values.height],
-      ['Handle', values.handle],
-    ])}</div>
-    <div class="abs micro" style="right:18mm; top:232mm; width:56mm; text-align:right;">${escapeHtml(values.customerName)}<br>${escapeHtml(values.room)}</div>
-    <div class="abs micro" style="left:18mm; top:284mm;">Grace Wood Industry · Nagercoil</div>
-    <div class="abs micro" style="right:18mm; top:284mm;">01 / 04</div>
+    <div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:174mm; background-image:url(${photo});"></div>
+    ${logo}
+    <div class="abs micro" style="right:18mm; top:18mm; width:70mm; text-align:right;">${meta}</div>
+    <div class="abs head" style="left:18mm; top:184mm; width:174mm; font-size:36pt;">${title}</div>
+    <div class="abs" style="left:18mm; top:232mm; width:174mm;"><div class="rule acc" style="width:22mm;"></div></div>
+    <div class="abs" style="left:18mm; top:240mm; width:96mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:1.5mm;">${escapeHtml(values.width)} · ${escapeHtml(values.height)} · ${escapeHtml(values.depth)}</div></div>
+    <div class="abs" style="right:18mm; top:240mm; width:60mm; text-align:right; font-family:var(--body); font-size:7pt; color:var(--ink);">${customer}</div>
+    ${folio(1)}
   </div></div>`;
 }
 
-function specHtml(values, design) {
-  const head = `<div class="abs label" style="left:18mm; top:16mm;">02 · Specification</div><div class="abs micro" style="right:18mm; top:16mm;">${escapeHtml(values.orderNo)}</div><div class="abs rule" style="left:18mm; top:22mm; width:174mm;"></div>`;
-  const footer = `<div class="abs micro" style="left:18mm; top:284mm;">${escapeHtml(values.shopLine)}</div><div class="abs micro" style="right:18mm; top:284mm;">02 / 04</div>`;
-  const groups = specGroups(values);
-  const allFacts = groups.flatMap((group) => group.facts);
+function storyHtml(values, design, copy, photos) {
+  const photo = photos[design.storyPhoto] ?? photos[0] ?? values.insideImage;
+  const photoAlt = photos[(design.storyPhoto + 1) % Math.max(1, photos.length)] ?? values.insideImage2;
+  const statement = escapeHtml(design.statement);
+  const headline = escapeHtml(copy.headline);
+  const closing = escapeHtml(copy.closing);
+  const bodyColumns = columnsHtml(copy.body, 2);
 
-  if (design.spec === 'threeColumn') {
-    const columns = groups
-      .map(
-        (group, index) =>
-          `<div class="abs" style="left:${18 + index * 60}mm; top:34mm; width:54mm;">
-            <div class="label" style="margin-bottom:3mm;">${escapeHtml(group.title)}</div>
-            ${rowsHtml(group.facts)}
-          </div>`,
-      )
-      .join('');
-    return `<div class="page"><div class="sheet">${head}<div class="abs head" style="left:18mm; top:26mm; width:174mm; font-size:20pt;">${escapeHtml(values.title)}</div>${columns}${footer}</div></div>`;
+  if (design.story === 'hero') {
+    return `<div class="page"><div class="sheet">
+      <div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:182mm; background-image:url(${photo});"></div>
+      <div class="abs" style="left:18mm; top:190mm; width:174mm;"><div class="headlineLabel">${headline}</div></div>
+      <div class="abs serif" style="left:18mm; top:198mm; width:174mm; font-size:26pt;">${statement}</div>
+      <div class="abs" style="left:18mm; top:244mm; width:174mm;">${bodyColumns}</div>
+      <div class="abs closingLine" style="left:18mm; top:268mm; width:174mm;">${closing}</div>
+      ${folio(2)}
+    </div></div>`;
   }
-  if (design.spec === 'ledger') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs head" style="left:18mm; top:28mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
-      <div class="abs" style="left:18mm; top:48mm; width:174mm;">${rowsHtml(allFacts)}</div>
-      <div class="abs micro" style="left:18mm; top:272mm;">Every line measured before cutting</div>
-      ${footer}</div></div>`;
+  if (design.story === 'diptych') {
+    return `<div class="page"><div class="sheet">
+      <div class="abs ph" style="left:-3mm; top:-3mm; width:111mm; height:196mm; background-image:url(${photo});"></div>
+      <div class="abs ph" style="left:105mm; top:-3mm; width:111mm; height:196mm; background-image:url(${photoAlt});"></div>
+      <div class="abs" style="left:18mm; top:204mm; width:174mm;"><div class="headlineLabel">${headline}</div></div>
+      <div class="abs serif" style="left:18mm; top:212mm; width:100mm; font-size:22pt;">${statement}</div>
+      <div class="abs" style="left:18mm; top:252mm; width:174mm;">${bodyColumns}</div>
+      <div class="abs micro" style="left:18mm; top:272mm; width:174mm;">${closing}</div>
+      ${folio(2)}
+    </div></div>`;
   }
-  if (design.spec === 'cards') {
-    const cards = groups
-      .map(
-        (group, index) =>
-          `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${40 + Math.floor(index / 2) * 78}mm; width:80mm; height:70mm; border:0.2mm solid var(--hair); padding:6mm;">
-            <div class="label" style="margin-bottom:3mm;">${escapeHtml(group.title)}</div>
-            ${rowsHtml(group.facts)}
-          </div>`,
-      )
-      .join('');
-    return `<div class="page"><div class="sheet">${head}<div class="abs head" style="left:18mm; top:28mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>${cards}${footer}</div></div>`;
+  if (design.story === 'collage') {
+    return `<div class="page"><div class="sheet">
+      <div class="abs serif" style="left:18mm; top:22mm; width:100mm; font-size:22pt;">${statement}</div>
+      <div class="abs" style="left:18mm; top:70mm; width:100mm;"><div class="headlineLabel">${headline}</div></div>
+      <div class="abs ph" style="left:18mm; top:80mm; width:100mm; height:132mm; background-image:url(${photo});"></div>
+      <div class="abs ph" style="left:126mm; top:80mm; width:66mm; height:88mm; background-image:url(${photoAlt});"></div>
+      <div class="abs" style="left:126mm; top:174mm; width:66mm;"><div class="caption">${escapeHtml(values.exterior)}. ${escapeHtml(values.interior)}.</div></div>
+      <div class="abs" style="left:18mm; top:222mm; width:174mm;">${bodyColumns}</div>
+      <div class="abs closingLine" style="left:18mm; top:268mm; width:174mm;">${closing}</div>
+      ${folio(2)}
+    </div></div>`;
   }
-  if (design.spec === 'stacked') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs head" style="left:18mm; top:28mm; width:174mm; font-size:24pt;">${escapeHtml(values.title)}</div>
-      <div class="abs" style="left:28mm; top:52mm; width:154mm;">${groups
-        .map(
-          (group) =>
-            `<div class="label" style="margin:4mm 0 1.5mm;">${escapeHtml(group.title)}</div>${rowsHtml(group.facts)}`,
-        )
-        .join('')}</div>
-      ${footer}</div></div>`;
-  }
-  // twoColumn
-  return `<div class="page"><div class="sheet">${head}
-    <div class="abs head" style="left:18mm; top:28mm; width:174mm; font-size:24pt;">${escapeHtml(values.title)}</div>
-    <div class="abs" style="left:18mm; top:52mm; width:82mm;">${rowsHtml([...groups[0].facts, ...groups[2].facts])}</div>
-    <div class="abs" style="left:110mm; top:52mm; width:82mm;">${rowsHtml(groups[1].facts)}</div>
-    <div class="abs rule" style="left:18mm; top:272mm; width:174mm;"></div>
-    ${footer}</div></div>`;
+  // editorial: tall photo on the left, quiet text column on the right
+  return `<div class="page"><div class="sheet">
+    <div class="abs ph" style="left:-3mm; top:-3mm; width:121mm; height:303mm; background-image:url(${photo});"></div>
+    <div class="abs" style="left:130mm; top:24mm; width:62mm;"><div class="headlineLabel">${headline}</div></div>
+    <div class="abs serif" style="left:130mm; top:34mm; width:62mm; font-size:21pt;">${statement}</div>
+    <div class="abs" style="left:130mm; top:100mm; width:62mm;"><div class="rule" style="width:18mm;"></div></div>
+    <div class="abs" style="left:130mm; top:92mm; width:62mm;"><div class="rule" style="width:18mm; margin-bottom:4mm;"></div><div class="body">${escapeHtml(copy.body)}</div></div>
+    <div class="abs closingLine" style="left:130mm; top:246mm; width:62mm; font-size:8.5pt;">${closing}</div>
+    <div class="folio" style="left:130mm; right:18mm;"><span>Grace Wood</span><span>02 / 04</span></div>
+  </div></div>`;
 }
 
 function finishCards(values) {
@@ -347,137 +378,149 @@ function finishCards(values) {
   }));
 }
 
-function finishesHtml(values, design) {
-  const head = `<div class="abs label" style="left:18mm; top:16mm;">03 · Finishes</div><div class="abs micro" style="right:18mm; top:16mm;">${escapeHtml(values.orderNo)}</div><div class="abs rule" style="left:18mm; top:22mm; width:174mm;"></div>`;
-  const footer = `<div class="abs micro" style="left:18mm; top:284mm;">Shades confirmed against physical samples</div><div class="abs micro" style="right:18mm; top:284mm;">03 / 04</div>`;
+function materialsHtml(values, design) {
   const cards = finishCards(values);
-  const card = (index, style) => `<div class="abs" style="${style}">
-      <div class="ph" style="width:100%; height:100%; background-image:url(${cards[index].image});"></div>
-      <div class="micro" style="margin-top:2mm;">${escapeHtml(cards[index].name)}</div>
-    </div>`;
-  const title = `<div class="abs head" style="left:18mm; top:28mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>`;
+  const head = `<div class="abs label" style="left:18mm; top:18mm;">Materials</div><div class="abs micro" style="right:18mm; top:18mm;">${escapeHtml(values.orderNo)}</div><div class="abs rule" style="left:18mm; top:24mm; width:174mm;"></div><div class="abs acc" style="left:18mm; top:30mm; width:14mm; height:0.6mm;"></div>`;
+  const finishLine = `<div class="abs caption" style="left:18mm; top:258mm; width:174mm;">${escapeHtml(values.finishExt)}. ${escapeHtml(values.finishInt)}. ${escapeHtml(values.edgeNote)}.</div><div class="abs micro" style="left:18mm; top:270mm; width:174mm;">Shown as samples, matched in person</div>`;
 
-  if (design.finishes === 'filmstrip') {
-    const strip = cards
-      .map(
-        (entry, index) =>
-          `<div class="abs" style="left:${18 + index * 43}mm; top:60mm; width:37mm;">
-            <div class="ph" style="width:37mm; height:46mm; background-image:url(${entry.image});"></div>
-            <div class="micro" style="margin-top:2mm;">${escapeHtml(entry.name)}</div>
-          </div>`,
-      )
-      .join('');
-    return `<div class="page"><div class="sheet">${head}${title}${strip}
-      <div class="abs ph" style="left:18mm; top:132mm; width:174mm; height:70mm; background-image:url(${values.detailImage});"></div>
-      <div class="abs body" style="left:18mm; top:212mm; width:174mm;">${escapeHtml(values.finishExt)}. ${escapeHtml(values.finishInt)}.</div>
-      ${footer}</div></div>`;
-  }
-  if (design.finishes === 'stacked') {
-    return `<div class="page"><div class="sheet">${head}${title}
-      <div class="abs" style="left:18mm; top:54mm; width:174mm;">${cards
-        .map(
-          (entry, index) =>
-            `<div class="abs" style="left:0; top:${index * 42}mm; width:174mm; height:42mm; border-bottom:0.12mm solid var(--hair);">
-              <div class="abs ph" style="left:0; top:4mm; width:34mm; height:32mm; background-image:url(${entry.image});"></div>
-              <div class="abs" style="left:42mm; top:12mm; font-family:var(--display); font-size:11pt; color:var(--ink);">${escapeHtml(entry.name)}</div>
-            </div>`,
-        )
-        .join('')}</div>
-      ${footer}</div></div>`;
-  }
-  if (design.finishes === 'band') {
-    return `<div class="page"><div class="sheet"><div class="abs" style="left:0; top:0; width:210mm; height:150mm; background:var(--cover-paper);"></div>${head}${title}
+  if (design.materials === 'filmstrip') {
+    return `<div class="page"><div class="sheet">${head}
+      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
       ${cards
         .map(
           (entry, index) =>
-            `<div class="abs" style="left:${18 + index * 43}mm; top:76mm; width:37mm;">
-              <div class="ph" style="width:37mm; height:52mm; background-image:url(${entry.image});"></div>
-              <div class="micro" style="margin-top:2mm;">${escapeHtml(entry.name)}</div>
+            `<div class="abs" style="left:${18 + index * 43}mm; top:60mm; width:38mm;">
+              <div class="ph" style="width:38mm; height:160mm; background-image:url(${entry.image});"></div>
+              <div class="micro" style="margin-top:2.5mm;">${escapeHtml(entry.name)}</div>
             </div>`,
         )
         .join('')}
-      <div class="abs ph" style="left:18mm; top:164mm; width:174mm; height:64mm; background-image:url(${values.detailImage});"></div>
-      ${footer}</div></div>`;
+      ${finishLine}${folio(3)}</div></div>`;
   }
-  if (design.finishes === 'museum') {
-    return `<div class="page"><div class="sheet">${head}${title}
+  if (design.materials === 'band') {
+    return `<div class="page"><div class="sheet">${head}
+      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
+      <div class="abs" style="left:-3mm; top:64mm; width:216mm; height:120mm; display:flex;">
+        ${cards
+          .map(
+            (entry) =>
+              `<div style="width:52.5mm; height:120mm; background-image:url(${entry.image}); background-size:cover; background-position:center;"></div>`,
+          )
+          .join('')}
+      </div>
+      <div class="abs" style="left:18mm; top:190mm; width:174mm; display:flex;">
+        ${cards
+          .map((entry) => `<div style="width:43.5mm;"><div class="micro">${escapeHtml(entry.name)}</div></div>`)
+          .join('')}
+      </div>
+      ${finishLine}${folio(3)}</div></div>`;
+  }
+  if (design.materials === 'museum') {
+    return `<div class="page"><div class="sheet">${head}
+      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
+      <div class="abs ph" style="left:18mm; top:58mm; width:116mm; height:170mm; background-image:url(${cards[0].image});"></div>
       ${cards
+        .slice(1)
         .map(
           (entry, index) =>
-            `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${54 + Math.floor(index / 2) * 74}mm; width:80mm; height:66mm; border:0.2mm solid var(--hair); padding:5mm;">
-              <div class="ph" style="width:70mm; height:44mm; background-image:url(${entry.image});"></div>
-              <div class="micro" style="margin-top:2mm;">${escapeHtml(entry.name)}</div>
+            `<div class="abs" style="left:144mm; top:${58 + index * 58}mm; width:48mm;">
+              <div class="ph" style="width:48mm; height:40mm; background-image:url(${entry.image});"></div>
+              <div class="micro" style="margin-top:1.6mm;">${escapeHtml(entry.name)}</div>
             </div>`,
         )
         .join('')}
-      <div class="abs body" style="left:18mm; top:232mm; width:174mm;">${escapeHtml(values.finishExt)}. ${escapeHtml(values.finishInt)}.</div>
-      ${footer}</div></div>`;
+      ${finishLine}${folio(3)}</div></div>`;
   }
-  // grid4
-  return `<div class="page"><div class="sheet">${head}${title}
+  if (design.materials === 'stacked') {
+    return `<div class="page"><div class="sheet">${head}
+      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
+      <div class="abs ph" style="left:18mm; top:58mm; width:174mm; height:104mm; background-image:url(${cards[0].image});"></div>
+      <div class="abs" style="left:18mm; top:174mm; width:174mm; display:flex;">
+        ${cards
+          .slice(1)
+          .map(
+            (entry) =>
+              `<div style="width:56mm;"><div class="ph" style="width:52mm; height:52mm; background-image:url(${entry.image});"></div><div class="micro" style="margin-top:1.6mm;">${escapeHtml(entry.name)}</div></div>`,
+          )
+          .join('')}
+      </div>
+      ${finishLine}${folio(3)}</div></div>`;
+  }
+  // grid4: four large texture squares
+  return `<div class="page"><div class="sheet">${head}
+    <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:19pt;">Finish palette</div>
     ${cards
       .map(
         (entry, index) =>
-          `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${54 + Math.floor(index / 2) * 84}mm; width:80mm;">
-            <div class="ph" style="width:80mm; height:58mm; background-image:url(${entry.image});"></div>
+          `<div class="abs" style="left:${18 + (index % 2) * 88}mm; top:${60 + Math.floor(index / 2) * 88}mm; width:84mm;">
+            <div class="ph" style="width:84mm; height:72mm; background-image:url(${entry.image});"></div>
             <div class="micro" style="margin-top:2mm;">${escapeHtml(entry.name)}</div>
           </div>`,
       )
       .join('')}
-    <div class="abs body" style="left:18mm; top:236mm; width:174mm;">${escapeHtml(values.finishExt)}. ${escapeHtml(values.finishInt)}. ${escapeHtml(values.edgeNote)}.</div>
-    ${footer}</div></div>`;
+    ${finishLine}${folio(3)}</div></div>`;
 }
 
-function insideHtml(values, design, copy, photos) {
-  const photoA = photos[design.insidePhoto] ?? photos[0] ?? values.insideImage;
-  const photoB = photos[(design.insidePhoto + 1) % Math.max(1, photos.length)] ?? values.insideImage2;
-  const head = `<div class="abs label" style="left:18mm; top:16mm;">04 · Inside</div><div class="abs micro" style="right:18mm; top:16mm;">${escapeHtml(values.orderNo)}</div><div class="abs rule" style="left:18mm; top:22mm; width:174mm;"></div>`;
-  const footer = `<div class="abs micro" style="left:18mm; top:284mm;">${escapeHtml(values.shopLine)}</div><div class="abs micro" style="right:18mm; top:284mm;">04 / 04</div>`;
-  const statement = escapeHtml(design.statement);
-  const headline = escapeHtml(copy.headline);
-  const body = escapeHtml(copy.body);
-  const closing = escapeHtml(copy.closing);
+function specificationHtml(values, design) {
+  const groups = specGroups(values);
+  const allFacts = groups.flatMap((group) => group.facts);
+  const head = `<div class="abs label" style="left:18mm; top:18mm;">Specification</div><div class="abs micro" style="right:18mm; top:18mm;">${escapeHtml(values.orderNo)}</div><div class="abs rule" style="left:18mm; top:24mm; width:174mm;"></div>`;
+  const contact = `<div class="abs" style="left:18mm; top:262mm; width:174mm;"><div class="rule" style="width:174mm;"></div><div class="micro" style="margin-top:3mm;">Grace Wood Industry · Chettikulam, Nagercoil 629001 · +91 63740 43346 · info.gracewoodindustry@gmail.com</div></div>`;
 
-  if (design.inside === 'diptych') {
+  if (design.spec === 'ledger') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs head" style="left:18mm; top:30mm; width:174mm; font-size:26pt;">${statement}</div>
-      <div class="abs ph" style="left:18mm; top:64mm; width:84mm; height:96mm; background-image:url(${photoA});"></div>
-      <div class="abs ph" style="left:108mm; top:64mm; width:84mm; height:96mm; background-image:url(${photoB});"></div>
-      <div class="abs body" style="left:18mm; top:174mm; width:174mm;">${body}</div>
-      <div class="abs head" style="left:18mm; top:246mm; width:174mm; font-size:13pt;">${closing}</div>
-      ${footer}</div></div>`;
+      <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+      <div class="abs" style="left:18mm; top:56mm; width:174mm;">${rowsHtml(allFacts)}</div>
+      ${contact}${folio(4)}</div></div>`;
   }
-  if (design.inside === 'heroStatement') {
+  if (design.spec === 'cards') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs head" style="left:18mm; top:36mm; width:174mm; font-size:34pt;">${statement}</div>
-      <div class="abs micro" style="left:18mm; top:86mm; width:174mm;">${headline}</div>
-      <div class="abs ph" style="left:18mm; top:98mm; width:174mm; height:96mm; background-image:url(${photoA});"></div>
-      <div class="abs body" style="left:18mm; top:204mm; width:174mm;">${body}</div>
-      <div class="abs micro" style="left:18mm; top:266mm;">${closing}</div>
-      ${footer}</div></div>`;
+      <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+      ${groups
+        .map(
+          (group, index) =>
+            `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${58 + Math.floor(index / 2) * 64}mm; width:80mm; border-top:0.25mm solid var(--ink); padding-top:4mm;">
+              <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(group.title)}</div>
+              ${rowsHtml(group.facts)}
+            </div>`,
+        )
+        .join('')}
+      ${contact}${folio(4)}</div></div>`;
   }
-  if (design.inside === 'splitStory') {
+  if (design.spec === 'threeColumn') {
     return `<div class="page"><div class="sheet">${head}
-      <div class="abs ph" style="left:0; top:0; width:96mm; height:297mm; background-image:url(${photoA});"></div>
-      <div class="abs" style="left:108mm; top:34mm; width:84mm;">
-        <div class="head" style="font-size:20pt;">${statement}</div>
-        <div class="micro" style="margin-top:4mm;">${headline}</div>
-        <div class="body" style="margin-top:4mm;">${body}</div>
-        <div class="head" style="margin-top:6mm; font-size:12pt;">${closing}</div>
-      </div>
-      ${footer}</div></div>`;
+      <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+      ${groups
+        .map(
+          (group, index) =>
+            `<div class="abs" style="left:${18 + index * 60}mm; top:58mm; width:54mm;">
+              <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(group.title)}</div>
+              ${rowsHtml(group.facts)}
+            </div>`,
+        )
+        .join('')}
+      ${contact}${folio(4)}</div></div>`;
   }
-  // photoEssay
+  if (design.spec === 'stacked') {
+    return `<div class="page"><div class="sheet">${head}
+      <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+      ${groups
+        .map(
+          (group, index) =>
+            `<div class="abs" style="left:18mm; top:${58 + index * 62}mm; width:174mm;">
+              <div class="label" style="margin-bottom:2mm;">${escapeHtml(group.title)}</div>
+              ${rowsHtml(group.facts)}
+            </div>`,
+        )
+        .join('')}
+      ${contact}${folio(4)}</div></div>`;
+  }
+  // twoColumn
   return `<div class="page"><div class="sheet">${head}
-    <div class="abs head" style="left:18mm; top:30mm; width:174mm; font-size:24pt;">${statement}</div>
-    <div class="abs ph" style="left:18mm; top:60mm; width:174mm; height:92mm; background-image:url(${photoA});"></div>
-    <div class="abs ph" style="left:18mm; top:158mm; width:84mm; height:44mm; background-image:url(${photoB});"></div>
-    <div class="abs" style="left:110mm; top:158mm; width:82mm;">
-      <div class="plain">${headline}</div>
-      <div class="body" style="margin-top:2mm;">${body}</div>
-    </div>
-    <div class="abs head" style="left:18mm; top:252mm; width:174mm; font-size:12pt;">${closing}</div>
-    ${footer}</div></div>`;
+    <div class="abs serif" style="left:18mm; top:36mm; width:174mm; font-size:22pt;">${escapeHtml(values.title)}</div>
+    <div class="abs" style="left:18mm; top:58mm; width:82mm;">${rowsHtml([...groups[0].facts, ...groups[2].facts])}</div>
+    <div class="abs" style="left:110mm; top:58mm; width:82mm;">${rowsHtml(groups[1].facts)}</div>
+    ${contact}${folio(4)}</div></div>`;
 }
 
 /** Compile a validated design into one print ready HTML document. */
@@ -504,14 +547,14 @@ export function compileAiBrochure({ order, materials, palette, design, copy, tem
 ${BASE_CSS}
 </style></head><body>
 ${coverHtml(values, design, photos)}
-${specHtml(values, design)}
-${finishesHtml(values, design)}
-${insideHtml(values, design, copy, photos)}
+${storyHtml(values, design, copy, photos)}
+${materialsHtml(values, design)}
+${specificationHtml(values, design)}
 </body></html>`;
 }
 
 /** Human label for a design, stored with the render for the studio history. */
 export function designLabel(design) {
-  const words = [design.type, design.tone, design.cover, design.spec, design.finishes, design.inside];
+  const words = [design.type, design.tone, design.cover, design.story, design.materials, design.spec];
   return words.map((word) => word.replace(/([A-Z])/g, ' $1').trim()).join(' · ');
 }

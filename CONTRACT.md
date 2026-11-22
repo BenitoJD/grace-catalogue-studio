@@ -275,7 +275,7 @@ Entries expire after `LLM_CACHE_TTL_HOURS` (default 168, 0 disables). Expiry is 
 copy in one reply:
 
 ```json
-{"design":{"tone":"...","type":"...","cover":"...","spec":"...","finishes":"...","inside":"...","coverPhoto":0,"detailPhoto":1,"insidePhoto":2,"statement":"..."},"copy":{"headline":"...","body":"...","closing":"..."}}
+{"design":{"tone":"...","type":"...","cover":"...","story":"hero|editorial|diptych|collage","materials":"grid4|filmstrip|band|museum|stacked","spec":"twoColumn|threeColumn|ledger|cards|stacked","coverPhoto":0,"storyPhoto":1,"detailPhoto":2,"statement":"..."},"copy":{"headline":"...","body":"...","closing":"..."}}
 ```
 
 Allowed values are checked, photo indexes are clamped, and the copy passes the
