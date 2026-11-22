@@ -148,7 +148,7 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | GET | `/pages/:renderId/:n.png` | | `image/png` |
 | GET | `/media/:name` | | static image |
 | POST | `/api/materials` | `{ name, kind, hex, priceAmount?, priceUnit?, sku?, imageUrl? }` | `Material` (201) |
-| GET | `/api/materials` | | `Material[]` |
+| GET | `/api/materials` | | `Material[]` (internal finishes catalogue, no app screen) |
 | GET | `/api/materials/:id` | | `Material` |
 | PATCH | `/api/materials/:id` | partial material fields | `Material` |
 | GET | `/api/catalogue/templates` | | `{ id, name, palette, description }[]` (3 rate card variants) |

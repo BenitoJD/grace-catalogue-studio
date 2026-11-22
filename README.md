@@ -92,12 +92,6 @@ History. Orders are only ever created by the chat, so this screen is read only: 
 
 The full specification, then the rendered voucher with page by page preview, open PDF and share.
 
-![Materials](docs/screenshots/materials.png)
-
-The swatch library that feeds the finishes page of the voucher. **Add colour** opens a form for the name, kind, colour code, swatch image and code. The image can be uploaded from the photo library or pasted as an address, and the new colour appears in the grid immediately. Prices are not shown while trade rates are unpublished.
-
-![Add a colour](docs/screenshots/materials-add-colour.png)
-
 ![Designs](docs/screenshots/e2e/06-designs.png)
 
 Thirty cover designs. The specification and finish pages stay identical, so picking a design is safe. Choose one from the order screen and the next render uses it.
@@ -163,7 +157,7 @@ Full contract in [CONTRACT.md](CONTRACT.md). The essentials:
 | POST | `/api/orders/:id/render` | render a voucher with an optional `templateId`, returns page URLs |
 | GET | `/api/templates` | the 30 brochure templates and their thumbnail URLs |
 | GET | `/previews/:templateId.png` | a template thumbnail |
-| GET | `/api/materials` | materials with `priceAmount`, `priceUnit` and `sku` |
+| GET | `/api/materials` | internal workshop finishes used by the brochure (no app screen) |
 | PATCH | `/api/materials/:id` | update a material, including its trade rate |
 | GET | `/files/:name` | the PDF |
 | GET | `/pages/:renderId/:n.png` | a page image for the in app preview |
@@ -216,7 +210,7 @@ npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, add a colour with an uploaded image, the chat creating its own order and brochure, materials, settings, deep link, mobile viewport, and the sad path when the API is down. 94 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 80 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
 
 ## Design templates
 

@@ -5,7 +5,7 @@ export function TabGlyph({
   name,
   color,
 }: {
-  name: 'orders' | 'materials' | 'settings' | 'chat';
+  name: 'orders' | 'settings' | 'chat';
   color: ColorValue;
 }) {
   if (name === 'chat') {
@@ -13,17 +13,6 @@ export function TabGlyph({
       <View style={styles.bubbles} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <View style={[styles.bubble, styles.bubbleBig, { borderColor: color }]} />
         <View style={[styles.bubble, styles.bubbleSmall, { borderColor: color }]} />
-      </View>
-    );
-  }
-
-  if (name === 'materials') {
-    return (
-      <View style={styles.grid} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <View style={[styles.gridCell, { borderColor: color }]} />
-        <View style={[styles.gridCell, { borderColor: color }]} />
-        <View style={[styles.gridCell, { borderColor: color }]} />
-        <View style={[styles.gridCell, { borderColor: color }]} />
       </View>
     );
   }
@@ -103,20 +92,6 @@ const styles = StyleSheet.create({
   line: {
     width: 10,
     height: 1.5,
-  },
-  grid: {
-    width: 17,
-    height: 17,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignContent: 'space-between',
-  },
-  gridCell: {
-    width: 7,
-    height: 7,
-    borderWidth: 1.5,
-    borderRadius: 1,
   },
   sliders: {
     width: 18,

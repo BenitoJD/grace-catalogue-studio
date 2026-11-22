@@ -42,13 +42,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="materials"
-        options={{
-          title: 'Materials',
-          tabBarIcon: ({ color }) => <TabGlyph name="materials" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
