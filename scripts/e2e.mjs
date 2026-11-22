@@ -241,6 +241,8 @@ try {
   check("chat explains what to paste", await hasText(page, "Paste everything the customer told you"));
   check("chat has a message box", (await page.$('textarea[placeholder="Paste the customer\'s requirement"]')) !== null);
   check("chat asks for a cover", await hasText(page, "Choose a cover"));
+  check("chat offers starter prompts", await hasText(page, "START WITH WHAT YOU HAVE"));
+  check("composer explains the keyboard and drop", await hasText(page, "Enter to send"));
   check("chat offers the existing covers", (await page.$$('[aria-label^="Choose cover "]')).length >= 10);
   check("chat offers no design", (await page.$('[aria-label="Choose no design, let the model design it"]')) !== null);
   check(

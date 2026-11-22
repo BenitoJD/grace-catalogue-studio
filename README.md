@@ -38,33 +38,22 @@ The studio is not stuck with what the model chose. On the order screen, under AI
 
 ## Chat first
 
-One chat is one order. The first thing the chat asks is the cover: a strip of the thirty printed designs, with **No design** as the last card. Pick a cover and that cover is printed with the model written copy; pick No design and the model designs the whole brochure for the order. The strip can be scrolled or moved with the arrows.
+One chat is one order. It opens like a premium assistant: brand avatar, timestamps, copy on every reply, starter cards for the common jobs, and a composer that takes typing, dragging or pasting.
+
+- **Starter cards**: paste a WhatsApp message, add photos or a plan, or pick a cover.
+- **Files**: attach with +, drag files onto the window, or paste an image. Any type, no filter.
+- **Keyboard**: Enter sends, Shift+Enter writes a new line. A scroll to latest button appears when you are reading back.
+- **Model status**: a Model ready pill when the language model is configured, and an Add model banner that links straight to Settings when it is not.
+- **Typing indicator** shows whether the model is Reading or Creating the order.
+- **Cover strip**: the thirty printed covers with No design as the last card. It folds away after the first message and stays one tap away as a cover summary above the composer.
+
+![The studio chat](docs/screenshots/chat-premium.png)
+
+The first thing the chat asks is the cover: pick one of the thirty printed designs and that cover is printed with the model written copy, or pick **No design** and the model designs the whole brochure for the order.
 
 ![Choosing a cover in the chat](docs/screenshots/chat-design.png)
 
 Then paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. The model pulls out the order, asks only for what is missing, and creates the order and the brochure when it has enough.
-
-
-
-The studio opens on a chat, not a form. The client dumps everything they know in one message: a WhatsApp forward, a list, a rough note. The model pulls out the order, asks only for essentials that are still missing, and says when it has enough.
-
-![Conversational intake](docs/screenshots/chat-intake.png)
-
-The assistant keeps asking until it has enough: customer, piece, room, width, height, depth, shutters. Then it creates the order by itself, writes the copy with the same model, renders the voucher and shows the first page in the conversation, with Open PDF and Open order. Nothing is pressed to make that happen.
-
-One chat is one order. Once the brochure is in the conversation, the next message starts a clean chat for the next customer, and the header button starts a new order at any time.
-
-There is no manual order form anywhere. An order exists only after the chat has asked for every missing detail and finalised it. History is read only: it lists each order with the documents it produced, the brochure cover, the page count and a direct Open PDF, so every generated file stays reachable.
-
-The **+** button in the chat attaches anything the customer sends: photographs, drawings, PDFs, spreadsheets, archives. There is no file type filter. PDF and text files are read into the model's context so dimensions on a plan are used, and every uploaded file is kept on the order and listed with it afterwards.
-
-When an order carries photographs, they replace the house photography in the voucher: the first photo becomes the cover, the next two the inside pages.
-
-![Files in the chat](docs/screenshots/chat-files.png)
-
-![Brochure made from customer photos](docs/screenshots/chat-internet-demo.png)
-
-![Brochure from the chat](docs/screenshots/chat-brochure.png)
 
 ## Generated design
 
@@ -218,7 +207,7 @@ npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 86 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 88 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
 
 ## Design templates
 
@@ -284,7 +273,7 @@ The desktop process starts the server itself through `server/src/boot.mjs`. The 
 
 The Windows installer is a custom NSIS wizard in `desktop/installer/GraceStudio.nsi`, built the same way as the Attendance Report Studio installer: Welcome, options, install, Finish with a Launch checkbox. It installs for the current Windows user into `%LOCALAPPDATA%\Programs\Grace Studio`, so there is no administrator prompt, creates a Start Menu shortcut and optionally a desktop shortcut, registers a proper Apps and Features uninstall entry, and upgrades cleanly. Data in the app data folder is never touched.
 
-`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.2.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
+`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.3.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
 
 The standalone app was built and launched on this machine: the packaged build started its embedded server, designed a brochure with the live model, and printed all four pages through the Electron engine in 1.5 seconds.
 
