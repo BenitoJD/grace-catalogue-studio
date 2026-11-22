@@ -47,7 +47,9 @@ import {
   buildAiBrochureMessages,
   compileAiBrochure,
   designLabel,
+  mergeDesignOverrides,
   parseAiDesign,
+  readCopyOverride,
 } from './ai-brochure.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
@@ -1202,8 +1204,8 @@ export function createApp(options) {
   });
 
   // The AI art director: the model designs a fresh four page document for this
-  // order and writes its copy in the same pass. The design is validated here,
-  // compiled to print safe HTML and rendered like any other document.
+  // order and writes its copy in the same pass. With overrides the studio keeps
+  // the design it already likes and re-renders only the choices it changed.
   app.post('/api/orders/:id/ai-brochure', async (c) => {
     let order = getOrder(db, c.req.param('id'));
     if (!order) return fail(c, 404, 'Order not found.');
@@ -1211,6 +1213,7 @@ export function createApp(options) {
     const parsed = await readOptionalJsonObject(c);
     if (parsed.error) return fail(c, 400, parsed.error);
     const body = parsed.body ?? {};
+
     let brief = order.brief ?? '';
     if (body.brief !== undefined) {
       if (typeof body.brief !== 'string') return fail(c, 400, 'Field "brief" must be a string.');
@@ -1218,70 +1221,134 @@ export function createApp(options) {
       if (brief !== order.brief) order = updateOrder(db, order.id, { brief });
     }
 
-    const config = resolveLlmConfig(db, llmEnv);
-    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+    let direction = order.design_direction ?? '';
+    if (body.direction !== undefined) {
+      if (typeof body.direction !== 'string') {
+        return fail(c, 400, 'Field "direction" must be a string.');
+      }
+      direction = body.direction.trim().slice(0, 1200);
+      if (direction !== (order.design_direction ?? '')) {
+        order = updateOrder(db, order.id, { design_direction: direction });
+      }
+    }
+
+    if (body.overrides !== undefined && (typeof body.overrides !== 'object' || body.overrides === null || Array.isArray(body.overrides))) {
+      return fail(c, 400, 'Field "overrides" must be an object.');
+    }
+    const overrides = body.overrides ?? null;
+
+    let copyOverride = null;
+    if (body.copy !== undefined) {
+      try {
+        copyOverride = readCopyOverride(body.copy);
+      } catch (error) {
+        return fail(c, 400, error.message, 'invalid_reply');
+      }
+    }
 
     const photoPaths = voucherPhotoFiles(order, path.join(dataDir, 'media'));
     const photoCount = photoPaths.length > 0 ? photoPaths.length : 4;
-    const messages = buildAiBrochureMessages(order, brief, photoCount);
 
     try {
-      let result = await requestChat({
-        endpoint: config.endpoint,
-        model: config.model,
-        apiKey: config.apiKey,
-        messages,
-        maxTokens: 3200,
-        temperature: 0.75,
-      });
-      let generated;
-      try {
-        generated = parseAiDesign(result.content, photoCount);
-      } catch (error) {
-        if (error?.type !== 'invalid_reply') throw error;
-        logger.warn('AI brochure design could not be read, asking once more.', { reason: error.message });
-        result = await requestChat({
+      let design;
+      let copy;
+      let generated = null;
+      let usedModel = null;
+      let latencyMs = 0;
+
+      if (overrides || copyOverride) {
+        // Re-render path: keep the design the studio has and apply its edits.
+        const previous = listRendersForOrder(db, order.id)
+          .filter((render) => render.kind === 'ai' && render.design)
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+        const base = previous?.design
+          ? { ...previous.design }
+          : {
+              tone: 'maroon',
+              type: 'editorial',
+              cover: 'fullBleed',
+              story: 'hero',
+              materials: 'grid4',
+              spec: 'twoColumn',
+              coverPhoto: 0,
+              storyPhoto: 1,
+              detailPhoto: 0,
+              statement: 'Made for the room it stands in.',
+            };
+        design = mergeDesignOverrides(base, overrides ?? {}, photoCount);
+        copy = copyOverride ?? order.copy ?? null;
+        if (!copy) {
+          return fail(c, 400, 'Write the brochure copy before changing the design.');
+        }
+        const issues = copyQualityIssues(copy, order);
+        if (issues.length > 0) logger.warn('Studio edited copy has quality notes.', { issues });
+        if (copyOverride) order = setOrderCopy(db, order.id, copy);
+      } else {
+        const config = resolveLlmConfig(db, llmEnv);
+        if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+        const messages = buildAiBrochureMessages(order, brief, photoCount, direction);
+
+        let result = await requestChat({
           endpoint: config.endpoint,
           model: config.model,
           apiKey: config.apiKey,
-          messages: [
-            ...messages,
-            { role: 'assistant', content: capText(result.content, 1500) },
-            {
-              role: 'user',
-              content:
-                'That reply was not usable. Reply with the strict JSON object only, no prose, using the exact field names and allowed values.',
-            },
-          ],
+          messages,
           maxTokens: 3200,
-          temperature: 0.4,
+          temperature: 0.75,
         });
-        generated = parseAiDesign(result.content, photoCount);
+        let parsedDesign;
+        try {
+          parsedDesign = parseAiDesign(result.content, photoCount);
+        } catch (error) {
+          if (error?.type !== 'invalid_reply') throw error;
+          logger.warn('AI brochure design could not be read, asking once more.', { reason: error.message });
+          result = await requestChat({
+            endpoint: config.endpoint,
+            model: config.model,
+            apiKey: config.apiKey,
+            messages: [
+              ...messages,
+              { role: 'assistant', content: capText(result.content, 1500) },
+              {
+                role: 'user',
+                content:
+                  'That reply was not usable. Reply with the strict JSON object only, no prose, using the exact field names and allowed values.',
+              },
+            ],
+            maxTokens: 3200,
+            temperature: 0.4,
+          });
+          parsedDesign = parseAiDesign(result.content, photoCount);
+        }
+        generated = parsedDesign;
+        design = parsedDesign.design;
+        copy = parsedDesign.copy;
+
+        let issues = copyQualityIssues(copy, order);
+        if (issues.length > 0) {
+          logger.warn('AI brochure copy needs a repair pass.', { issues });
+          const repair = await requestChat({
+            endpoint: config.endpoint,
+            model: config.model,
+            apiKey: config.apiKey,
+            messages: buildCopyRepairMessages(order, brief, copy, issues),
+            maxTokens: COPY_MAX_TOKENS,
+            temperature: COPY_TEMPERATURE,
+          });
+          copy = parseCopyReply(repair.content);
+          issues = copyQualityIssues(copy, order);
+          if (issues.length > 0) logger.warn('AI brochure copy still has issues.', { issues });
+        }
+        usedModel = result.model;
+        latencyMs = result.latencyMs;
       }
 
-      let copy = generated.copy;
-      let issues = copyQualityIssues(copy, order);
-      if (issues.length > 0) {
-        logger.warn('AI brochure copy needs a repair pass.', { issues });
-        const repair = await requestChat({
-          endpoint: config.endpoint,
-          model: config.model,
-          apiKey: config.apiKey,
-          messages: buildCopyRepairMessages(order, brief, copy, issues),
-          maxTokens: COPY_MAX_TOKENS,
-          temperature: COPY_TEMPERATURE,
-        });
-        copy = parseCopyReply(repair.content);
-        issues = copyQualityIssues(copy, order);
-        if (issues.length > 0) logger.warn('AI brochure copy still has issues.', { issues });
-      }
-
-      const palette = variants.palettesById.get(generated.design.tone) ?? variants.palettes[0];
+      const palette = variants.palettesById.get(design.tone) ?? variants.palettes[0];
       const html = compileAiBrochure({
         order,
         materials: listMaterials(db),
         palette,
-        design: generated.design,
+        design,
         copy,
         templatesDir,
         attachmentImages: photoPaths,
@@ -1296,10 +1363,10 @@ export function createApp(options) {
         pdfUrl: rendered.pdfUrl,
         pageUrls: rendered.pageUrls,
         templateId: null,
-        design: { ...generated.design, label: designLabel(generated.design) },
+        design: { ...design, label: designLabel(design) },
       });
       setOrderCopy(db, order.id, copy);
-      return c.json({ render, design: generated.design, copy, model: result.model, latencyMs: result.latencyMs }, 201);
+      return c.json({ render, design, copy, direction, model: usedModel, latencyMs }, 201);
     } catch (error) {
       return llmFailureResponse(c, error);
     }

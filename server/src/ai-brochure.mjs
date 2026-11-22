@@ -53,6 +53,7 @@ const DESIGN_KIT = [
   'Design rules:',
   '- Choose the tone and type that suit the room and the piece: maroon for classic warmth, teal for calm, copper for wood, sandal for gold, peacock for depth. Vary them from order to order.',
   '- Avoid the obvious default. A split cover with editorial type is the safe answer, so use it for at most one order in three. Prefer masthead, bandTop or framed covers, and mix modern and classic type.',
+  '- If the user message includes a studio direction, let it decide the mood, palette and composition. Follow it where it fits the allowed values; where it conflicts, keep the design printable and choose the closest allowed option.',
   '- Choose the cover that suits the photographs: fullBleed for one strong photo, split for two, framed for a quieter document, masthead or bandTop for a graphic one.',
   '- coverPhoto, storyPhoto and detailPhoto are indexes into the available photographs, starting at 0. They may repeat if there is only one photo.',
   '- statement is the large line on the story page: a phrase, not a sentence of sales copy.',
@@ -69,7 +70,7 @@ const DESIGN_KIT = [
 ].join(' ');
 
 
-export function buildAiBrochureMessages(order, brief, photoCount) {
+export function buildAiBrochureMessages(order, brief, photoCount, direction = '') {
   const facts = [
     `Order: ${order.title}`,
     `Room: ${order.room}`,
@@ -89,7 +90,14 @@ export function buildAiBrochureMessages(order, brief, photoCount) {
     { role: 'system', content: DESIGN_KIT },
     {
       role: 'user',
-      content: `${facts}\n\nPhotographs available: ${photoCount}.\nCustomer brief, use only what is useful:\n${clean(brief) || '(none supplied)'}`,
+      content: [
+        facts,
+        `Photographs available: ${photoCount}.`,
+        `Customer brief, use only what is useful:\n${clean(brief) || '(none supplied)'}`,
+        clean(direction)
+          ? `Studio direction for this brochure, follow it:\n${clean(direction)}`
+          : 'Studio direction: none given. Choose the composition that suits the piece.',
+      ].join('\n\n'),
     },
   ];
 }
@@ -702,6 +710,49 @@ function specificationHtml(values, design) {
     <div class="abs" style="left:18mm; top:58mm; width:82mm;">${rowsHtml([...groups[0].facts, ...groups[2].facts])}</div>
     <div class="abs" style="left:110mm; top:58mm; width:82mm;">${rowsHtml(groups[1].facts)}</div>
     ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
+}
+
+/** Merge studio overrides into a design that already exists. */
+export function mergeDesignOverrides(base, overrides, photoCount = 1) {
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+    throw new LlmError('The design overrides could not be read.', { type: 'invalid_reply' });
+  }
+  const design = { ...base };
+  if (overrides.tone !== undefined) {
+    const tone = clean(overrides.tone);
+    design.tone = pickEnum(TONE_ALIASES[tone.toLowerCase()] ?? tone, TONES, 'tone', design.tone);
+  }
+  if (overrides.type !== undefined) design.type = pickEnum(overrides.type, TYPES, 'type', design.type);
+  if (overrides.cover !== undefined) design.cover = pickEnum(overrides.cover, COVERS, 'cover', design.cover);
+  if (overrides.story !== undefined) {
+    const story = clean(overrides.story);
+    design.story = STORY_ALIASES[story] ?? pickEnum(story, STORY_LAYOUTS, 'story', design.story);
+  }
+  if (overrides.materials !== undefined) {
+    design.materials = pickEnum(overrides.materials, MATERIALS_LAYOUTS, 'materials', design.materials);
+  }
+  if (overrides.spec !== undefined) design.spec = pickEnum(overrides.spec, SPECS, 'spec', design.spec);
+  if (overrides.coverPhoto !== undefined) design.coverPhoto = pickPhoto(overrides.coverPhoto, photoCount, design.coverPhoto ?? 0);
+  if (overrides.storyPhoto !== undefined) design.storyPhoto = pickPhoto(overrides.storyPhoto, photoCount, design.storyPhoto ?? 0);
+  if (overrides.detailPhoto !== undefined) design.detailPhoto = pickPhoto(overrides.detailPhoto, photoCount, design.detailPhoto ?? 0);
+  if (overrides.statement !== undefined) {
+    design.statement = capText(overrides.statement, 100) || design.statement;
+  }
+  return design;
+}
+
+/** Validate a copy object the studio edited by hand. */
+export function readCopyOverride(copy) {
+  if (!copy || typeof copy !== 'object' || Array.isArray(copy)) {
+    throw new LlmError('The brochure copy could not be read.', { type: 'invalid_reply' });
+  }
+  const headline = capText(copy.headline, 120);
+  const body = capText(copy.body, 2400);
+  const closing = capText(copy.closing, 160);
+  if (!headline || body.split(/\s+/).filter(Boolean).length < 20) {
+    throw new LlmError('The brochure copy needs a headline and a body.', { type: 'invalid_reply' });
+  }
+  return { headline, body, closing };
 }
 
 /** Compile a validated design into one print ready HTML document. */

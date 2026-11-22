@@ -271,8 +271,17 @@ Entries expire after `LLM_CACHE_TTL_HOURS` (default 168, 0 disables). Expiry is 
 
 ## Generated brochures
 
-`POST /api/orders/:id/ai-brochure` asks the model for a complete design and its
-copy in one reply:
+`POST /api/orders/:id/ai-brochure` accepts:
+
+```json
+{"brief":"...", "direction":"warmer and more festive", "overrides":{"tone":"teal","type":"classic","cover":"framed","story":"collage","materials":"band","spec":"cards","statement":"..."}, "copy":{"headline":"...","body":"...","closing":"..."}}
+```
+
+With no `overrides` the model returns a complete design and its copy in one
+reply. With `overrides` the server keeps the latest AI design, applies only the
+fields sent, and re-renders without calling the provider; `copy` is required
+then. `direction` is stored on the order as `designDirection` (schema v8) and
+passed to the model on later generations. The design reply shape is:
 
 ```json
 {"design":{"tone":"...","type":"...","cover":"...","story":"hero|editorial|diptych|collage","materials":"grid4|filmstrip|band|museum|stacked","spec":"twoColumn|threeColumn|ledger|cards|stacked","coverPhoto":0,"storyPhoto":1,"detailPhoto":2,"statement":"..."},"copy":{"headline":"...","body":"...","closing":"..."}}

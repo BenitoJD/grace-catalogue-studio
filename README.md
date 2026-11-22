@@ -24,6 +24,18 @@ Three documents come out of the same data.
 
 ![Info kit](docs/screenshots/info-kit.png)
 
+## Design direction and editing
+
+The studio is not stuck with what the model chose. On the order screen, under AI design:
+
+- **Direction.** Type how the brochure should feel in plain words, for example "warmer and more festive, maroon and gold, big Tamil title, like a coffee table book". The model reads it before it designs, and the order remembers it for later generations.
+- **Choices.** Every decision is on screen as a chip: palette, type, cover, story, materials and specification. Change any of them.
+- **Re-render without the model.** Ask the model to redesign with the direction, or re-render immediately with the choices on screen. The direct re-render takes about a second and makes no model call.
+- **Words.** The story line, headline, body and closing are editable fields. Change a word and re-render.
+- **Template instead.** A template option sits beside the AI design. The thirty hand-built designs remain available from Use a template instead and from Change design, and they use the same copy.
+
+![Design direction and editing](docs/screenshots/design-editor.png)
+
 ## Chat first
 
 The studio opens on a chat, not a form. The client dumps everything they know in one message: a WhatsApp forward, a list, a rough note. The model pulls out the order, asks only for essentials that are still missing, and says when it has enough.

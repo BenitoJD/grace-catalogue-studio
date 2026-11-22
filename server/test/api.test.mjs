@@ -3488,3 +3488,50 @@ test('an unreadable design is retried once and then fails cleanly', { timeout: 1
   assert.equal(body.error.type, 'invalid_reply');
   assert.equal(mockProviderState.requests.length, 2, 'one retry, then the failure is surfaced');
 });
+
+
+test('the studio can edit a generated design without asking the model again', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify(AI_DESIGN_REPLY) });
+
+  const first = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
+  const requestsBefore = mockProviderState.requests.length;
+
+  const editedCopy = {
+    ...AI_DESIGN_REPLY.copy,
+    headline: 'A calmer wardrobe for the guest room',
+  };
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {
+    direction: 'warmer and more festive, like a coffee table book',
+    overrides: {
+      tone: 'teal',
+      type: 'classic',
+      cover: 'masthead',
+      story: 'diptych',
+      materials: 'band',
+      spec: 'ledger',
+      statement: 'A calmer wall for the guest room.',
+    },
+    copy: editedCopy,
+  });
+  const raw = await response.text();
+  assert.equal(response.status, 201, raw);
+  const edited = JSON.parse(raw);
+  assert.equal(edited.design.tone, 'teal');
+  assert.equal(edited.design.cover, 'masthead');
+  assert.equal(edited.design.story, 'diptych');
+  assert.equal(edited.design.materials, 'band');
+  assert.equal(edited.design.statement, 'A calmer wall for the guest room.');
+  assert.equal(edited.copy.headline, editedCopy.headline);
+  assert.match(edited.render.design.label, /classic/i);
+  assert.equal(mockProviderState.requests.length, requestsBefore, 'editing does not call the model');
+
+  const detail = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
+  assert.equal(detail.designDirection, 'warmer and more festive, like a coffee table book');
+  assert.equal(detail.copy.headline, editedCopy.headline);
+
+  const coverEdited = Buffer.from(await (await fetch(`${baseUrl}${edited.render.pageUrls[0]}`)).arrayBuffer());
+  const coverFirst = Buffer.from(await (await fetch(`${baseUrl}${first.render.pageUrls[0]}`)).arrayBuffer());
+  assert.notEqual(hashBytes(coverEdited), hashBytes(coverFirst), 'the edited cover differs');
+});

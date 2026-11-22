@@ -49,6 +49,7 @@ export const ORDER_TEXT_FIELDS = [
   'finishExt',
   'finishInt',
   'brief',
+  'design_direction',
 ];
 
 // The schema is versioned with PRAGMA user_version. Version 1 is the original
@@ -57,7 +58,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -269,6 +270,15 @@ export const MIGRATIONS = Object.freeze([
       // The AI designed documents keep the composition and labels they used,
       // so the studio can show how each brochure was made.
       addColumnIfMissing(db, 'renders', 'design_json', 'TEXT');
+    },
+  },
+  {
+    version: 8,
+    name: 'design direction',
+    up(db) {
+      // Free text from the studio on how the brochure should feel. The model
+      // reads it before it designs, and the next generation remembers it.
+      addColumnIfMissing(db, 'orders', 'design_direction', 'TEXT');
     },
   },
 ]);
@@ -490,6 +500,8 @@ function orderFromRow(row) {
   if (!order) return null;
   order.copy = parseOrderCopy(order.copy_json);
   order.attachments = parseOrderAttachments(order.attachments_json);
+  order.designDirection = typeof order.design_direction === 'string' ? order.design_direction : '';
+  delete order.design_direction;
   return order;
 }
 

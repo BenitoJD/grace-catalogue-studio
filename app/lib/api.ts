@@ -37,6 +37,28 @@ export const API_BASE_URL = normaliseBaseUrl(rawBaseUrl) || defaultBaseUrl();
 
 export type OrderStatus = 'draft' | 'approved';
 
+/** The choices the model made for a generated brochure. */
+export interface AiDesign {
+  tone: string;
+  type: string;
+  cover: string;
+  story: string;
+  materials: string;
+  spec: string;
+  statement: string;
+  coverPhoto?: number;
+  storyPhoto?: number;
+  detailPhoto?: number;
+  label?: string | null;
+}
+
+export interface AiBrochureBody {
+  brief?: string;
+  direction?: string;
+  overrides?: Partial<Omit<AiDesign, 'label'>>;
+  copy?: BrochureCopy;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -73,6 +95,7 @@ export interface Order {
   finishInt: string;
   status: OrderStatus;
   brief?: string;
+  designDirection?: string;
   copy?: BrochureCopy | null;
   attachments?: OrderAttachment[];
   createdAt: string;
@@ -375,8 +398,13 @@ export const api = {
   },
   aiBrochure(
     orderId: string,
-    body: { brief?: string } = {}
-  ): Promise<{ render: Render; design: Record<string, unknown>; copy: BrochureCopy }> {
+    body: AiBrochureBody = {}
+  ): Promise<{
+    render: Render;
+    design: AiDesign;
+    copy: BrochureCopy;
+    direction?: string;
+  }> {
     return request(`/api/orders/${orderId}/ai-brochure`, {
       method: 'POST',
       body,

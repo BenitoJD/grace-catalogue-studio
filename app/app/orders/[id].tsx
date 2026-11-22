@@ -25,6 +25,7 @@ import {
   api,
   errorMessage,
   fileUrl,
+  type AiDesign,
   type BrochureCopy,
   type Order,
   type OrderNote,
@@ -35,6 +36,81 @@ import { displayValue, formatDate, pageCountLabel, statusLabel } from '@/lib/for
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
 const PAGE_ASPECT = 794 / 1123;
+
+const TONE_OPTIONS = [
+  { value: 'maroon', label: 'Maroon' },
+  { value: 'teal', label: 'Teal' },
+  { value: 'copper', label: 'Copper' },
+  { value: 'sandal', label: 'Sandal' },
+  { value: 'peacock', label: 'Peacock' },
+];
+const TYPE_OPTIONS = [
+  { value: 'editorial', label: 'Editorial' },
+  { value: 'modern', label: 'Modern' },
+  { value: 'classic', label: 'Classic' },
+];
+const COVER_OPTIONS = [
+  { value: 'fullBleed', label: 'Full bleed' },
+  { value: 'splitLeft', label: 'Photo left' },
+  { value: 'splitRight', label: 'Photo right' },
+  { value: 'masthead', label: 'Masthead' },
+  { value: 'bandTop', label: 'Photo top' },
+  { value: 'framed', label: 'Framed' },
+];
+const STORY_OPTIONS = [
+  { value: 'hero', label: 'Hero' },
+  { value: 'editorial', label: 'Editorial' },
+  { value: 'diptych', label: 'Diptych' },
+  { value: 'collage', label: 'Collage' },
+];
+const MATERIALS_OPTIONS = [
+  { value: 'grid4', label: 'Grid' },
+  { value: 'filmstrip', label: 'Filmstrip' },
+  { value: 'band', label: 'Band' },
+  { value: 'museum', label: 'Museum' },
+  { value: 'stacked', label: 'Stacked' },
+];
+const SPEC_OPTIONS = [
+  { value: 'twoColumn', label: 'Two column' },
+  { value: 'threeColumn', label: 'Three column' },
+  { value: 'ledger', label: 'Ledger' },
+  { value: 'cards', label: 'Cards' },
+  { value: 'stacked', label: 'Stacked' },
+];
+
+function ChoiceRow({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  value: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <View style={styles.choiceBlock}>
+      <Text style={[text.caption, styles.choiceLabel]}>{label}</Text>
+      <View style={styles.chipRow}>
+        {options.map((option) => {
+          const active = option.value === value;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityLabel={`${label}: ${option.label}`}
+              onPress={() => onChange(option.value)}
+              style={[styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
 
 const SPEC_SECTIONS: {
   title: string;
@@ -121,6 +197,12 @@ export default function OrderDetailScreen() {
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [aiDesign, setAiDesign] = useState<AiDesign | null>(null);
+  const [aiDirection, setAiDirection] = useState('');
+  const [aiCopy, setAiCopy] = useState<BrochureCopy | null>(null);
+  const [designLoading, setDesignLoading] = useState(false);
+  const [designError, setDesignError] = useState<string | null>(null);
+  const [designStatus, setDesignStatus] = useState<string | null>(null);
   const chosenTemplate = routeTemplateId;
 
   const loadOrder = useCallback(async () => {
@@ -134,6 +216,8 @@ export default function OrderDetailScreen() {
     try {
       const next = await api.getOrder(orderId);
       setOrder(next);
+      setAiDirection(next.designDirection ?? '');
+      setAiCopy(next.copy ?? null);
     } catch (fetchError) {
       setLoadError(errorMessage(fetchError, 'The order could not be loaded. Try again.'));
     } finally {
@@ -152,6 +236,10 @@ export default function OrderDetailScreen() {
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
       if (mine.length > 0) {
         setRender(mine[0]);
+        const latestAi = mine.find((candidate) => candidate.kind === 'ai' && candidate.design);
+        if (latestAi?.design) {
+          setAiDesign(latestAi.design as unknown as AiDesign);
+        }
       }
     } catch {
       // No previous render is not an error. The person can generate a new one.
@@ -248,6 +336,94 @@ export default function OrderDetailScreen() {
       setCopyLoading(false);
     }
   }, [briefDraft, copyLoading, order, orderId]);
+
+  const updateDesign = useCallback((patch: Partial<AiDesign>) => {
+    setAiDesign((current) => (current ? { ...current, ...patch } : current));
+  }, []);
+
+  const updateCopy = useCallback(
+    (patch: Partial<BrochureCopy>) => {
+      setAiCopy((current) => ({
+        ...(current ?? order?.copy ?? { headline: '', body: '', closing: '' }),
+        ...patch,
+      }));
+    },
+    [order?.copy]
+  );
+
+  const designWithModel = useCallback(async () => {
+    if (!orderId || designLoading) {
+      return;
+    }
+    setDesignLoading(true);
+    setDesignError(null);
+    setDesignStatus(null);
+    try {
+      const result = await api.aiBrochure(orderId, {
+        direction: aiDirection,
+        brief: briefDraft ?? order?.brief ?? '',
+      });
+      setAiDesign(result.design);
+      setAiCopy(result.copy);
+      setWrittenCopy(result.copy);
+      setRender(result.render);
+      setOrder((current) =>
+        current
+          ? { ...current, copy: result.copy, designDirection: result.direction ?? aiDirection }
+          : current
+      );
+      setDesignStatus('A new brochure was designed and rendered.');
+    } catch (error) {
+      setDesignError(
+        errorMessage(error, 'The model could not design this brochure. Check the model settings.')
+      );
+    } finally {
+      setDesignLoading(false);
+    }
+  }, [aiDirection, briefDraft, designLoading, order, orderId]);
+
+  const rerenderDesign = useCallback(async () => {
+    if (!orderId || !aiDesign || designLoading) {
+      return;
+    }
+    const copy = aiCopy ?? order?.copy ?? null;
+    if (!copy) {
+      setDesignError('Write the brochure copy first, then re-render the design.');
+      return;
+    }
+    setDesignLoading(true);
+    setDesignError(null);
+    setDesignStatus(null);
+    try {
+      const result = await api.aiBrochure(orderId, {
+        direction: aiDirection,
+        overrides: {
+          tone: aiDesign.tone,
+          type: aiDesign.type,
+          cover: aiDesign.cover,
+          story: aiDesign.story,
+          materials: aiDesign.materials,
+          spec: aiDesign.spec,
+          statement: aiDesign.statement,
+        },
+        copy,
+      });
+      setAiDesign(result.design);
+      setAiCopy(result.copy);
+      setWrittenCopy(result.copy);
+      setRender(result.render);
+      setOrder((current) =>
+        current
+          ? { ...current, copy: result.copy, designDirection: result.direction ?? aiDirection }
+          : current
+      );
+      setDesignStatus('The brochure was re-rendered with your choices.');
+    } catch (error) {
+      setDesignError(errorMessage(error, 'The design could not be re-rendered.'));
+    } finally {
+      setDesignLoading(false);
+    }
+  }, [aiCopy, aiDesign, aiDirection, designLoading, order, orderId]);
 
   const draftNote = useCallback(async () => {
     if (!orderId || noteLoading) {
@@ -376,6 +552,134 @@ export default function OrderDetailScreen() {
                   })}
                 </View>
               ))}
+
+              <View style={styles.voucherSection}>
+                <View style={shared.rowBetween}>
+                  <Text style={text.sectionLabel}>AI design</Text>
+                  <Text style={text.caption}>{aiDesign?.label ?? 'Not designed yet'}</Text>
+                </View>
+                <Text style={[text.muted, styles.voucherIntro]}>
+                  Say how the brochure should feel, then let the model design it. Change any choice
+                  and re-render without asking the model again.
+                </Text>
+                <View style={styles.briefField}>
+                  <Field
+                    label="Design direction"
+                    value={aiDirection}
+                    onChangeText={setAiDirection}
+                    placeholder="Warm and festive, quiet and minimal, big Tamil title, like a coffee table book"
+                    multiline
+                    maxLength={1200}
+                  />
+                </View>
+                {aiDesign ? (
+                  <>
+                    <ChoiceRow
+                      label="Palette"
+                      options={TONE_OPTIONS}
+                      value={aiDesign.tone}
+                      onChange={(tone) => updateDesign({ tone })}
+                    />
+                    <ChoiceRow
+                      label="Type"
+                      options={TYPE_OPTIONS}
+                      value={aiDesign.type}
+                      onChange={(type) => updateDesign({ type })}
+                    />
+                    <ChoiceRow
+                      label="Cover"
+                      options={COVER_OPTIONS}
+                      value={aiDesign.cover}
+                      onChange={(cover) => updateDesign({ cover })}
+                    />
+                    <ChoiceRow
+                      label="Story"
+                      options={STORY_OPTIONS}
+                      value={aiDesign.story}
+                      onChange={(story) => updateDesign({ story })}
+                    />
+                    <ChoiceRow
+                      label="Materials"
+                      options={MATERIALS_OPTIONS}
+                      value={aiDesign.materials}
+                      onChange={(materials) => updateDesign({ materials })}
+                    />
+                    <ChoiceRow
+                      label="Specification"
+                      options={SPEC_OPTIONS}
+                      value={aiDesign.spec}
+                      onChange={(spec) => updateDesign({ spec })}
+                    />
+                    <View style={styles.briefField}>
+                      <Field
+                        label="Story line"
+                        value={aiDesign.statement}
+                        onChangeText={(statement) => updateDesign({ statement })}
+                        maxLength={100}
+                      />
+                    </View>
+                    <View style={styles.briefField}>
+                      <Field
+                        label="Headline"
+                        value={aiCopy?.headline ?? order?.copy?.headline ?? ''}
+                        onChangeText={(headline) => updateCopy({ headline })}
+                        maxLength={120}
+                      />
+                    </View>
+                    <View style={styles.briefField}>
+                      <Field
+                        label="Body"
+                        value={aiCopy?.body ?? order?.copy?.body ?? ''}
+                        onChangeText={(body) => updateCopy({ body })}
+                        multiline
+                        maxLength={2400}
+                      />
+                    </View>
+                    <View style={styles.briefField}>
+                      <Field
+                        label="Closing"
+                        value={aiCopy?.closing ?? order?.copy?.closing ?? ''}
+                        onChangeText={(closing) => updateCopy({ closing })}
+                        maxLength={160}
+                      />
+                    </View>
+                  </>
+                ) : null}
+                {designError ? <Text style={[text.muted, styles.noteError]}>{designError}</Text> : null}
+                {designStatus ? <Text style={[text.muted, styles.noteStatus]}>{designStatus}</Text> : null}
+                <View style={styles.generateAction}>
+                  <Button
+                    label={aiDesign ? 'Ask the model to redesign' : 'Design with the model'}
+                    loading={designLoading}
+                    loadingLabel="Designing"
+                    onPress={() => void designWithModel()}
+                  />
+                </View>
+                {aiDesign ? (
+                  <View style={styles.generateAction}>
+                    <Button
+                      label="Re-render with these choices"
+                      variant="secondary"
+                      loading={designLoading}
+                      loadingLabel="Rendering"
+                      onPress={() => void rerenderDesign()}
+                    />
+                  </View>
+                ) : null}
+                <View style={styles.generateAction}>
+                  <Button
+                    label="Use a template instead"
+                    variant="secondary"
+                    onPress={() => {
+                      if (!orderId) return;
+                      router.push({
+                        pathname: '/templates',
+                        params: { orderId, selected: currentTemplate?.id ?? '' },
+                      });
+                    }}
+                  />
+                </View>
+              </View>
 
               <View style={styles.voucherSection}>
                 <View style={shared.rowBetween}>
@@ -781,6 +1085,37 @@ const styles = StyleSheet.create({
   },
   kitActions: {
     gap: space.sm,
+  },
+  choiceBlock: {
+    marginTop: space.md,
+  },
+  choiceLabel: {
+    marginBottom: space.sm,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+  },
+  chip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    backgroundColor: colors.surface,
+    paddingHorizontal: space.md,
+    paddingVertical: 7,
+  },
+  chipActive: {
+    borderColor: colors.copper,
+    backgroundColor: colors.copperSoft,
+  },
+  chipText: {
+    fontSize: 13,
+    color: colors.muted,
+  },
+  chipTextActive: {
+    color: colors.copper,
+    fontWeight: '600',
   },
   briefField: {
     marginTop: space.md,
