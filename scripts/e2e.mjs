@@ -260,6 +260,11 @@ try {
   }
   await page.screenshot({ path: `${shots}/00-chat.png` });
 
+  await page.click('[aria-label="History"]');
+  check("the tab bar opens history", await hasText(page, "Every order the chat has made"));
+  await page.click('[aria-label="Chat"]');
+  check("the tab bar returns to chat", await hasText(page, "Studio chat"));
+
   await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
   check("history loads", await hasText(page, "Grace Wood"));
   check("seeded orders show", await hasText(page, "GWI-2026-001"));

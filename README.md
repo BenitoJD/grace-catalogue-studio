@@ -197,7 +197,9 @@ Rendering is queued per process so two requests cannot write into the same build
 | copper | `#A65E22` |
 | hairline | `#DCDCE2` |
 
-The application follows Apple's grouped interface: the system font at native sizes, white cards on a grouped grey background, one brand tint, 14 point rounded cards, pill buttons and an iOS style tab bar. Printed brochures keep their own editorial typography; only the app is Apple styled.
+The navigation is a floating dock on a wide window and a full width bar on a phone: line icons, an active tinted tab, hover states on desktop and Alt+1, 2, 3 shortcuts between Chat, History and Settings.
+
+![The navigation dock](docs/screenshots/tab-bar.png) The rest of the application follows Apple's grouped interface: the system font at native sizes, white cards on a grouped grey background, one brand tint, 14 point rounded cards, pill buttons and an iOS style tab bar. Printed brochures keep their own editorial typography; only the app is Apple styled.
 
 House rules for copy: short sentences, no em dashes or en dashes, a middot for separators. Say what the person should do next, not what the system did.
 
@@ -211,7 +213,7 @@ npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 91 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 93 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
 
 ## Design templates
 
@@ -277,7 +279,7 @@ The desktop process starts the server itself through `server/src/boot.mjs`. The 
 
 The Windows installer is a custom NSIS wizard in `desktop/installer/GraceStudio.nsi`, built the same way as the Attendance Report Studio installer: Welcome, options, install, Finish with a Launch checkbox. It installs for the current Windows user into `%LOCALAPPDATA%\Programs\Grace Studio`, so there is no administrator prompt, creates a Start Menu shortcut and optionally a desktop shortcut, registers a proper Apps and Features uninstall entry, and upgrades cleanly. Data in the app data folder is never touched.
 
-`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.4.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
+`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.5.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
 
 The standalone app was built and launched on this machine: the packaged build started its embedded server, designed a brochure with the live model, and printed all four pages through the Electron engine in 1.5 seconds.
 
