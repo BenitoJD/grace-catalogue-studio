@@ -4017,7 +4017,8 @@ test('the picture review circles likely details and shows the palette', { timeou
     assert.equal(photo.analysis.candidates.length, 3);
     for (const candidate of photo.analysis.candidates) {
       assert.ok(candidate.x > 0 && candidate.x < 100);
-      assert.ok(candidate.y > 0 && candidate.y < 100);
+      // Never the floor or the ceiling: circles stay in the joinery band.
+      assert.ok(candidate.y > 20 && candidate.y < 80, `candidate y ${candidate.y}`);
       assert.ok(candidate.label.startsWith('Detail'));
       // Every magnified circle names the colour inside it.
       assert.match(candidate.hex, /^#[0-9A-F]{6}$/i);

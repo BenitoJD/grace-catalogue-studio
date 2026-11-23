@@ -1,7 +1,7 @@
 {
   "name": "jacob-design-studio-desktop",
   "productName": "Jacob Design Studio",
-  "version": "1.0.30",
+  "version": "1.0.31",
   "private": true,
   "description": "Jacob Design Studio desktop wrapper (Electron) around the Expo web build",
   "author": "Jacob Design Studio",

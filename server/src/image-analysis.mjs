@@ -46,6 +46,12 @@ export function analyseImage(filePath) {
     cell.push({ pixel, index });
   });
 
+  // A showroom picture is almost always floor at the bottom and ceiling with
+  // fans and lights at the top. The interesting work is the joinery in between,
+  // so those bands are never offered as magnified details.
+  const FLOOR_BAND = 0.22;
+  const CEILING_BAND = 0.24;
+
   const scored = cells.map((cell, cellIndex) => {
     if (cell.length === 0) return { score: -1, cellIndex };
     const mean = cell.reduce(
@@ -59,13 +65,23 @@ export function analyseImage(filePath) {
     }
     energy /= Math.max(1, cell.length - 1);
     const distinct = distance(mean, globalMean);
-    return { score: energy * 1.6 + distinct, cellIndex, mean };
+    // Flat areas (a bare wall, a plain floor) carry no detail worth a loupe.
+    const flatness = cell.reduce(
+      (acc, entry) => acc + Math.abs(luminance(entry.pixel) - luminance(cell[0].pixel)),
+      0,
+    ) / Math.max(1, cell.length);
+    const gx = cellIndex % GRID;
+    const gy = Math.floor(cellIndex / GRID);
+    const centreY = (gy + 0.5) / GRID;
+    const outside = centreY < CEILING_BAND || centreY > 1 - FLOOR_BAND;
+    const score = outside ? -1 : energy * 1.6 + distinct * 0.7 + flatness * 0.8;
+    return { score, cellIndex };
   });
 
   scored.sort((a, b) => b.score - a.score);
   const chosen = [];
   for (const candidate of scored) {
-    if (candidate.score < 0) continue;
+    if (candidate.score <= 0) continue;
     const gx = candidate.cellIndex % GRID;
     const gy = Math.floor(candidate.cellIndex / GRID);
     const tooClose = chosen.some(([cx, cy]) => Math.abs(cx - gx) <= 1 && Math.abs(cy - gy) <= 1);
@@ -77,9 +93,9 @@ export function analyseImage(filePath) {
   // A flat picture, such as a colour chip upload, offers no busy areas. The
   // review still needs circles to offer, so spread a few across the frame.
   const fallback = [
-    [30, 32],
-    [68, 46],
-    [48, 72],
+    [32, 34],
+    [70, 46],
+    [46, 68],
   ];
   for (const [fx, fy] of fallback) {
     if (chosen.length >= DETAILS) break;
