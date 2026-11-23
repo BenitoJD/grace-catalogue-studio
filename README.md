@@ -27,7 +27,8 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again.
 - **The palette comes from the pictures and gets showroom names.** The engine decodes each photograph, then names its four dominant colours the way a paint card does: Warm Ivory, Oat, Sand Beige, Walnut. The brochure prints colour option strips, four named swatch chips with their hex values, so the pages mirror the project instead of an invented palette.
 - **The pages look like the project.** Type, photographs and colour are composed to belong with the pictures supplied.
-- **The picture review.** As soon as pictures are attached the studio analyses them and shows the picture back with magnified circles on the details worth seeing. Each circle is an enlarged cut of that same picture (using the published picture, no phone screenshot) and is named with the colour inside it, so the client reads Oat, Walnut, Greige at a glance. The palette is printed under the picture, and the studio asks what to magnify before any brochure exists.
+- **The picture review.** As soon as pictures are attached the studio analyses them and shows each picture back large, with magnified circles on the details worth seeing. Each circle is a four times enlarged cut of that same picture and is named with the colour inside it, name plus hex code, so the client reads Oat #C9B996 or Walnut #794617 at a glance. The palette is printed under the picture with every code, and the studio asks what to magnify before any brochure exists.
+- **PDF sheets are pictures too.** The studio can send the design as a PDF. The first page is rasterised on the machine and joins the review, the palette and the brochure exactly like a photograph.
 
 ![The picture review: circled details and the palette](docs/screenshots/picture-review.png)
 
@@ -134,7 +135,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 112 server tests
+npm test          # 113 server tests
 npm run verify    # black box smoke test
 npm run e2e       # 98 browser checks
 npm run typecheck

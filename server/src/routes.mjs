@@ -106,8 +106,14 @@ import {
   validateProvider,
 } from './llm.mjs';
 import { createLogger, parseLogLevel } from './logger.mjs';
-import { colourName, photoPalettesFor } from './image-palette.mjs';
-import { analyseMediaFiles } from './image-analysis.mjs';
+import { colourName, photoPalette } from './image-palette.mjs';
+import { analyseImage } from './image-analysis.mjs';
+import {
+  ensurePdfPreview,
+  isPdf,
+  orderPhotoPaths,
+  pdfPreviewDir,
+} from './pdf-preview.mjs';
 import { buildKitValues, createRenderer, newRenderId } from './render.mjs';
 import {
   RATE_CARD_TEMPLATE,
@@ -740,15 +746,22 @@ export function createApp(options) {
 
   // The colours read from this order's own photographs. The brochure prints
   // them, and the studio wants to see the same chips on screen.
-  app.get('/api/orders/:id/palettes', (c) => {
+  app.get('/api/orders/:id/palettes', async (c) => {
     const order = getOrder(db, c.req.param('id'));
     if (!order) return fail(c, 404, 'Order not found.');
-    const palettes = photoPalettesFor(order, path.join(dataDir, 'media'));
+    const paths = await orderPhotoPaths(order, {
+      mediaDir: path.join(dataDir, 'media'),
+      dataDir,
+      pdftoppmBin,
+    });
+    const palettes = paths
+      .map((filePath, index) => ({ photo: `photo${index + 1}`, colors: photoPalette(filePath) }))
+      .filter((entry) => Array.isArray(entry.colors) && entry.colors.length > 0);
     return c.json({
-      palettes: Object.entries(palettes).map(([photo, colors]) => ({
-        photo,
-        colors,
-        names: colors.map((hex) => colourName(hex)),
+      palettes: palettes.map((entry) => ({
+        photo: entry.photo,
+        colors: entry.colors,
+        names: entry.colors.map((hex) => colourName(hex)),
       })),
     });
   });
@@ -1355,16 +1368,25 @@ export function createApp(options) {
     const config = resolveLlmConfig(db, llmEnv);
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
 
-    const attached = voucherPhotoFiles(order, path.join(dataDir, 'media'));
+    const photoPaths = await orderPhotoPaths(order, {
+      mediaDir: path.join(dataDir, 'media'),
+      dataDir,
+      pdftoppmBin: config.pdftoppmBin,
+    });
+    const attached = photoPaths.map((filePath) => pathToFileURL(filePath).href);
     if (attached.length === 0) {
       return fail(
         c,
         400,
-        'Attach at least one photograph to this order before designing the brochure. Customer photography always comes from the chat, never from a stock library.',
+        'Attach at least one photograph or PDF page to this order before designing the brochure. Customer photography always comes from the chat, never from a stock library.',
       );
     }
     const photoShapes = photoProfiles(attached, templatesDir);
-    const photoPalettes = photoPalettesFor(order, path.join(dataDir, 'media'));
+    const photoPalettes = {};
+    photoPaths.forEach((filePath, index) => {
+      const palette = photoPalette(filePath);
+      if (palette) photoPalettes[`photo${index + 1}`] = palette;
+    });
 
     try {
       // 1. Words. Studio edited copy wins, then the stored copy, then a fresh
@@ -1730,26 +1752,44 @@ export function createApp(options) {
     }
     if (images.length > 12) return fail(c, 400, 'At most 12 pictures can be reviewed at once.');
     const mediaDir = path.join(dataDir, 'media');
+    const config = resolveLlmConfig(db, llmEnv);
+    const photos = [];
     for (const image of images) {
       if (typeof image !== 'string' || !/^\/media\/[A-Za-z0-9._-]+$/.test(image)) {
-        return fail(c, 400, 'Every image must be an uploaded media path.');
+        return fail(c, 400, 'Every picture must be an uploaded media path.');
       }
-      if (!/\.(png|jpe?g)$/i.test(image)) {
-        return fail(c, 400, 'Only PNG and JPEG photographs can be reviewed.');
+      if (!/\.(png|jpe?g|pdf)$/i.test(image)) {
+        return fail(c, 400, 'Only PNG, JPEG and PDF pages can be reviewed.');
       }
-      if (!existsSync(path.join(mediaDir, path.basename(image)))) {
-        return fail(c, 404, `The picture "${image}" was not found.`);
+      const mediaFile = path.join(mediaDir, path.basename(image));
+      if (!existsSync(mediaFile)) return fail(c, 404, `The picture "${image}" was not found.`);
+      let analysisPath = mediaFile;
+      let previewUrl = image;
+      if (/\.pdf$/i.test(image)) {
+        try {
+          analysisPath = await ensurePdfPreview(dataDir, mediaDir, image, pdftoppmBin);
+          previewUrl = `/pdf-previews/${path.basename(analysisPath)}`;
+        } catch (error) {
+          return fail(c, 400, error instanceof Error ? error.message : 'The PDF could not be read.');
+        }
       }
+      const analysis = analyseImage(analysisPath);
+      if (!analysis) return fail(c, 400, `The picture "${image}" could not be read.`);
+      photos.push({ url: image, previewUrl, name: path.basename(image), analysis });
     }
-    const photos = analyseMediaFiles(images, mediaDir).map((entry) => {
-      if (!entry.analysis) {
-        throw new LlmError(`The picture "${entry.name}" could not be read.`, {
-          type: 'invalid_reply',
-        });
-      }
-      return entry;
-    });
     return c.json({ photos });
+  });
+
+  // The cached first page of an uploaded PDF, used by the picture review and
+  // available to anything that needs a picture of the PDF.
+  app.get('/pdf-previews/:file', (c) => {
+    const name = c.req.param('file');
+    if (!/^[A-Za-z0-9._-]+\.(png|jpg)$/i.test(name) || name.includes('..')) {
+      return fail(c, 404, 'File not found.');
+    }
+    const filePath = path.join(pdfPreviewDir(dataDir), name);
+    if (!existsSync(filePath)) return fail(c, 404, 'File not found.');
+    return sendFile(c, filePath, /\.png$/i.test(name) ? 'image/png' : 'image/jpeg');
   });
 
   app.post('/api/media', uploadBodyLimit, async (c) => {

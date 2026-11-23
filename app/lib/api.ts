@@ -172,7 +172,10 @@ export interface ReviewCandidate {
 }
 
 export interface ReviewPhoto {
+  /** The uploaded file. A PDF is shown through its first page preview. */
   url: string;
+  /** PNG page image for a PDF, otherwise equal to url. */
+  previewUrl?: string;
   name: string;
   analysis: {
     width: number;

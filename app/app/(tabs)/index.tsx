@@ -706,9 +706,12 @@ export default function ChatScreen() {
         { id: nextId(), role: 'assistant', kind: 'text', content: result.reply, at: stamp() },
       ]);
       if (result.ready) {
-        const pictures = allFiles.filter((file) =>
-          String(file.contentType ?? '').startsWith('image/'),
-        );
+        // Pictures and PDF sheets both join the review; a PDF is shown through
+        // its first page, which the server rasterises.
+        const pictures = allFiles.filter((file) => {
+          const type = String(file.contentType ?? '');
+          return type.startsWith('image/') || type === 'application/pdf' || /\.pdf$/i.test(file.url);
+        });
         if (pictures.length > 0) {
           try {
             const review = await api.analyzeImages(pictures.map((file) => file.url));
@@ -779,9 +782,12 @@ export default function ChatScreen() {
         { id: nextId(), role: 'assistant', kind: 'text', content: result.reply, at: stamp() },
       ]);
       if (result.ready) {
-        const pictures = orderFiles.filter((file) =>
-          String(file.contentType ?? '').startsWith('image/'),
-        );
+        // Pictures and PDF sheets both join the review; a PDF is shown through
+        // its first page, which the server rasterises.
+        const pictures = orderFiles.filter((file) => {
+          const type = String(file.contentType ?? '');
+          return type.startsWith('image/') || type === 'application/pdf' || /\.pdf$/i.test(file.url);
+        });
         if (pictures.length > 0) {
           try {
             const review = await api.analyzeImages(pictures.map((file) => file.url));
@@ -1204,8 +1210,8 @@ export default function ChatScreen() {
 
 function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }) {
   const [frame, setFrame] = useState({ width: 0, height: 0 });
-  const LOUPE = 64;
-  const ZOOM = 3.2;
+  const LOUPE = 96;
+  const ZOOM = 4;
   const zoomWidth = frame.width * ZOOM;
   const zoomHeight = frame.height * ZOOM;
   const ready = frame.width > 0 && frame.height > 0;
@@ -1219,7 +1225,7 @@ function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }
         onLayout={(event) => setFrame(event.nativeEvent.layout)}>
         <View style={styles.reviewFrame}>
           <Image
-            source={{ uri: fileUrl(photo.url) }}
+            source={{ uri: fileUrl(photo.previewUrl ?? photo.url) }}
             style={styles.reviewImage}
             resizeMode="cover"
             accessibilityLabel={`Review picture ${index + 1}`}
@@ -1248,7 +1254,7 @@ function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }
                       },
                     ]}>
                     <Image
-                      source={{ uri: fileUrl(photo.url) }}
+                      source={{ uri: fileUrl(photo.previewUrl ?? photo.url) }}
                       style={{
                         position: 'absolute',
                         width: zoomWidth,
@@ -1269,7 +1275,7 @@ function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }
                     ]}>
                     <View style={[styles.reviewLoupeDot, { backgroundColor: candidate.hex }]} />
                     <Text style={styles.reviewLoupeName} numberOfLines={1}>
-                      {candidate.name}
+                      {`${candidate.name} ${candidate.hex}`}
                     </Text>
                   </View>
                 </View>
@@ -1280,7 +1286,7 @@ function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }
       {photo.analysis.candidates.length > 0 ? (
         <Text style={[text.caption, styles.reviewMagnifiedLine]}>
           {`Magnified details: ${photo.analysis.candidates
-            .map((candidate, candidateIndex) => `${candidateIndex + 1} ${candidate.name}`)
+            .map((candidate, candidateIndex) => `${candidateIndex + 1} ${candidate.name} ${candidate.hex}`)
             .join(' · ')}`}
         </Text>
       ) : null}
@@ -1290,6 +1296,9 @@ function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }
             <View style={[styles.reviewChip, { backgroundColor: swatch.hex }]} />
             <Text style={[text.caption, styles.reviewChipName]} numberOfLines={1}>
               {swatch.name}
+            </Text>
+            <Text style={[text.caption, styles.reviewChipHex]} numberOfLines={1}>
+              {swatch.hex}
             </Text>
           </View>
         ))}
@@ -2325,7 +2334,8 @@ const styles = StyleSheet.create({
   },
   reviewBubble: {
     gap: 12,
-    maxWidth: 520,
+    maxWidth: 720,
+    width: '100%',
   },
   reviewTitle: {
     fontWeight: '600',
@@ -2358,7 +2368,7 @@ const styles = StyleSheet.create({
   },
   reviewLoupe: {
     position: 'absolute',
-    borderRadius: 32,
+    borderRadius: 48,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: '#B98A55',
@@ -2382,8 +2392,8 @@ const styles = StyleSheet.create({
   },
   reviewLoupeLabel: {
     position: 'absolute',
-    marginLeft: -48,
-    width: 96,
+    marginLeft: -72,
+    width: 144,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2397,7 +2407,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hairInset,
   },
   reviewLoupeName: {
-    fontSize: 10,
+    fontSize: 9,
     color: colors.ink,
     fontWeight: '600',
   },
@@ -2447,6 +2457,11 @@ const styles = StyleSheet.create({
   reviewChipName: {
     fontSize: 10,
     color: colors.ink,
+  },
+  reviewChipHex: {
+    fontSize: 9,
+    color: colors.faint,
+    letterSpacing: 0.3,
   },
   reviewHint: {
     color: colors.muted,

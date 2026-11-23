@@ -3975,6 +3975,60 @@ test('the picture review circles likely details and shows the palette', { timeou
   assert.equal(missing.status, 404);
 });
 
+test('a PDF sheet joins the picture review as a page image', { timeout: 240_000 }, async () => {
+  const htmlPath = path.join(tempDir, 'pdf-sheet.html');
+  const pdfPath = path.join(tempDir, 'pdf-sheet.pdf');
+  writeFileSync(
+    htmlPath,
+    '<html><body style="margin:0"><div style="width:210mm;height:297mm;background:#C9B996"></div></body></html>',
+  );
+  execFileSync(weasyprintBin, [htmlPath, pdfPath], { stdio: 'ignore' });
+  const upload = await postJson(`${baseUrl}/api/media`, {
+    data: readFileSync(pdfPath).toString('base64'),
+    name: 'pdf-sheet.pdf',
+    contentType: 'application/pdf',
+  });
+  assert.equal(upload.status, 201);
+  const uploaded = await upload.json();
+  assert.match(uploaded.url, /^\/media\/.*\.pdf$/);
+
+  const review = await postJson(`${baseUrl}/api/analyze-images`, { images: [uploaded.url] });
+  const raw = await review.text();
+  assert.equal(review.status, 200, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.photos.length, 1);
+  const photo = body.photos[0];
+  assert.match(photo.previewUrl, /^\/pdf-previews\/.+\.png$/);
+  assert.equal(photo.analysis.palette.length, 4);
+  assert.ok(photo.analysis.palette.some((swatch) => swatch.name === 'Oat'));
+  assert.equal(photo.analysis.candidates.length, 3);
+  for (const candidate of photo.analysis.candidates) {
+    assert.match(candidate.hex, /^#[0-9A-F]{6}$/i);
+    assert.ok(candidate.name.length >= 3);
+  }
+
+  const preview = await fetch(`${baseUrl}${photo.previewUrl}`);
+  assert.equal(preview.status, 200);
+  assert.match(preview.headers.get('content-type') ?? '', /image\/png/);
+  const bytes = Buffer.from(await preview.arrayBuffer());
+  assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+
+  // The same sheet feeds the order palette, so an order can be all PDFs.
+  const customer = await (await postJson(`${baseUrl}/api/customers`, { name: 'PDF Customer' })).json();
+  const order = await (
+    await postJson(`${baseUrl}/api/orders`, {
+      ...DEMO_ORDER,
+      title: 'PDF Sheet Wardrobe',
+      customerId: customer.id,
+      attachments: [uploaded],
+    })
+  ).json();
+  const palettes = await (await fetch(`${baseUrl}/api/orders/${order.id}/palettes`)).json();
+  assert.equal(palettes.palettes.length, 1);
+  assert.equal(palettes.palettes[0].colors.length, 4);
+  assert.equal(palettes.palettes[0].names.length, 4);
+});
+
 test('network egress only allows the configured model provider and loopback', async () => {
   const calls = [];
   const fakeFetch = async (url, init) => {
