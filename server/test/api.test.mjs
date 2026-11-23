@@ -30,13 +30,18 @@ import {
   getOrder,
   getSetting,
   llmCacheStats,
+  putDesignCatalog,
   putLlmCache,
+  getDesignCatalog,
+  listMaterials,
   listRenders,
   listSettings,
   openDb,
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
+import { CATALOG_VERSION } from '../src/design-catalog.mjs';
+import { buildPendingPreviews, countReadyPreviews } from '../src/design-previews.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -65,7 +70,13 @@ import {
   resolveLlmConfig,
 } from '../src/llm.mjs';
 import { createLogger } from '../src/logger.mjs';
-import { buildVoucherValues, fillTemplate, noteCopyValues } from '../src/render.mjs';
+import {
+  buildVoucherValues,
+  createRenderer,
+  fillTemplate,
+  newRenderId,
+  noteCopyValues,
+} from '../src/render.mjs';
 import { sweepRenders } from '../src/retention.mjs';
 import { createApp } from '../src/routes.mjs';
 
@@ -344,7 +355,15 @@ before(async () => {
 
   // llmEnv: {} keeps the suite independent from any LLM_* variables in the
   // environment of whoever runs the tests.
-  const app = createApp({ db, dataDir, templatesDir, weasyprintBin, pdftoppmBin, llmEnv: {} });
+  const app = createApp({
+    db,
+    dataDir,
+    templatesDir,
+    weasyprintBin,
+    pdftoppmBin,
+    llmEnv: {},
+    previewsEnabled: false,
+  });
   const started = await startApp(app);
   server = started.server;
   baseUrl = `http://127.0.0.1:${started.port}`;
@@ -3565,6 +3584,71 @@ test('a studio reference guides the design but is never printed itself', { timeo
   assert.ok(prompt.includes(reference.name));
   assert.ok(prompt.includes(reference.palette.paper));
   assert.ok(prompt.toLowerCase().includes('never copy a reference layout'));
+});
+
+test('each reference earns its preview from a real printed brochure', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  const previewDesigns = [0, 1].map((number) => ({
+    id: `preview-proof-${number + 1}`,
+    name: `Preview Proof ${number + 1}`,
+    family: 'Ledger',
+    mood: 'quiet, warm, measured',
+    summary: 'A calm printed look with warm paper and one precise accent',
+    palette: {
+      paper: '#FBF3E4',
+      ink: '#2A1512',
+      deep: '#4A1116',
+      accent: '#7C2A22',
+      gold: '#C79A3A',
+      hair: '#E3D2B8',
+      muted: '#6B4A3E',
+      onDark: '#FBF3E4',
+    },
+    displayFont: 'Instrument Serif',
+    bodyFont: 'Barlow',
+    coverIdea: 'A tall photograph with the title low and the brand at the head',
+    ornament: 'lotus',
+  }));
+  putDesignCatalog(db, { version: CATALOG_VERSION, expected: 2, designs: previewDesigns });
+  const previewRenderer = createRenderer({ templatesDir, dataDir, weasyprintBin, pdftoppmBin });
+  const config = resolveLlmConfig(db, {});
+  const logger = createLogger({ level: 'error' });
+  const deps = {
+    db,
+    renderer: previewRenderer,
+    templatesDir,
+    dataDir,
+    materials: listMaterials(db),
+    config,
+    requestChat,
+    newRenderId,
+    logger,
+  };
+  // One shared copy call, then one designer call per reference.
+  resetMockProvider({ replies: [JSON.stringify(BROCHURE_COPY), DESIGNER_HTML, DESIGNER_HTML] });
+  const finished = await buildPendingPreviews(deps);
+  assert.equal(finished, 2);
+  assert.equal(mockProviderState.requests.length, 3, 'one shared copy plus one design per reference');
+  assert.equal(countReadyPreviews(db, dataDir), 2);
+  for (const design of previewDesigns) {
+    const png = path.join(dataDir, 'design-previews', `${design.id}.png`);
+    assert.ok(existsSync(png), `${design.id} cover exists`);
+    assert.ok(statSync(png).size > 20000, 'the cover is a real page image');
+    const flat = normaliseText(pdfText(path.join(dataDir, 'design-previews', `${design.id}.pdf`)));
+    assert.ok(
+      flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()),
+      'the preview sets the shared words',
+    );
+    assert.equal(flat.includes('{{'), false, 'no token leaks into a preview');
+  }
+  const stored = getDesignCatalog(db);
+  assert.ok(stored.designs.every((design) => design.previewReady === true));
+  assert.ok(typeof stored.sampleCopy === 'string' && stored.sampleCopy.includes(BROCHURE_COPY.headline));
+  // A second run finds nothing pending and makes no calls.
+  resetMockProvider({ reply: 'unused' });
+  assert.equal(await buildPendingPreviews(deps), 0);
+  assert.equal(mockProviderState.requests.length, 0);
 });
 
 test('a chat sentence edits the order and the page it already has', { timeout: 300_000 }, async () => {

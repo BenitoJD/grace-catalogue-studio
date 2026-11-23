@@ -133,7 +133,8 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
 | POST | `/api/orders/:id/ai-brochure` | `{ brief?, direction?, reference?, edit?, copy? }` | `{ render, design, copy, direction, model, latencyMs }` (kind `ai`) |
 | POST | `/api/orders/:id/edit` | `{ message }` | `{ reply, order, copy, rerender, changedOrder }` |
-| GET | `/api/designs` | | `{ designs, expected, building, ready }` (100 model written references) |
+| GET | `/api/designs` | | `{ designs, expected, building, ready, previewsReady, previewsTotal, previewsBuilding }` (100 model written references, each with `previewUrl` and `previewPdfUrl` when printed) |
+| GET | `/design-previews/:id.(png|pdf)` | | `image/png` or `application/pdf` (printed proof of one reference) |
 | POST | `/api/orders/:id/render` | `{ kind: "voucher" \| "kit", templateId? }` | `Render` (201) |
 | POST | `/api/intake` | `{ messages: [{ role, content }], draft? }` | `{ reply, draft, missing, ready, model, latencyMs }` |
 | POST | `/api/orders/:id/copy` | `{ brief?, regenerate? }` | `{ copy: { headline, body, closing }, model, latencyMs, cached }` |
@@ -212,6 +213,14 @@ The library is generated in four volumes of twenty five and stored in the
 starts a background build and returns whatever is ready with
 `{ designs, expected: 100, building, ready }`. A later request with a complete
 library never calls the provider again.
+
+Once the library is complete the same request starts the preview engine, which
+prints a real four page brochure per reference from one fixed sample order and
+serves its cover at `/design-previews/<id>.png` with the full proof at
+`/design-previews/<id>.pdf`. One shared sample copy is written once and kept in
+the catalog row (schema v11); each preview runs the designer prompt with its
+reference, must pass the same print checks as a customer brochure, and is
+recorded with `previewReady` on success. Only finished previews are served.
 
 The classic house layouts remain underneath for the voucher and kit paths: ten
 complete document families with their own cover, specification, finishes and

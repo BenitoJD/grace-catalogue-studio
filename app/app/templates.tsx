@@ -1,12 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ErrorState, LoadingState } from '@/components/StateViews';
-import { api, errorMessage, type DesignReference } from '@/lib/api';
+import { api, errorMessage, fileUrl, type DesignReference } from '@/lib/api';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
 const GRID_GAP = space.md;
@@ -27,6 +27,8 @@ export default function DesignReferencesScreen() {
   const [designs, setDesigns] = useState<DesignReference[]>([]);
   const [expected, setExpected] = useState(100);
   const [building, setBuilding] = useState(false);
+  const [previewsReady, setPreviewsReady] = useState(0);
+  const [previewsTotal, setPreviewsTotal] = useState(100);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string>(reference ?? '');
@@ -45,6 +47,8 @@ export default function DesignReferencesScreen() {
       setDesigns(library.designs);
       setExpected(library.expected);
       setBuilding(library.building);
+      setPreviewsReady(library.previewsReady ?? 0);
+      setPreviewsTotal(library.previewsTotal ?? library.expected ?? 100);
       setLoadError(null);
     } catch (error) {
       if (activeRef.current) {
@@ -134,6 +138,30 @@ export default function DesignReferencesScreen() {
       </View>
     ) : null;
 
+  const previewProgress =
+    designs.length >= expected && previewsReady < previewsTotal ? (
+      <View style={styles.progressCard}>
+        <View style={styles.progressTop}>
+          <Text style={text.sectionLabel}>Printing the previews</Text>
+          <Text style={text.caption}>
+            {previewsReady} / {previewsTotal}
+          </Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.max(2, Math.round((previewsReady / previewsTotal) * 100))}%` },
+            ]}
+          />
+        </View>
+        <Text style={[text.caption, styles.progressHint]}>
+          Each look is proving itself on a real four page brochure. Printed covers appear in the
+          gallery as they pass every check.
+        </Text>
+      </View>
+    ) : null;
+
   return (
     <Screen>
       <View style={styles.fill}>
@@ -159,6 +187,7 @@ export default function DesignReferencesScreen() {
             {designs.length > 0 ? (
               <>
                 {progress}
+                {previewProgress}
 
                 <Pressable
                   accessibilityRole="button"
@@ -258,12 +287,24 @@ function ReferenceTile({
         selected && styles.tileSelected,
         pressed && styles.pressed,
       ]}>
-      <View
-        style={[
-          styles.canvas,
-          { width: width - 12, height: (width - 12) * 0.92, backgroundColor: palette.paper },
-        ]}>
-        <View style={[styles.canvasBand, { backgroundColor: palette.accent }]} />
+      {design.previewUrl ? (
+        <Image
+          source={{ uri: fileUrl(design.previewUrl) }}
+          style={[
+            styles.canvas,
+            styles.canvasImage,
+            { width: width - 12, height: (width - 12) * 1.1 },
+          ]}
+          resizeMode="cover"
+          accessibilityLabel={`Printed preview of ${design.name}`}
+        />
+      ) : (
+        <View
+          style={[
+            styles.canvas,
+            { width: width - 12, height: (width - 12) * 0.92, backgroundColor: palette.paper },
+          ]}>
+          <View style={[styles.canvasBand, { backgroundColor: palette.accent }]} />
         <Text
           style={[styles.canvasTitle, { color: palette.deep }]}
           numberOfLines={3}
@@ -273,16 +314,22 @@ function ReferenceTile({
         <Text style={[styles.canvasMood, { color: palette.muted }]} numberOfLines={2}>
           {design.mood}
         </Text>
-        <View style={styles.canvasFooter}>
-          <View style={styles.swatches}>
-            {[palette.accent, palette.deep, palette.gold, palette.ink].map((colour) => (
-              <View key={colour} style={[styles.swatch, { backgroundColor: colour }]} />
-            ))}
+          <View style={styles.canvasFooter}>
+            <View style={styles.swatches}>
+              {[palette.accent, palette.deep, palette.gold, palette.ink].map((colour) => (
+                <View key={colour} style={[styles.swatch, { backgroundColor: colour }]} />
+              ))}
+            </View>
+            {glyph ? (
+              <Text style={[styles.ornament, { color: palette.gold }]}>{glyph}</Text>
+            ) : null}
           </View>
-          {glyph ? (
-            <Text style={[styles.ornament, { color: palette.gold }]}>{glyph}</Text>
-          ) : null}
         </View>
+      )}
+      <View style={styles.readyBadge}>
+        <Text style={styles.readyBadgeLabel}>
+          {design.previewUrl ? 'Printed preview' : 'Direction only'}
+        </Text>
       </View>
       <View style={styles.tileText}>
         <Text style={[text.value, styles.tileName]} numberOfLines={1}>
@@ -420,6 +467,25 @@ const styles = StyleSheet.create({
     padding: 12,
     justifyContent: 'space-between',
     overflow: 'hidden',
+  },
+  canvasImage: {
+    padding: 0,
+    backgroundColor: colors.fill,
+  },
+  readyBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    marginLeft: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: colors.fill,
+  },
+  readyBadgeLabel: {
+    fontSize: 9,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.faint,
   },
   canvasBand: {
     width: 30,

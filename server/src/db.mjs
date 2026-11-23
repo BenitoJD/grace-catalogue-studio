@@ -58,7 +58,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -305,6 +305,14 @@ export const MIGRATIONS = Object.freeze([
           created_at TEXT NOT NULL
         );
       `);
+    },
+  },
+  {
+    version: 11,
+    name: 'sample words for design previews',
+    up(db) {
+      // One shared copy for every preview brochure, kept with the library.
+      addColumnIfMissing(db, 'design_catalog', 'sample_copy_json', 'TEXT');
     },
   },
 ]);
@@ -777,7 +785,7 @@ export function getRenderHtml(db, id) {
 
 export function getDesignCatalog(db) {
   const row = db.prepare('SELECT * FROM design_catalog WHERE id = 1').get();
-  if (!row) return { version: 0, expected: 0, designs: [], createdAt: null };
+  if (!row) return { version: 0, expected: 0, designs: [], createdAt: null, sampleCopy: null };
   let designs = [];
   try {
     const parsed = JSON.parse(row.designs_json);
@@ -790,18 +798,22 @@ export function getDesignCatalog(db) {
     expected: Number(row.expected) || 0,
     designs,
     createdAt: row.created_at ?? null,
+    sampleCopy: typeof row.sample_copy_json === 'string' ? row.sample_copy_json : null,
   };
 }
 
-export function putDesignCatalog(db, { version, expected, designs }) {
+export function putDesignCatalog(db, { version, expected, designs, sampleCopy }) {
+  const previous = getDesignCatalog(db);
+  const kept = sampleCopy === undefined ? previous.sampleCopy : sampleCopy;
   db.prepare(
-    `INSERT INTO design_catalog (id, version, expected, designs_json, created_at)
-     VALUES (1, ?, ?, ?, ?)
+    `INSERT INTO design_catalog (id, version, expected, designs_json, sample_copy_json, created_at)
+     VALUES (1, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        version = excluded.version,
        expected = excluded.expected,
-       designs_json = excluded.designs_json`,
-  ).run(version, expected, JSON.stringify(designs), now());
+       designs_json = excluded.designs_json,
+       sample_copy_json = excluded.sample_copy_json`,
+  ).run(version, expected, JSON.stringify(designs), kept, now());
   return getDesignCatalog(db);
 }
 

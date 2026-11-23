@@ -68,6 +68,7 @@ import {
   parseCatalogReply,
   referenceForDesigner,
 } from './design-catalog.mjs';
+import { buildPendingPreviews, countReadyPreviews } from './design-previews.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
   INTAKE_MAX_MESSAGE_CHARS,
@@ -457,6 +458,10 @@ export function createApp(options) {
     parseCacheTtlHours(process.env.LLM_CACHE_TTL_HOURS);
   const cacheEnabled = Number.isFinite(cacheTtlHours) && cacheTtlHours > 0;
   const cacheCutoff = () => cacheExpiryCutoff(cacheTtlHours);
+  // The suite builds previews through the engine directly, so the shared test
+  // app leaves the background engine off. Production, desktop and the browser
+  // suite keep the default: on.
+  const previewsEnabled = options.previewsEnabled ?? true;
 
   const variants = loadVariants(templatesDir);
   const renderer =
@@ -528,6 +533,40 @@ export function createApp(options) {
   // time, and saved after every volume so the gallery fills up while the person
   // is already browsing. Only one build runs at a time.
   const designBuildState = { active: false };
+  // Rendered previews follow the same rule: one reference at a time, every
+  // finished preview saved at once, resumable across restarts.
+  const previewBuildState = { active: false };
+
+  function previewDeps(config) {
+    return {
+      db,
+      renderer,
+      templatesDir,
+      dataDir,
+      materials: listMaterials(db),
+      config,
+      requestChat,
+      newRenderId,
+      logger,
+    };
+  }
+
+  function startPreviewBuild(config) {
+    if (previewBuildState.active) return;
+    previewBuildState.active = true;
+    void (async () => {
+      try {
+        const finished = await buildPendingPreviews(previewDeps(config));
+        logger.info('Design preview run finished.', { finished });
+      } catch (error) {
+        logger.warn('Design preview run stopped.', {
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        previewBuildState.active = false;
+      }
+    })();
+  }
 
   async function requestCatalogVolume(config, existing) {
     const count = Math.min(CATALOG_BATCH, CATALOG_SIZE - existing.length);
@@ -659,6 +698,22 @@ export function createApp(options) {
     }
     const filePath = await previewStore.ensure(match[1]);
     return sendFile(c, filePath, 'image/png');
+  });
+
+  // Rendered cover and full PDF for one design reference. Only files the
+  // preview engine wrote are served; anything else is a 404.
+  app.get('/design-previews/:file', async (c) => {
+    const match = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.(png|pdf)$/.exec(c.req.param('file'));
+    if (!match) return fail(c, 404, 'Preview not found.');
+    const designs = getDesignCatalog(db).designs ?? [];
+    if (!designs.some((design) => design.id === match[1])) {
+      return fail(c, 404, 'Preview not found.');
+    }
+    return sendFile(
+      c,
+      path.join(dataDir, 'design-previews', match[0]),
+      match[2] === 'pdf' ? 'application/pdf' : 'image/png',
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -1353,12 +1408,11 @@ export function createApp(options) {
     }
   });
 
-  // The AI art director: the model designs a fresh four page document for this
-  // order and writes its copy in the same pass. With overrides the studio keeps
-  // the design it already likes and re-renders only the choices it changed.
   // The design reference library the gallery and the chat picker read. The
   // first request starts the background build and returns whatever is ready,
-  // so the client can fill the gallery volume by volume.
+  // so the client can fill the gallery volume by volume. Once the library is
+  // complete the same request starts the preview engine, which prints a real
+  // four page brochure for each reference and serves its cover here.
   app.get('/api/designs', (c) => {
     const config = resolveLlmConfig(db, llmEnv);
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
@@ -1373,12 +1427,25 @@ export function createApp(options) {
     if (catalog.designs.length < CATALOG_SIZE && !designBuildState.active) {
       startDesignBuild(config);
     }
+    const libraryReady = catalog.designs.length >= CATALOG_SIZE;
+    if (libraryReady && previewsEnabled && !previewBuildState.active) {
+      const pending = catalog.designs.filter((design) => !design.previewReady).length;
+      if (pending > 0) startPreviewBuild(config);
+    }
     const designs = catalog.designs ?? [];
+    const previewsReady = countReadyPreviews(db, dataDir);
     return c.json({
-      designs,
+      designs: designs.map((design) => ({
+        ...design,
+        previewUrl: design.previewReady ? `/design-previews/${design.id}.png` : null,
+        previewPdfUrl: design.previewReady ? `/design-previews/${design.id}.pdf` : null,
+      })),
       expected: CATALOG_SIZE,
       building: designBuildState.active || designs.length < CATALOG_SIZE,
-      ready: designs.length >= CATALOG_SIZE,
+      ready: libraryReady,
+      previewsReady,
+      previewsTotal: CATALOG_SIZE,
+      previewsBuilding: previewBuildState.active || previewsReady < CATALOG_SIZE,
     });
   });
 

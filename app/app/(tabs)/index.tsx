@@ -139,23 +139,32 @@ function DesignTile({
         selected && styles.designCardSelected,
         pressed && styles.sendPressed,
       ]}>
-      <View
-        style={[
-          styles.designThumb,
-          { backgroundColor: palette.paper, borderColor: palette.hair },
-        ]}>
-        <View style={[styles.referenceBand, { backgroundColor: palette.accent }]} />
-        <Text
-          style={[styles.referenceTitle, { color: palette.deep }]}
-          numberOfLines={2}>
-          {design.name}
-        </Text>
-        <View style={styles.referenceDots}>
-          {[palette.accent, palette.deep, palette.gold, palette.ink].map((colour) => (
-            <View key={colour} style={[styles.referenceDot, { backgroundColor: colour }]} />
-          ))}
+      {design.previewUrl ? (
+        <Image
+          source={{ uri: fileUrl(design.previewUrl) }}
+          style={[styles.designThumb, styles.designThumbImage]}
+          resizeMode="cover"
+          accessibilityLabel={`Printed preview of ${design.name}`}
+        />
+      ) : (
+        <View
+          style={[
+            styles.designThumb,
+            { backgroundColor: palette.paper, borderColor: palette.hair },
+          ]}>
+          <View style={[styles.referenceBand, { backgroundColor: palette.accent }]} />
+          <Text
+            style={[styles.referenceTitle, { color: palette.deep }]}
+            numberOfLines={2}>
+            {design.name}
+          </Text>
+          <View style={styles.referenceDots}>
+            {[palette.accent, palette.deep, palette.gold, palette.ink].map((colour) => (
+              <View key={colour} style={[styles.referenceDot, { backgroundColor: colour }]} />
+            ))}
+          </View>
         </View>
-      </View>
+      )}
       <Text
         style={[styles.designName, selected && styles.designNameSelected]}
         numberOfLines={1}>
@@ -2060,6 +2069,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     padding: 10,
     backgroundColor: colors.fill,
+    overflow: 'hidden',
+  },
+  designThumbImage: {
+    padding: 0,
   },
   designThumbNo: {
     alignItems: 'center',

@@ -432,6 +432,28 @@ try {
     referencedRender?.design?.referenceName ?? "no referenced render yet"
   );
 
+  // 3d. each reference proves itself with a printed preview
+  let previewsReady = 0;
+  for (let attempt = 0; attempt < 180 && previewsReady < 1; attempt += 1) {
+    await sleep(2000);
+    const lib = await (await fetch(`${API}/api/designs`)).json();
+    previewsReady = lib.previewsReady ?? 0;
+  }
+  check("a reference printed its preview", previewsReady >= 1, `${previewsReady} ready`);
+  await page.goto(`${WEB}/templates`, { waitUntil: "networkidle2" });
+  const previewImage = await page
+    .waitForFunction(
+      () =>
+        [...document.querySelectorAll("img")].some(
+          (image) => image.src.includes("/design-previews/") && image.naturalWidth > 100
+        ),
+      { timeout: 180000 }
+    )
+    .then(() => true)
+    .catch(() => false);
+  check("gallery shows printed previews", previewImage);
+  await page.screenshot({ path: `${shots}/06b-reference-gallery.png` });
+
   // 4. back to the history, the order and its generated brochure are there
   await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(2500);

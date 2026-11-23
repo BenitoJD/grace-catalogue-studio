@@ -155,6 +155,8 @@ export interface DesignReference {
   bodyFont: string;
   coverIdea: string;
   ornament: string;
+  previewUrl?: string | null;
+  previewPdfUrl?: string | null;
 }
 
 export interface DesignLibrary {
@@ -162,6 +164,9 @@ export interface DesignLibrary {
   expected: number;
   building: boolean;
   ready: boolean;
+  previewsReady: number;
+  previewsTotal: number;
+  previewsBuilding: boolean;
 }
 
 export interface Template {

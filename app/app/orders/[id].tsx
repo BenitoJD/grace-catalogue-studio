@@ -101,6 +101,7 @@ export default function OrderDetailScreen() {
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [reference, setReference] = useState<string>(routeReference ?? '');
   const [referenceName, setReferenceName] = useState<string>(routeReferenceName ?? '');
+  const [referencePreview, setReferencePreview] = useState<string | null>(null);
   const [direction, setDirection] = useState('');
   const [designLoading, setDesignLoading] = useState(false);
   const [designError, setDesignError] = useState<string | null>(null);
@@ -120,6 +121,31 @@ export default function OrderDetailScreen() {
     if (routeReference !== undefined) setReference(routeReference);
     if (routeReferenceName !== undefined) setReferenceName(routeReferenceName);
   }, [routeReference, routeReferenceName]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // The preview image arrives from the network; the effect only subscribes.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!reference) {
+      setReferencePreview(null);
+      return;
+    }
+    let active = true;
+    api
+      .listDesigns()
+      .then((library) => {
+        if (!active) return;
+        const match = library.designs.find((design) => design.id === reference);
+        setReferencePreview(match?.previewUrl ?? null);
+        if (match?.name) setReferenceName(match.name);
+      })
+      .catch(() => {
+        if (active) setReferencePreview(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [reference]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadOrder = useCallback(async () => {
@@ -338,9 +364,18 @@ export default function OrderDetailScreen() {
                     });
                   }}
                   style={({ pressed }) => [styles.referenceCard, pressed && styles.referencePressed]}>
-                  <View style={styles.referenceMark}>
-                    <Text style={styles.referenceMarkLabel}>◈</Text>
-                  </View>
+                  {referencePreview ? (
+                    <Image
+                      source={{ uri: fileUrl(referencePreview) }}
+                      style={styles.referenceThumb}
+                      resizeMode="cover"
+                      accessibilityLabel={`Printed preview of ${referenceName || reference}`}
+                    />
+                  ) : (
+                    <View style={styles.referenceMark}>
+                      <Text style={styles.referenceMarkLabel}>◈</Text>
+                    </View>
+                  )}
                   <View style={styles.referenceText}>
                     <Text style={styles.referenceTitle}>
                       {referenceName || reference ? referenceName || 'Selected reference' : 'No reference'}
@@ -652,6 +687,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.copperSoft,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  referenceThumb: {
+    width: 40,
+    height: 56,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    backgroundColor: colors.fill,
   },
   referenceMarkLabel: {
     fontSize: 16,
