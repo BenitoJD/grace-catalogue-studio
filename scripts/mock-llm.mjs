@@ -136,10 +136,8 @@ createServer(async (request, response) => {
         .filter((content) => !content.startsWith('Order so far'));
       const said = transcript.join(' ').toLowerCase();
       const complete =
-        /(width|wide)/.test(said) &&
-        /(height|high)/.test(said) &&
-        /(depth|deep)/.test(said) &&
-        /(shutter|door)/.test(said);
+        /(wardrobe|bench|table|cupboard|almirah|piece)/.test(said) &&
+        /(room|bedroom|kitchen|living|dining|study|pooja|guest)/.test(said);
       intake = complete
         ? {
             reply: 'Noted. The brochure can be made.',
@@ -147,20 +145,15 @@ createServer(async (request, response) => {
               customerName: 'Anita Kumar',
               title: 'Master Bedroom Wardrobe',
               room: 'Master bedroom',
-              width: '2400 mm',
-              height: '2100 mm',
-              depth: '600 mm',
-              shutters: '3',
-              brief: 'loft storage and a lighter oak finish'
+              brief: 'a lighter oak wardrobe with a loft on top'
             },
             ready: true
           }
         : {
-            reply: 'Noted. What is the height and how many shutters?',
+            reply: 'Noted. Which room is the wardrobe for?',
             order: {
               customerName: 'Anita Kumar',
               title: 'Master Bedroom Wardrobe',
-              room: 'Master bedroom',
               width: '2400 mm'
             },
             ready: false

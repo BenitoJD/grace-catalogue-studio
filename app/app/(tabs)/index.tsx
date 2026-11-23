@@ -71,7 +71,7 @@ const stamp = () =>
     hour12: true,
   });
 
-const ESSENTIAL_TOTAL = 7;
+const ESSENTIAL_TOTAL = 3;
 const MAX_UPLOAD_MB = 50;
 
 // The intake speaks in long friendly labels ("the piece, for example a
@@ -457,23 +457,6 @@ export default function ChatScreen() {
           attachments: files,
           title: orderDraft.title,
           room: orderDraft.room,
-          width: orderDraft.width,
-          height: orderDraft.height,
-          depth: orderDraft.depth,
-          shutters: orderDraft.shutters,
-          carcass: orderDraft.carcass,
-          backPanel: orderDraft.backPanel,
-          shuttersMat: orderDraft.shuttersMat,
-          drawers: orderDraft.drawers,
-          exterior: orderDraft.exterior,
-          interior: orderDraft.interior,
-          edgeShutter: orderDraft.edgeShutter,
-          edgeCarcass: orderDraft.edgeCarcass,
-          edgeNote: orderDraft.edgeNote,
-          handle: orderDraft.handle,
-          handleNote: orderDraft.handleNote,
-          finishExt: orderDraft.finishExt,
-          finishInt: orderDraft.finishInt,
         } as Parameters<typeof api.createOrder>[0]);
 
         const brief =

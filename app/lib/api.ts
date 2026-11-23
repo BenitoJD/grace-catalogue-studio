@@ -160,6 +160,13 @@ export interface LlmTestResult {
   error?: { message?: string; status?: number; type?: string };
 }
 
+export interface OrderPalette {
+  /** photo1, photo2 and so on, in upload order. */
+  photo: string;
+  /** Four hex colours read from that photograph. */
+  colors: string[];
+}
+
 export interface OrderAttachment {
   url: string;
   name: string;
@@ -347,6 +354,10 @@ export const api = {
   listOrders(): Promise<Order[]> {
     return request<Order[]>('/api/orders');
   },
+  orderPalettes(id: string): Promise<{ palettes: OrderPalette[] }> {
+    return request<{ palettes: OrderPalette[] }>(`/api/orders/${id}/palettes`);
+  },
+
   getOrder(id: string): Promise<Order> {
     return request<Order>(`/api/orders/${encodeId(id)}`);
   },

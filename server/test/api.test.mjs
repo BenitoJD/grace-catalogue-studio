@@ -3084,13 +3084,11 @@ test('conversational intake extracts an order and reports what is still missing'
   await configureLlm();
   resetMockProvider({
     reply: JSON.stringify({
-      reply: 'Noted, a wardrobe for Anitha. What is the height?',
+      reply: 'Noted, a wardrobe for Anitha. Which room is it for?',
       order: {
         customerName: 'Anitha Selvam',
         title: 'Master Bedroom Wardrobe',
-        room: 'Master bedroom',
         width: '2400 mm',
-        depth: '600 mm',
         budget: 'under one lakh',
         randomField: 'drop me',
       },
@@ -3114,9 +3112,8 @@ test('conversational intake extracts an order and reports what is still missing'
   assert.equal('budget' in body.draft, false, 'unknown fields are dropped');
   assert.equal('randomField' in body.draft, false, 'unknown fields are dropped');
   assert.equal(body.ready, false, 'the model cannot declare ready while essentials are missing');
-  assert.ok(body.missing.includes('height'));
-  assert.ok(body.missing.includes('number of shutters'));
-  assert.match(body.reply, /height/i);
+  assert.ok(body.missing.includes('the room'));
+  assert.match(body.reply, /room/i);
   assert.equal(JSON.stringify(body).includes(LLM_KEY), false);
 
   // A second turn supplies the gaps and merges with the draft.
@@ -3124,7 +3121,7 @@ test('conversational intake extracts an order and reports what is still missing'
   resetMockProvider({
     reply: JSON.stringify({
       reply: 'That is everything needed. The brochure can be made.',
-      order: { height: '2100 mm', shutters: '3' },
+      order: { room: 'Master bedroom' },
       ready: true,
     }),
   });
@@ -3132,14 +3129,14 @@ test('conversational intake extracts an order and reports what is still missing'
     messages: [
       { role: 'user', content: 'Need a wardrobe for Anitha in the master bedroom.' },
       { role: 'assistant', content: body.reply },
-      { role: 'user', content: 'Height 2100, three shutters.' },
+      { role: 'user', content: 'It is the master bedroom.' },
     ],
     draft: firstDraft,
   });
   assert.equal(second.status, 200);
   const merged = await second.json();
   assert.equal(merged.draft.width, '2400 mm', 'the earlier draft is kept');
-  assert.equal(merged.draft.height, '2100 mm');
+  assert.equal(merged.draft.room, 'Master bedroom');
   assert.equal(merged.ready, true);
   assert.deepEqual(merged.missing, []);
 
@@ -3272,17 +3269,15 @@ test('the intake route forces the missing list into the reply', async () => {
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.doesNotMatch(body.reply, /more information/i);
-  for (const phrase of ['the piece', 'the room', 'the width', 'the height', 'the depth', 'number of shutters']) {
+  for (const phrase of ['the piece', 'the room']) {
     assert.ok(body.reply.includes(phrase), `the reply names ${phrase}`);
   }
-  for (const phrase of ['the piece', 'the room', 'the width', 'the height', 'the depth', 'number of shutters']) {
-    assert.ok(body.missing.some((entry) => entry.length > 0));
-  }
+  assert.ok(body.missing.length >= 1);
 
   // If the model already listed everything, the reply is left untouched.
   resetMockProvider({
     reply: JSON.stringify({
-      reply: 'I have the name. I still need the piece, the room, the width, the height, the depth and the number of shutters.',
+      reply: 'I have the name. I still need the piece and the room.',
       order: { customerName: 'Anita' },
       ready: false,
     }),
@@ -3290,10 +3285,7 @@ test('the intake route forces the missing list into the reply', async () => {
   const second = await (await postJson(`${baseUrl}/api/intake`, {
     messages: [{ role: 'user', content: 'A wardrobe for Anita please.' }],
   })).json();
-  assert.equal(
-    second.reply,
-    'I have the name. I still need the piece, the room, the width, the height, the depth and the number of shutters.',
-  );
+  assert.equal(second.reply, 'I have the name. I still need the piece and the room.');
 });
 
 
@@ -3526,8 +3518,9 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
     flat.replace(/\s+/g, '').toLowerCase().includes('testcustomer'),
     'the customer is printed',
   );
-  assert.ok(/2400/.test(flat), 'the width is printed');
-  assert.ok(flat.includes('Dark Walnut'), 'the finish sample is named');
+  assert.ok(flat.includes('The colour of the room'), 'the colour study is printed');
+  assert.ok(flat.includes('Cream, warm timber and a quiet teal'), 'the palette is described');
+  assert.ok(/2400/.test(flat) === false, 'no dimension reaches the brochure');
   assert.equal(flat.includes('{{'), false, 'no token is printed');
   assert.equal(/\u2014|\u2013/.test(flat), false, 'no em dash or en dash reaches print');
 
@@ -3541,7 +3534,6 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
   assert.match(prompt, /art director, typographer and print designer/i);
   assert.match(prompt, /\{\{headline\}\}/);
   assert.match(prompt, /PHOTOGRAPHS AVAILABLE/);
-  assert.match(prompt, /Width \{\{width\}\}/);
 });
 
 test('two generated brochures print different pages', { timeout: 240_000 }, async () => {
@@ -3551,9 +3543,9 @@ test('two generated brochures print different pages', { timeout: 240_000 }, asyn
   resetMockProvider({ reply: DESIGNER_HTML });
   const first = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
 
-  const secondHtml = DESIGNER_HTML.replace('--accent:#7C2A22', '--accent:#16537E').replace(
-    '--deep:#4A1116',
-    '--deep:#0D3350',
+  const secondHtml = DESIGNER_HTML.replace('--deep:#173B44', '--deep:#0D3350').replace(
+    '--accent:#1AA3C8',
+    '--accent:#16537E',
   );
   resetMockProvider({ reply: secondHtml });
   const second = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
@@ -3580,7 +3572,7 @@ test('a longer brochure prints six pages when the content needs room', { timeout
   const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
   const flat = normaliseText(text);
   assert.ok(flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()), 'the headline is printed');
-  assert.ok(flat.includes('Dark Walnut'), 'the finish sample is named');
+  assert.ok(flat.includes('Cream, warm timber'), 'the palette study is printed');
   assert.equal(flat.includes('{{'), false, 'no token is printed');
 });
 
@@ -3700,21 +3692,18 @@ test('missing details can be skipped and marked to be confirmed', async () => {
   const partialDraft = {
     customerName: 'Rani',
     title: 'Wardrobe',
-    room: 'Guest bedroom',
     width: '2400 mm',
   };
   const response = await postJson(`${baseUrl}/api/intake`, {
-    messages: [{ role: 'user', content: 'Customer name Rani. Guest bedroom wardrobe, 2400 wide.' }],
+    messages: [{ role: 'user', content: 'Customer name Rani, a wardrobe 2400 wide.' }],
     draft: partialDraft,
-    skip: ['height', 'depth', 'number of shutters'],
+    skip: ['room'],
   });
   const raw = await response.text();
   assert.equal(response.status, 200, raw);
   const body = JSON.parse(raw);
   assert.equal(body.ready, true);
-  assert.equal(body.draft.height, 'To be measured');
-  assert.equal(body.draft.depth, 'To be measured');
-  assert.equal(body.draft.shutters, 'To be confirmed');
+  assert.equal(body.draft.room, 'Room to confirm');
   assert.deepEqual(body.missing, []);
   assert.match(body.reply, /to be confirmed/i);
   assert.equal(mockProviderState.requests.length, requestsBefore, 'skipping makes no model call');
@@ -3728,20 +3717,17 @@ test('saying I do not know skips the detail without a model call', async () => {
   const partialDraft = {
     customerName: 'Rani',
     title: 'Wardrobe',
-    room: 'Guest bedroom',
     width: '2400 mm',
-    shutters: '3',
   };
   const response = await postJson(`${baseUrl}/api/intake`, {
-    messages: [{ role: 'user', content: "I don't know the height and depth." }],
+    messages: [{ role: 'user', content: "I don't know the room." }],
     draft: partialDraft,
   });
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.ready, true);
-  assert.equal(body.draft.height, 'To be measured');
-  assert.equal(body.draft.depth, 'To be measured');
-  assert.match(body.reply, /height and depth/i);
+  assert.equal(body.draft.room, 'Room to confirm');
+  assert.match(body.reply, /room/i);
   assert.match(body.reply, /to be confirmed/i);
   assert.equal(mockProviderState.requests.length, requestsBefore);
 });
@@ -3911,6 +3897,35 @@ test('attaching files to a live order saves them and re-renders with them', { ti
   });
   assert.equal(rejected.status, 400);
 
+});
+
+test('the colours are read from the order photographs and served to the app', { timeout: 240_000 }, async () => {
+  const customer = await (
+    await postJson(`${baseUrl}/api/customers`, { name: 'Palette Customer' })
+  ).json();
+  const created = await (
+    await postJson(`${baseUrl}/api/orders`, {
+      ...DEMO_ORDER,
+      title: 'Palette Test Wardrobe',
+      customerId: customer.id,
+      attachments: FIXTURE_ROOM_FILES,
+    })
+  ).json();
+  const response = await fetch(`${baseUrl}/api/orders/${created.id}/palettes`);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.palettes.length, 2, 'one palette per uploaded picture');
+  for (const palette of body.palettes) {
+    assert.match(palette.photo, /^photo[12]$/);
+    assert.equal(palette.colors.length, 4);
+    for (const colour of palette.colors) {
+      assert.match(colour, /^#[0-9A-F]{6}$/i);
+    }
+  }
+  // The fixture pictures are 1 by 1 red PNGs.
+  assert.equal(body.palettes[0].colors[0], '#FF0000');
+  const missing = await fetch(`${baseUrl}/api/orders/not-an-order/palettes`);
+  assert.equal(missing.status, 404);
 });
 
 test('network egress only allows the configured model provider and loopback', async () => {

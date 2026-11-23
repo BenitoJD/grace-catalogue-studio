@@ -14,17 +14,17 @@ The only external service is the language model chosen in Settings. Everything e
 
 1. A salesperson pastes the customer requirement into the chat and attaches the project photographs.
 2. The intake assistant pulls out the order and asks only for what is missing.
-3. The model designs and typesets the brochure from the pictures and the order facts: the colours are read from the pictures, every picture is used, and the studio can ask for a magnified detail.
+3. The model designs and typesets the brochure from the pictures: the colours are read out of the photographs, every picture is used, and the studio can ask for a detail to be magnified.
 4. The PDF is previewed page by page and can be printed, opened or shared.
 
 There is no template library and no pre-made layout. The model authors every page for that project.
 
 ## Pictures are the design
 
-The photographs are the source, not decoration.
+The photographs are the source, not decoration. The brochure is a colour study, not a specification sheet: there are no dimensions, sizes or shapes anywhere in the product.
 
 - **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again.
-- **The palette comes from the pictures.** The engine reads each photograph and gives the model its four dominant colours, so the brochure mirrors the project's cream walls, warm timber and teal accents instead of an invented palette.
+- **The palette comes from the pictures.** The engine decodes each photograph and gives the model its four dominant colours. The brochure prints those colour strips and chips, so the pages mirror the project's cream walls, warm timber and quiet accents instead of an invented palette.
 - **The pages look like the project.** Type, photographs and colour are composed to belong with the pictures supplied.
 - **Magnifier callouts.** Name a detail in the chat, such as a handle, an edge, a grain or the colour palette, and the model prints a circular loupe: the same photograph enlarged on that detail, a thin ring, a leader line and a small label. When pictures arrive without a named detail, the intake assistant asks which detail to magnify.
 
@@ -47,11 +47,11 @@ Files can join late: attach a photograph with the next sentence and it is saved 
 
 ## Generated design
 
-The model writes the words and authors the pages itself as HTML and CSS in one reply: four pages for a quiet order, up to eight when the photographs, story and specification need the room. The server supplies the print box, fonts, brand assets and facts through tokens, then checks the document before printing.
+The model writes the words and authors the pages itself as HTML and CSS in one reply: four pages for a quiet order, up to eight when the photographs and their palettes need the room. The server supplies the print box, fonts, brand assets, the picture palettes and the words through tokens, then checks the document before printing.
 
-The checks cover the page count, per page word limits, every specification and material token printed once, all photographs used, the measured drawing on the last page, the brand and Tamil line on the cover, a house motif, no external URL, and no unfilled token. A failure is asked for again with the exact problems; two failures print nothing.
+The checks cover the page count, per page word limits, the copy printed once, every photograph used, every photograph palette strip printed with its four chips, the brand and Tamil line on the cover, the order number and phone on the closing page, a house motif, no external URL, and no unfilled token. A failure is asked for again with the exact problems; two failures print nothing.
 
-The brochure carries the order's creation date. A specification page is always last and the measured drawing lives there.
+The brochure carries the order's creation date. The story pages carry the copy, the colour pages carry the strips and chips, and a quiet closing page carries the brand and the phone.
 
 ## Brand assets only
 
@@ -129,14 +129,14 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 110 server tests
+npm test          # 111 server tests
 npm run verify    # black box smoke test
-npm run e2e       # 94 browser checks
+npm run e2e       # 92 browser checks
 npm run typecheck
 npm run lint
 ```
 
-The browser suite walks the product like a person: chat with date and time, picture-led intake, attachments, an order created the way the chat does, design, PDF, share, design again, note, info kit, edits, late files, settings, deep link, mobile and the API-down path. Screenshots land in `docs/screenshots/e2e/`.
+The browser suite walks the product like a person: chat with date and time, picture-led intake, attachments, the colour chips read from the pictures, an order created the way the chat does, design, PDF, share, design again, note, info kit, edits, late files, settings, deep link, mobile and the API-down path. Screenshots land in `docs/screenshots/e2e/`.
 
 ## Offline by design
 

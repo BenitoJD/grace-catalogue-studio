@@ -331,7 +331,11 @@ try {
   check("history card offers the order", await hasText(page, "Open order"));
   await page.goto(`${WEB}/orders/${chatOrder.id}`, { waitUntil: "networkidle2" });
   check("detail screen opens", await hasText(page, "E2E Master Wardrobe", 12000));
-  check("width saved", await hasText(page, "2600 mm"));
+  check("order shows the colour read from its pictures", await hasText(page, "Colour from the pictures"));
+  check(
+    "palette chips are painted",
+    (await page.$$('[aria-label^="Colour #"]')).length >= 4
+  );
   check(
     "order shows its creation date and time",
     await page.evaluate(() =>
@@ -494,16 +498,9 @@ try {
     chatInput,
     "Need a wardrobe for Anita in the master bedroom, 2400 wide. She wants a loft on top and lighter oak. The plan I attached has the rest."
   );
-  check("chat accepts the dump", await clickAria(page, "Send message"));
-  check("chat asks for the missing details", await waitForBodyText(page, "what is the height", 90000));
-  check("the brief shows its progress", await hasText(page, "of 7 details"));
-  check(
-    "missing details are named as chips",
-    (await page.$$('[aria-label^="Missing "]')).length > 0
-  );
   const ordersBeforeChat = (await (await fetch(`${API}/api/orders`)).json()).length;
-  await setValueByPlaceholder(page, chatInput, "Height 2100, depth 600, three shutters.");
-  check("chat takes the answer", await clickAria(page, "Send message"));
+  check("chat accepts the dump", await clickAria(page, "Send message"));
+  check("the brief shows its progress", await waitForBodyText(page, "Ready to build", 90000));
   const cooked = await waitForBodyText(page, "the brochure is ready", 180000);
   check("chat creates the order on its own", cooked);
   const chatPageOk = await page
@@ -633,12 +630,21 @@ try {
   // New order is the only way to start a fresh customer.
   await clickAria(page, "New order chat");
   await sleep(1200);
+  const freshAttach = await page.$('[aria-label="Attach files"]');
+  if (freshAttach) {
+    const freshBox = await freshAttach.boundingBox();
+    const freshPromise = page.waitForFileChooser({ timeout: 15000 });
+    await page.mouse.click(freshBox.x + freshBox.width / 2, freshBox.y + freshBox.height / 2);
+    const freshChooser = await freshPromise;
+    await freshChooser.accept([`${e2eDir}/room-photo.png`, `${e2eDir}/room-photo-two.png`]);
+    await waitForBodyText(page, "room-photo.png", 30000);
+  }
   check(
     "new order starts a fresh chat",
-    await setValueByPlaceholder(page, chatInput, "Another client needs a wardrobe.")
+    await setValueByPlaceholder(page, chatInput, "Another client needs a wardrobe for the guest room.")
   );
   check("chat takes the next customer", await clickAria(page, "Send message"));
-  const freshChat = await waitForBodyText(page, "what is the height", 90000);
+  const freshChat = await waitForBodyText(page, "the brochure is ready", 180000);
   check("a new chat starts after New order", freshChat);
   const cleared = await page.evaluate(() => {
     const text = document.body.innerText;

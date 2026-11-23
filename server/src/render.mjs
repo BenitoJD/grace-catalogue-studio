@@ -124,6 +124,44 @@ function pngChunk(type, data) {
   return Buffer.concat([length, typeBytes, data, crc]);
 }
 
+/** A horizontal strip of colour blocks as a PNG data URI, one per palette. */
+export function paletteStripPng(hexColors, block = 120, height = 120) {
+  const rgb = (hexColors ?? []).map((value) => {
+    const match = /^#?([0-9a-fA-F]{6})$/.exec(String(value ?? '').trim());
+    if (!match) return [0, 0, 0];
+    const number = Number.parseInt(match[1], 16);
+    return [(number >> 16) & 0xff, (number >> 8) & 0xff, number & 0xff];
+  });
+  const colours = rgb.length > 0 ? rgb : [[204, 204, 204]];
+  const width = colours.length * block;
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const rows = [];
+  for (let y = 0; y < height; y += 1) {
+    const row = Buffer.alloc(1 + width * 3);
+    for (let index = 0; index < colours.length; index += 1) {
+      const [red, green, blue] = colours[index];
+      const start = 1 + index * block * 3;
+      for (let x = 0; x < block; x += 1) {
+        row[start + x * 3] = red;
+        row[start + x * 3 + 1] = green;
+        row[start + x * 3 + 2] = blue;
+      }
+    }
+    rows.push(row);
+  }
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(Buffer.concat(rows))),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+  return `data:image/png;base64,${png.toString('base64')}`;
+}
+
 /** A solid colour 8 by 8 PNG as a data URI. Used for finishes with no photo. */
 export function flatColourPlate(hex) {
   const match = /^#?([0-9a-fA-F]{6})$/.exec(String(hex ?? '').trim());

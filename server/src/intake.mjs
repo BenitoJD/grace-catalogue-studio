@@ -36,14 +36,13 @@ const MISSING_MATCHERS = {
   shutters: /\b(shutter|shutters|door|doors)\b/i,
 };
 
+// Dimensions, size and shape are no longer part of the product. A brochure is
+// a colour study built from the client's photographs; the piece, the room and
+// the customer are the only facts intake must have.
 export const INTAKE_ESSENTIALS = [
   ['customerName', 'customer name'],
   ['title', 'the piece, for example a wardrobe or a bench'],
   ['room', 'the room'],
-  ['width', 'width'],
-  ['height', 'height'],
-  ['depth', 'depth'],
-  ['shutters', 'number of shutters'],
 ];
 
 const FIELD_LIMITS = Object.fromEntries(INTAKE_FIELDS.map((field) => [field, field === 'brief' ? 2000 : 120]));
@@ -52,17 +51,15 @@ const INTAKE_SYSTEM_PROMPT = [
   'You are the order intake assistant at Jacob Design Studio, a wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
   'The customer types their requirement in one or more messages. They may paste a list, a WhatsApp forward, or a rough description. Extract the order facts and keep a short conversation going.',
   'Reply with strict JSON only, exactly this shape:',
-  '{"reply": "what you say next", "order": {"customerName": "...", "title": "...", "room": "...", "width": "...", "height": "...", "depth": "...", "shutters": "...", "carcass": "...", "backPanel": "...", "shuttersMat": "...", "drawers": "...", "exterior": "...", "interior": "...", "edgeShutter": "...", "edgeCarcass": "...", "edgeNote": "...", "handle": "...", "handleNote": "...", "finishExt": "...", "finishInt": "...", "brief": "..."}, "ready": false}',
+  '{"reply": "what you say next", "order": {"customerName": "...", "title": "...", "room": "...", "brief": "..."}, "ready": false}',
   'Rules for order:',
-  '- Include a field only when the customer stated it. Never invent, guess or convert a value. If the customer says they do not know a detail, leave that field empty. Do not guess it. The studio can mark it as to be confirmed.',
-  '- Copy numbers with their unit as written, for example "2400 mm". If a dimension is a bare number, write it as "N mm", the workshop works in millimetres.',
-  '- Write counts as digits, for example 3 shutters, 2 drawers.',
+  '- Include a field only when the customer stated it. Never invent or guess a value. The studio can mark an unknown detail as to be confirmed.',
   '- title is the piece, for example "Master Bedroom Wardrobe". If the customer names the kind but no title, use that kind, for example "Wardrobe" or "Dining Bench". room is where it goes.',
   '- brief is a short summary of anything else useful the customer said, in their words where possible. It must describe the piece, never the deal.',
   '- Never put a price, budget, discount, date, festival or deadline in any field, including brief, or in reply. Leave those words out entirely.',
   'Rules for reply:',
   '- One to three short sentences, warm and plain, British Indian English. No em dashes, no exclamation marks, no questions other than the ones allowed below.',
-  '- When any essential is missing, say exactly what is missing and leave nothing out, in one short sentence, for example "I still need the width and the number of shutters."',
+  '- When any essential is missing, say exactly what is missing and leave nothing out, in one short sentence, for example "I still need the customer name and the room."',
   '- You may put at most two questions to the customer. If more than two things are missing, state the full list instead of asking question after question.',
   '- Never say "more information", "more details", "a few details", "some details" or "additional information". Name the fields.',
   '- When ready is true, confirm what you have and stop. Never ask for anything, and never ask for materials or finishes.',

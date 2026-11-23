@@ -129,6 +129,7 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | POST | `/api/orders` | order fields (see above, minus id, orderNo, status, createdAt) | `Order` (201) |
 | GET | `/api/orders` | | `Order[]` |
 | GET | `/api/orders/:id` | | `Order` |
+| GET | `/api/orders/:id/palettes` | | `{ palettes: [{ photo: "photo1", colors: ["#..."] }] }`, four colours decoded from each uploaded picture |
 | PATCH | `/api/orders/:id` | partial order fields | `Order` |
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
 | POST | `/api/orders/:id/ai-brochure` | `{ brief?, direction?, edit?, copy? }` | `{ render, design, copy, direction, model, latencyMs }` (kind `ai`; requires uploaded photos) |
@@ -198,23 +199,27 @@ Image paths are relative to the template directory, i.e. `../assets/company/tex-
 
 ## Image-led brochure design
 
-There is no template library. A brochure is designed from the client's own
-photographs:
+There is no template library and no measurement schedule. A brochure is a
+colour study designed from the client's own photographs:
 
 - At least one uploaded photograph is required; the route answers 400 without
   one and suggests attaching pictures in the chat.
 - The designer prompt receives every photograph, each one's shape, and four
-  dominant colours decoded from the file (`server/src/image-palette.mjs`,
-  PNG and JPEG, pure JavaScript). The model is told those colours are the
-  design source and that it must mirror the project.
-- Every supplied `{{photoN}}` token must appear at least once. A document that
-  ignores an uploaded photograph is rejected with a message naming it.
+  dominant colours decoded from each file (`server/src/image-palette.mjs`,
+  PNG and JPEG, pure JavaScript). Every photograph must appear in the document
+  or it is rejected.
+- Colour tokens per photograph: `{{photo1Palette}}` is a ready made strip image
+  of that picture's four colours, and `{{photo1Color1}}` to `{{photo1Color4}}`
+  are the individual hex values. Every strip and all four chips must be printed
+  on the colour pages.
+- There are no size, dimension, hardware or material tokens. A document that
+  prints one is rejected as unknown, so the brochure stays a colour study.
 - Magnifier callouts: when the studio names a detail, the model draws a
   circular loupe from the same photograph (background-size 300 to 420%,
   background-position on the detail), a thin ring, a leader line and a label.
-  A colour palette callout adds four chips from that photograph's decoded
-  palette. When photographs arrive without a named detail the intake assistant
-  asks which detail to magnify.
+  A colour palette callout adds the strip or four chips beside the loupe. When
+  photographs arrive without a named detail the intake assistant asks which
+  detail to magnify.
 - `POST /api/orders/:id/edit` carries the sentence and the previous document
   back to the designer, so an edit changes the existing pages.
 
@@ -298,14 +303,15 @@ copy route with its repair pass.
 The model authors the pages itself as one HTML document: four to eight
 `<div class="page">` elements, the required tokens, no external URL, no script,
 no fixed positioning, and the page box left to the server. The first page is
-always the cover and the last always the specification; the middle holds the
-story and the materials. The reply is checked: page count in range, word
-limits per page with tokens counted at their printed weight, copy and material
-tokens exactly once and placed in their pages, every specification token once
-on the last page, the measured drawing last, the brand and a Tamil line on the
-cover, a house motif somewhere, photographs used, and no unknown token. A
-failure is asked for again with the exact problems listed; two failures return
-502 `invalid_reply` and print nothing. Filled tokens are
+always the cover, the middle carries the story and the colour study, and the
+last is a quiet closing page with the brand, order number and phone. The reply
+is checked: page count in range, word limits per page with tokens counted at
+their printed weight, copy tokens exactly once and in the story, every
+photograph used, every available palette strip and its four chips printed, the
+brand and a Tamil line on the cover, the brand and order number on the closing
+page, a house motif somewhere, and no unknown token. A failure is asked for
+again with the exact problems listed; two failures return 502 `invalid_reply`
+and print nothing. Filled tokens are
 escaped except raw asset and image paths; em dashes and en dashes are
 normalised to hyphens before print. The document is stored on the render as
 `html` (schema v9) so the next edit keeps the design. The resulting render has

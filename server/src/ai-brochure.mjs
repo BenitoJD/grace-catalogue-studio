@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { LlmError, clean } from './llm.mjs';
-import { buildVoucherValues, escapeHtml } from './render.mjs';
+import { buildVoucherValues, escapeHtml, paletteStripPng } from './render.mjs';
 
 export const DESIGNER_MAX_TOKENS = 12000;
 export const DESIGNER_TEMPERATURE = 0.85;
@@ -107,9 +107,6 @@ const RAW_TOKENS = new Set([
   'lotus',
   'rangoli',
   'arch',
-  'drawing',
-  ...MATERIAL_TOKENS.filter((token) => token.endsWith('Image')),
-  ...FACT_TOKENS.filter((token) => token.endsWith('Image')),
 ]);
 
 const DESIGNER_SYSTEM = [
@@ -118,13 +115,14 @@ const DESIGNER_SYSTEM = [
   '',
   'THE DOCUMENT',
   'An A4 brochure printed on warm cream uncoated paper. The page box is 216 mm wide by 303 mm tall and includes a 3 mm bleed on every side, so the trim is 210 by 297 mm.',
-  'It is picture led, quiet, warm and confident, the kind of book a customer keeps on the table. Indian taste: generous margins, large type, deep maroon and muted gold against cream, Tamil and English together, ornament used like jewellery, never a poster and never a website.',
-  'The brochure is as long as its content: at least four pages, at most eight. A quiet order with few photographs is four pages. More photographs, a longer story or a fuller specification earn more pages, up to eight. Never stretch a short brochure with empty space and never squeeze a long one with small type: choose the page count first, then fill every page completely.',
+  'It is picture led, quiet, warm and confident, the kind of book a customer keeps on the table. Indian taste: generous margins, large type, deep colour and muted gold against cream, Tamil and English together, ornament used like jewellery, never a poster and never a website.',
+  'This brochure is about COLOUR, not measurements. There is no size, no dimension and no technical schedule in it. The photographs and their colour palettes are the subject. The model never prints a width, height, depth, shutter count or hardware list.',
+  'The brochure is as long as its content: at least four pages, at most eight. More photographs and their palettes earn more pages. Fill every page completely.',
   '',
   'THE PAGES, IN ORDER',
   '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
-  '2 to 7. Story and materials. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. The four finish samples shown at size with their names, a colour page, not a table. Give the story one page when it fits, two when the photographs and the words need room; keep all four samples together on their own page.',
-  'Last. Specification. The order facts set quietly at the back: dimensions, materials and hardware, with the measured drawing. It is for the workshop and the client file, not the reason to open the brochure.',
+  '2 to 7. Story and colour. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. At least one page is the palette study: each photograph\'s colour strip shown at size with its hex values and a short name for the mood it creates. Extra photographs earn extra pages, and every photograph must appear.',
+  'Last. A quiet closing page for the client file: the brand mark, the order number, the telephone and one line of thanks. No dimensions and no specification table.',
   '',
   'HOW TO REPLY',
   '- Reply with the HTML document only: no prose, no markdown, no code fences, no explanation.',
@@ -137,46 +135,46 @@ const DESIGNER_SYSTEM = [
   '- One page must be exactly one printed page. Nothing may be clipped off the edge of the paper.',
   '',
   'THE TOKENS',
-  'Write these tokens exactly. The renderer replaces them with the real words, numbers and files before printing. Never print a token twice, never retype its content in your own words, and never leave a token unused where the list says it is required.',
+  'Write these tokens exactly. The renderer replaces them with the real words and files before printing. Never print a token twice, never retype its content in your own words, and never leave a token unused where the list says it is required.',
   'Copy: {{headline}}, {{body}} and {{closing}}. Set each exactly once, as given. They are the only long words in the document.',
   'The body is one piece of prose: set it in a comfortable measure, two or three columns at 8 to 9.5 pt, and let the paragraph flow. Do not cut it.',
   'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{orderNo}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}.',
-  'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover; the list below gives each one its shape.',
-  'Materials: {{material1Name}} and {{material1Image}} through {{material4Name}} and {{material4Image}}. Show all four samples on the materials page, each image and each name.',
-  'Specification: {{width}}, {{height}}, {{depth}}, {{shutters}}, {{exterior}}, {{interior}}, {{carcass}}, {{backPanel}}, {{shuttersMat}}, {{drawers}}, {{edgeShutter}}, {{edgeCarcass}}, {{edgeNote}}, {{finishExt}}, {{finishInt}}, {{handle}}, {{handleNote}}, {{hinges}}, {{channels}}.',
-  'Print every specification token on the last page, the specification page, each once, as the value next to a label you set in small caps. Set them in two or three aligned columns with hairline rules, like a colophon, never like a spreadsheet. Never invent, round or reword a value; if a value is empty it prints as a confirmation note.',
-  'Assets: {{logo}} is the brand mark. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image. {{drawing}} is the measured front elevation drawing, a wide technical plate; it must appear on the last page.',
+  'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover.',
+  'Colour: every photograph has a palette strip {{photo1Palette}}, {{photo2Palette}} and so on, a ready made image of its colours. It also has single colours {{photo1Color1}} to {{photo1Color4}}, {{photo2Color1}} to {{photo2Color4}}, and so on, ready to use as text colour or background colour.',
+  'Assets: {{logo}} is the brand mark. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image.',
   '',
   'REQUIRED',
   '- Page 1, the cover: at least one photograph, {{title}}, {{customer}}, {{brand}} or {{logo}}, and {{brandTamil}} or {{roomTamil}}.',
-  '- The middle pages together: {{headline}}, {{body}} and {{closing}} each exactly once, all four material images and all four material names, and photographs throughout. Every middle page shows at least one photograph or material sample.',
-  '- The last page, the specification: every specification token and {{drawing}}. No specification token may appear anywhere else.',
-  '- Somewhere in the document: {{orderNo}}, {{phone}}, and at least one house motif token.',
-  '- Photographs are not optional and none may be wasted: every photograph token from {{photo1}} to the last available must appear at least once, or the document is rejected. Put the strongest on the cover and let the others carry the story.',
-  '- The photographs are the design source. Read their colours, wood tones, light and geometry from the palette notes supplied, and mirror them: cream walls, warm timber, teal or muted accents. The pages must look like they belong to the same project as the pictures.',
+  '- {{headline}}, {{body}} and {{closing}} each exactly once, anywhere in the story pages.',
+  '- Every photograph token from {{photo1}} to the last available must appear at least once.',
+  '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as small chips or as hex values using that photograph\'s colour tokens, with a short name for the mood.',
+  '- The last page: {{brand}} or {{logo}}, {{orderNo}} and {{phone}}.',
+  '- Somewhere in the document: at least one house motif token.',
+  '- No dimension, size, shutter count or specification value may appear. Those tokens do not exist and naming them rejects the document.',
+  '- The photographs are the design source. Mirror their colours, light and warmth. The pages must look like they belong to the same project as the pictures.',
   '- Magnifier callouts: when the studio asks to magnify a detail (a handle, a grain, a colour palette, an edge), draw a circular loupe on the page. Use the same photograph enlarged: background-size 300% to 420%, background-position set to the detail, a thin ring, a short leader line and a small label naming the detail. Show one loupe per named detail and never a loupe without a label.',
-  '- When the studio asks for a colour palette callout, print a row of four small colour chips beside the loupe, using the palette notes of that photograph, with the finish names underneath.',
+  '- When the studio asks for a colour palette callout, print the palette strip or its four chips beside a loupe of the pictured detail, with the mood name underneath.',
   '',
   'DESIGN RULES',
   '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',
-  '- One dominant ground, one ink, one accent. Gold is a line, a number or a motif, never a large fill. Deep maroon may carry a band or a whole page. Never set body text in gold on cream.',
+  '- One dominant ground, one ink, one accent. Gold is a line, a number or a motif, never a large fill. A deep colour may carry a band or a whole page. Never set body text in gold on cream.',
   '- Build a real typographic hierarchy: one display line, small caps labels with wide tracking, hairline rules, captions, folio numbers. Use white space as a material.',
   '- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
   '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
-  '- Finish samples are often cream or white. Frame every sample with a hairline rule, a thin gold keyline or a darker plate behind it, so a pale sample never disappears into the cream paper.',
+  '- Colour strips are images, not pale samples: frame each one with a hairline rule or a keyline so it reads as a colour plate.',
   '- Tamil is set tight and whole: never letter-space, uppercase or small-cap a Tamil line, and never set it below 7.5 pt. Keep Tamil in a line of its own.',
   '- Ornament once or twice in the whole document, at a corner or a rule: a jaali strip along one edge, a lotus under a title, an arch around a photograph. Never all motifs on one page.',
-  '- The cover is the loudest page, the story is the warmest, the materials page is a quiet colour study, and the specification page is a calm technical colophon.',
-  '- Use the whole safe area. Every page must feel complete: fill it with photograph, type and ornament at full size rather than leaving a quarter of it empty. If the content does not fill the pages, use fewer pages; if it overflows, add a page up to the limit of eight. Only a page that one photograph deliberately holds may stay airy. Keep the last line of a page at least 18 mm above the trim.',
-  '- This brochure is one of many. Do not repeat a stock arrangement from other orders; the photographs, the room and the mood decide the composition.',
+  '- The cover is the loudest page, the story is the warmest, and the colour pages are a quiet chromatic study.',
+  '- Use the whole safe area. Every page must feel complete: fill it with photograph, type and colour at full size rather than leaving a quarter of it empty. If the content does not fill the pages, use fewer pages; if it overflows, add a page up to the limit of eight. Keep the last line of a page at least 18 mm above the trim.',
+  '- This brochure is one of many. Do not repeat a stock arrangement; the photographs, their colours and the room decide the composition.',
   '- Tamil lines are set in Noto Sans Tamil, never forced into an English serif.',
   '',
   'AVAILABLE TYPE',
-  "'Instrument Serif' for display and headline, 'Barlow' for labels, captions and the specification, 'Noto Sans Tamil' for Tamil.",
-  'Colours come as CSS variables that you may refine at the top of your style block: --paper, --ink, --deep, --accent, --gold, --hair, --muted, --on-dark. Keep the paper light and the ink dark.',
+  "'Instrument Serif' for display and headline, 'Barlow' for labels, captions and small text, 'Noto Sans Tamil' for Tamil.",
+  'Colours come as CSS variables that you may refine at the top of your style block: --paper, --ink, --deep, --accent, --gold, --hair, --muted, --on-dark. Keep the paper light and the ink dark, and take the accent from the picture palettes supplied.',
   '',
   'VOICE OF THE PAGES',
-  'Words are very few. The cover says almost nothing. The story carries the copy. The materials page names the samples. The specification states the facts. A reader should feel the room before reading a sentence.',
+  'Words are very few. The cover says almost nothing. The story carries the copy. The colour pages show the palette that the project is built from. A reader should feel the room and its colours before reading a sentence.',
 ].join('\n');
 
 const TAMIL_ROOMS = [
@@ -574,7 +572,7 @@ const SPEC_WORD_LIMIT = 300;
  * printing. The page wrappers are removed and rebuilt by the server, so the
  * body can never end up with content beside the pages.
  */
-export function parseDesignerReply(content, photoCount = 4) {
+export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) {
   const raw = typeof content === 'string' ? content : '';
   if (raw.trim() === '') {
     throw new LlmError('The model returned an empty brochure design.', { type: 'invalid_reply' });
@@ -639,12 +637,17 @@ export function parseDesignerReply(content, photoCount = 4) {
   const known = new Set([
     ...COPY_TOKENS,
     ...IDENTITY_TOKENS,
-    ...FACT_TOKENS,
-    ...MATERIAL_TOKENS,
     ...MOTIF_TOKENS,
     'logo',
-    'drawing',
-    ...[...Array(Math.max(1, photoCount)).keys()].map((index) => `photo${index + 1}`),
+    ...[...Array(Math.max(1, photoCount)).keys()].flatMap((index) => {
+      const n = index + 1;
+      const tokensForPhoto = [`photo${n}`];
+      if (palettePhotos.includes(n)) {
+        tokensForPhoto.push(`photo${n}Palette`);
+        for (let chip = 1; chip <= 4; chip += 1) tokensForPhoto.push(`photo${n}Color${chip}`);
+      }
+      return tokensForPhoto;
+    }),
   ]);
   const unknown = [...tokens].filter((token) => !known.has(token));
   if (unknown.length > 0) {
@@ -655,17 +658,6 @@ export function parseDesignerReply(content, photoCount = 4) {
     const uses = countToken(whole, token);
     if (uses !== 1) issues.push(`{{${token}}} must appear exactly once (it appears ${uses} times)`);
   }
-  for (const token of FACT_TOKENS) {
-    const uses = countToken(whole, token);
-    if (uses === 0) issues.push(`the specification token {{${token}}} is missing`);
-    else if (uses > 1) issues.push(`the specification token {{${token}}} is printed ${uses} times, print it once`);
-  }
-  for (const token of MATERIAL_TOKENS) {
-    const uses = countToken(whole, token);
-    if (uses === 0) issues.push(`the material token {{${token}}} is missing`);
-    else if (uses > 1) issues.push(`the material token {{${token}}} is printed ${uses} times, print it once`);
-  }
-  if (countToken(whole, 'drawing') === 0) issues.push('the measured drawing {{drawing}} is missing');
   if (countToken(whole, 'orderNo') === 0) issues.push('the order number token {{orderNo}} is missing');
   if (countToken(whole, 'phone') === 0) issues.push('the contact token {{phone}} is missing');
   if (!MOTIF_TOKENS.some((token) => countToken(whole, token) > 0)) {
@@ -679,10 +671,9 @@ export function parseDesignerReply(content, photoCount = 4) {
   if (countToken(whole, 'brand') + countToken(whole, 'logo') === 0) {
     issues.push('the brand is not named');
   }
+
   const photoUses = [...tokens].filter((token) => /^photo\d+$/.test(token));
-  if (photoUses.length === 0) {
-    issues.push('no photograph is used');
-  }
+  if (photoUses.length === 0) issues.push('no photograph is used');
   for (const token of photoUses) {
     const index = Number.parseInt(token.slice(5), 10);
     if (index < 1 || index > photoCount) issues.push(`{{${token}}} points at a photograph that does not exist`);
@@ -691,6 +682,19 @@ export function parseDesignerReply(content, photoCount = 4) {
   for (let index = 1; index <= photoCount; index += 1) {
     if (!tokens.has(`photo${index}`)) {
       issues.push(`{{photo${index}}} is supplied but never used; every photograph must appear`);
+    }
+  }
+
+  // The colour study is the heart of this brochure: every decoded palette must
+  // be printed, with its chips.
+  for (const index of palettePhotos) {
+    if (!tokens.has(`photo${index}Palette`)) {
+      issues.push(`{{photo${index}Palette}} is missing; every photograph colour strip must be printed`);
+    }
+    for (let chip = 1; chip <= 4; chip += 1) {
+      if (countToken(whole, `photo${index}Color${chip}`) === 0) {
+        issues.push(`{{photo${index}Color${chip}}} is missing; print the four colours beside the strip`);
+      }
     }
   }
 
@@ -715,15 +719,9 @@ export function parseDesignerReply(content, photoCount = 4) {
     for (const token of COPY_TOKENS) {
       if (countToken(middleHtml, token) === 0) issues.push(`the story is missing {{${token}}}`);
     }
-    for (const token of MATERIAL_TOKENS) {
-      if (countToken(middleHtml, token) === 0) issues.push(`the story and materials pages are missing {{${token}}}`);
-    }
-    for (const token of FACT_TOKENS) {
-      if (countToken(middleHtml, token) > 0) issues.push(`{{${token}}} belongs on the specification page, not in the middle`);
-    }
     for (const [offset, page] of middle.entries()) {
-      if (!/photo\d+/.test(page) && !/material\dImage/.test(page)) {
-        issues.push(`page ${offset + 2} shows no photograph or material sample`);
+      if (!/photo\d+/.test(page) && !/photo\d+Palette/.test(page)) {
+        issues.push(`page ${offset + 2} shows neither a photograph nor a colour strip`);
       }
     }
   }
@@ -731,16 +729,19 @@ export function parseDesignerReply(content, photoCount = 4) {
     for (const token of COPY_TOKENS) {
       if (countToken(pages[0], token) > 0) issues.push(`{{${token}}} belongs in the story, not on the cover`);
     }
-    const spec = pages[last];
-    if (!/\{\{drawing/.test(spec)) issues.push('the drawing is not on the specification page');
-    for (const token of FACT_TOKENS) {
-      if (countToken(spec, token) === 0) issues.push(`the specification page is missing {{${token}}}`);
+    const lastHtml = pages[last];
+    if (countToken(lastHtml, 'brand') + countToken(lastHtml, 'logo') === 0) {
+      issues.push('the last page does not carry the brand');
     }
-    for (const token of MATERIAL_TOKENS) {
-      if (countToken(spec, token) > 0) issues.push(`{{${token}}} belongs on the materials page, not the specification`);
-    }
+    if (countToken(lastHtml, 'orderNo') === 0) issues.push('the last page is missing {{orderNo}}');
+    if (countToken(lastHtml, 'phone') === 0) issues.push('the last page is missing {{phone}}');
     for (const token of COPY_TOKENS) {
-      if (countToken(spec, token) > 0) issues.push(`{{${token}}} belongs in the story, not the specification`);
+      if (countToken(lastHtml, token) > 0) issues.push(`{{${token}}} belongs in the story, not the closing page`);
+    }
+    for (const index of palettePhotos) {
+      if (countToken(pages[last], `photo${index}Palette`) > 0) {
+        issues.push('the photograph colour strip belongs on a colour page, not the closing page');
+      }
     }
   }
 
@@ -762,7 +763,7 @@ function valueOr(value, fallback) {
   return text === '' ? fallback : text;
 }
 
-function buildTokenValues({ values, photos, copy }) {
+function buildTokenValues({ values, photos, copy, photoPalettes = {} }) {
   const tokens = {
     brand: BRAND.name,
     brandTamil: BRAND.tamil,
@@ -779,44 +780,23 @@ function buildTokenValues({ values, photos, copy }) {
     headline: clean(copy?.headline),
     body: clean(copy?.body),
     closing: clean(copy?.closing),
-    width: valueOr(values.width, 'To be confirmed'),
-    height: valueOr(values.height, 'To be confirmed'),
-    depth: valueOr(values.depth, 'To be confirmed'),
-    shutters: valueOr(values.shutters, 'To be confirmed'),
-    exterior: valueOr(values.exterior, 'To be confirmed'),
-    interior: valueOr(values.interior, 'To be confirmed'),
-    carcass: valueOr(values.carcass, 'To be confirmed'),
-    backPanel: valueOr(values.backPanel, 'To be confirmed'),
-    shuttersMat: valueOr(values.shuttersMat, 'To be confirmed'),
-    drawers: valueOr(values.drawers, 'To be confirmed'),
-    edgeShutter: valueOr(values.edgeShutter, 'To be confirmed'),
-    edgeCarcass: valueOr(values.edgeCarcass, 'To be confirmed'),
-    edgeNote: valueOr(values.edgeNote, 'To be confirmed'),
-    finishExt: valueOr(values.finishExt, 'To be confirmed'),
-    finishInt: valueOr(values.finishInt, 'To be confirmed'),
-    handle: valueOr(values.handle, 'To be confirmed'),
-    handleNote: valueOr(values.handleNote, 'To be confirmed'),
-    hinges: valueOr(values.hinges, 'To be confirmed'),
-    channels: valueOr(values.channels, 'To be confirmed'),
-    material1Name: valueOr(values.mat1Name, 'Finish sample'),
-    material1Image: values.mat1Image,
-    material2Name: valueOr(values.mat2Name, 'Finish sample'),
-    material2Image: values.mat2Image,
-    material3Name: valueOr(values.mat3Name, 'Finish sample'),
-    material3Image: values.mat3Image,
-    material4Name: valueOr(values.mat4Name, 'Finish sample'),
-    material4Image: values.mat4Image,
     logo: ASSETS.logo,
     jaali: ASSETS.jaali,
     paisley: ASSETS.paisley,
     lotus: ASSETS.lotus,
     rangoli: ASSETS.rangoli,
     arch: ASSETS.arch,
-    drawing: elevationSvg(values),
   };
   photos.forEach((photo, index) => {
     tokens[`photo${index + 1}`] = photo;
   });
+  for (const [key, palette] of Object.entries(photoPalettes)) {
+    if (!/^photo\d+$/.test(key) || !Array.isArray(palette) || palette.length === 0) continue;
+    tokens[`${key}Palette`] = paletteStripPng(palette);
+    for (let chip = 1; chip <= 4; chip += 1) {
+      tokens[`${key}Color${chip}`] = palette[chip - 1] ?? palette[0];
+    }
+  }
   return tokens;
 }
 
@@ -825,7 +805,8 @@ function fillTokens(html, tokens) {
     if (!(key in tokens)) return match;
     const value = tokens[key];
     if (typeof value !== 'string') return match;
-    return RAW_TOKENS.has(key) ? value : escapeHtml(value);
+    const raw = RAW_TOKENS.has(key) || key.endsWith('Palette') || key.endsWith('Image');
+    return raw ? value : escapeHtml(value);
   });
 }
 
@@ -902,6 +883,7 @@ export function compileGenerativeBrochure({
   templatesDir,
   dataDir,
   attachmentImages = [],
+  photoPalettes = {},
   copy,
   pages,
   styles = '',
@@ -915,7 +897,7 @@ export function compileGenerativeBrochure({
     attachmentImages,
   });
   const photoTokens = Array.isArray(attachmentImages) ? attachmentImages.filter(Boolean) : [];
-  const tokens = buildTokenValues({ values, photos: photoTokens, copy });
+  const tokens = buildTokenValues({ values, photos: photoTokens, copy, photoPalettes });
 
   const filledPages = pages.map((page) => fillTokens(page, tokens));
   const filledStyles = fillTokens(styles, tokens);

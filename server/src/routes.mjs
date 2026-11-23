@@ -146,7 +146,9 @@ function orderFieldMaxLength(field) {
 
 // Only these fields must be present on create. The rest start empty and can be
 // filled in with PATCH, which keeps the mobile form forgiving.
-const REQUIRED_ORDER_FIELDS = new Set(['title', 'room', 'width', 'height', 'depth', 'shutters']);
+// A brochure needs the piece and the room. Measurements are not part of the
+// product any more, so every technical field is optional.
+const REQUIRED_ORDER_FIELDS = new Set(['title', 'room']);
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const UPLOAD_EXTENSIONS = new Map([
@@ -733,6 +735,17 @@ export function createApp(options) {
     const order = getOrder(db, c.req.param('id'));
     if (!order) return fail(c, 404, 'Order not found.');
     return c.json(orderPayload(order));
+  });
+
+  // The colours read from this order's own photographs. The brochure prints
+  // them, and the studio wants to see the same chips on screen.
+  app.get('/api/orders/:id/palettes', (c) => {
+    const order = getOrder(db, c.req.param('id'));
+    if (!order) return fail(c, 404, 'Order not found.');
+    const palettes = photoPalettesFor(order, path.join(dataDir, 'media'));
+    return c.json({
+      palettes: Object.entries(palettes).map(([photo, colors]) => ({ photo, colors })),
+    });
   });
 
   app.patch('/api/orders/:id', async (c) => {
@@ -1403,13 +1416,17 @@ export function createApp(options) {
         latencyMs = result.latencyMs;
         previousReply = result.content;
         try {
-          const document = parseDesignerReply(result.content, attached.length);
+          const palettePhotos = Object.keys(photoPalettes)
+            .map((key) => Number.parseInt(key.replace('photo', ''), 10))
+            .filter((index) => Number.isInteger(index));
+          const document = parseDesignerReply(result.content, attached.length, palettePhotos);
           html = compileGenerativeBrochure({
             order,
             materials: listMaterials(db),
             templatesDir,
             dataDir,
             attachmentImages: attached,
+            photoPalettes,
             copy,
             pages: document.pages,
             styles: document.styles,

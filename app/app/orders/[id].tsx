@@ -20,7 +20,15 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { ErrorState, LoadingState } from '@/components/StateViews';
 import { openUrl, shareLink } from '@/lib/actions';
 import { copyText } from '@/lib/clipboard';
-import { api, errorMessage, fileUrl, type Order, type OrderNote, type Render } from '@/lib/api';
+import {
+  api,
+  errorMessage,
+  fileUrl,
+  type Order,
+  type OrderNote,
+  type OrderPalette,
+  type Render,
+} from '@/lib/api';
 import { displayValue, formatDateTime, pageCountLabel, statusLabel } from '@/lib/format';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
@@ -43,49 +51,6 @@ const SPEC_SECTIONS: {
       },
     ],
   },
-  {
-    title: 'Dimensions',
-    rows: [
-      { label: 'Width', value: (order) => displayValue(order.width) },
-      { label: 'Height', value: (order) => displayValue(order.height) },
-      { label: 'Depth', value: (order) => displayValue(order.depth) },
-      { label: 'Shutters', value: (order) => displayValue(order.shutters) },
-    ],
-  },
-  {
-    title: 'Carcass',
-    rows: [
-      { label: 'Carcass', value: (order) => displayValue(order.carcass) },
-      { label: 'Back panel', value: (order) => displayValue(order.backPanel) },
-      { label: 'Shutter material', value: (order) => displayValue(order.shuttersMat) },
-      { label: 'Drawers', value: (order) => displayValue(order.drawers) },
-    ],
-  },
-  {
-    title: 'Materials',
-    rows: [
-      { label: 'Exterior laminate', value: (order) => displayValue(order.exterior) },
-      { label: 'Interior laminate', value: (order) => displayValue(order.interior) },
-      { label: 'Edge band shutters', value: (order) => displayValue(order.edgeShutter) },
-      { label: 'Edge band carcass', value: (order) => displayValue(order.edgeCarcass) },
-    ],
-  },
-  {
-    title: 'Hardware',
-    rows: [
-      { label: 'Hinges', value: (order) => displayValue(order.hinges) },
-      { label: 'Channels', value: (order) => displayValue(order.channels) },
-      { label: 'Handle', value: (order) => displayValue(order.handle) },
-      { label: 'Handle note', value: (order) => displayValue(order.handleNote) },
-    ],
-  },
-  {
-    title: 'Finish',
-    rows: [
-      { label: 'Exterior finish', value: (order) => displayValue(order.finishExt) },
-      { label: 'Interior finish', value: (order) => displayValue(order.finishInt) },
-    ],
-  },
 ];
 
 export default function OrderDetailScreen() {
@@ -97,6 +62,7 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [render, setRender] = useState<Render | null>(null);
+  const [palettes, setPalettes] = useState<OrderPalette[]>([]);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [direction, setDirection] = useState('');
   const [designLoading, setDesignLoading] = useState(false);
@@ -110,6 +76,16 @@ export default function OrderDetailScreen() {
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
 
+  const loadPalettes = useCallback(async () => {
+    if (!orderId) return;
+    try {
+      const result = await api.orderPalettes(orderId);
+      setPalettes(result.palettes ?? []);
+    } catch {
+      // A missing palette is not an error; the brochure still has the pictures.
+    }
+  }, [orderId]);
+
   const loadOrder = useCallback(async () => {
     if (!orderId) {
       setLoading(false);
@@ -122,12 +98,13 @@ export default function OrderDetailScreen() {
       const next = await api.getOrder(orderId);
       setOrder(next);
       setDirection(next.designDirection ?? '');
+      void loadPalettes();
     } catch (fetchError) {
       setLoadError(errorMessage(fetchError, 'The order could not be loaded. Try again.'));
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [loadPalettes, orderId]);
 
   const loadLatestRender = useCallback(async () => {
     if (!orderId) return;
@@ -295,7 +272,7 @@ export default function OrderDetailScreen() {
                 </View>
                 <Text style={[text.muted, styles.intro]}>
                   The model writes the words and typesets the four pages from this order, the
-                  photographs and the finish samples. A reference only sets the feel; the layout is
+                  photographs and their colour palettes. The model composes every page for this order.
                   composed for this piece.
                 </Text>
 
@@ -363,6 +340,35 @@ export default function OrderDetailScreen() {
                       </Text>
                       <Text style={text.caption}>{formatFileSize(file.bytes)}</Text>
                     </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              {palettes.length > 0 ? (
+                <View style={styles.section}>
+                  <View style={shared.rowBetween}>
+                    <Text style={text.sectionLabel}>Colour from the pictures</Text>
+                    <Text style={text.caption}>{palettes.length === 1 ? '1 palette' : `${palettes.length} palettes`}</Text>
+                  </View>
+                  <Text style={[text.muted, styles.intro]}>
+                    Read from the photographs and printed in the brochure.
+                  </Text>
+                  {palettes.map((palette) => (
+                    <View key={palette.photo} style={styles.paletteRow}>
+                      <Text style={[text.caption, styles.paletteName]}>
+                        {palette.photo.replace('photo', 'Photo ')}
+                      </Text>
+                      <View style={styles.swatchRow}>
+                        {palette.colors.map((colour, index) => (
+                          <View
+                            key={`${palette.photo}-${index}`}
+                            accessibilityLabel={`Colour ${colour}`}
+                            style={[styles.swatch, { backgroundColor: colour }]}
+                          />
+                        ))}
+                      </View>
+                      <Text style={[text.caption, styles.paletteHex]}>{palette.colors.join('  ')}</Text>
+                    </View>
                   ))}
                 </View>
               ) : null}
@@ -658,6 +664,28 @@ const styles = StyleSheet.create({
   fileName: {
     flexShrink: 1,
     color: colors.ink,
+  },
+  paletteRow: {
+    marginTop: space.sm,
+    gap: 6,
+  },
+  paletteName: {
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  swatchRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  swatch: {
+    width: 44,
+    height: 28,
+    borderRadius: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairInset,
+  },
+  paletteHex: {
+    letterSpacing: 0.4,
   },
   noteBox: {
     marginTop: space.md,
