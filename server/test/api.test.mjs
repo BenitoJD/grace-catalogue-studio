@@ -42,7 +42,7 @@ import {
 } from '../src/db.mjs';
 import { CATALOG_VERSION } from '../src/design-catalog.mjs';
 import { parseDesignerReply } from '../src/ai-brochure.mjs';
-import { buildPendingPreviews, countReadyPreviews } from '../src/design-previews.mjs';
+import { buildPendingPreviews, countReadyPreviews, revalidatePreviews } from '../src/design-previews.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -3680,6 +3680,17 @@ test('each reference earns its preview from a real printed brochure', { timeout:
   resetMockProvider({ reply: 'unused' });
   assert.equal(await buildPendingPreviews(deps), 0);
   assert.equal(mockProviderState.requests.length, 0);
+
+  // A stored document that stops passing the rules loses its flag but keeps
+  // showing its old glimpse until the reprint lands.
+  const shrunk = DESIGNER_HTML.replace('width:216mm;height:303mm', 'width:20mm;height:20mm');
+  writeFileSync(path.join(dataDir, 'design-previews', 'preview-proof-1.html'), shrunk);
+  const revalidated = await revalidatePreviews(deps);
+  assert.equal(revalidated.cleared, 1);
+  assert.equal(countReadyPreviews(db, dataDir), 2);
+  resetMockProvider({ reply: DESIGNER_HTML });
+  assert.equal(await buildPendingPreviews(deps), 1);
+  assert.ok(getDesignCatalog(db).designs.every((design) => design.previewReady === true));
 });
 
 test('a chat sentence edits the order and the page it already has', { timeout: 300_000 }, async () => {

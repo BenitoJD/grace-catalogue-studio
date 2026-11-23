@@ -92,7 +92,7 @@ A reference is a feeling, never a layout. The brochure designer reads its palett
 
 ![Design references](docs/screenshots/e2e/06b-reference-gallery.png)
 
-Every reference then proves itself: the preview engine prints a complete brochure in its spirit from one fixed sample order, using the same prompt path, the same print checks and the same renderer as a customer brochure. Only a document that passes every check earns its cover image in the gallery; anything else is retried once and left for a later run. Previews build one at a time in the background and resume after a restart, so the gallery fills with printed covers while the studio works.
+Every reference then proves itself: the preview engine prints a complete brochure in its spirit from one fixed sample order, using the same prompt path, the same print checks and the same renderer as a customer brochure. Only a document that passes every check earns its cover image in the gallery, and the checks include a cover photograph big enough to lead the page; anything else is retried once and left for a later run. The model's own reply is stored with each preview, so when the rules get stricter the library is re-judged and only the failures are reprinted. Previews build one at a time in the background and resume after a restart, so the gallery fills with printed covers while the studio works.
 
 `GET /api/designs` serves the library with its build state and the preview counts. `POST /api/orders/:id/ai-brochure` accepts a `reference` id from it.
 

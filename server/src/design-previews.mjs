@@ -12,7 +12,7 @@
 // data/design-previews, and the reference entry records that it is ready. A
 // restart resumes where it left off, so one hundred references cost patience,
 // not attention.
-import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -23,9 +23,9 @@ import {
   MIN_DESIGN_PAGES,
   buildDesignerMessages,
   buildDesignerRepairMessages,
+  parseDesignerReply,
   compileGenerativeBrochure,
   defaultPhotoUrls,
-  parseDesignerReply,
   photoProfiles,
 } from './ai-brochure.mjs';
 import { referenceForDesigner } from './design-catalog.mjs';
@@ -126,6 +126,7 @@ function previewPaths(dataDir, designId) {
     directory,
     png: path.join(directory, `${designId}.png`),
     pdf: path.join(directory, `${designId}.pdf`),
+    html: path.join(directory, `${designId}.html`),
   };
 }
 
@@ -136,6 +137,48 @@ export function previewReadyOnDisk(dataDir, designId) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Re-check every stored preview against the current print rules, which only
+ * ever get stricter. A document that no longer passes loses its ready flag
+ * and joins the next print run; its files stay on disk until replaced, so the
+ * gallery never shows an empty tile.
+ */
+export async function revalidatePreviews(deps) {
+  const { db, dataDir, logger } = deps;
+  const catalog = getDesignCatalog(db);
+  let cleared = 0;
+  const designs = catalog.designs.map((design) => {
+    if (!design.previewReady) return design;
+    let html = null;
+    try {
+      html = readFileSync(previewPaths(dataDir, design.id).html, 'utf8');
+    } catch {
+      return design;
+    }
+    if (typeof html !== 'string' || html.length < 500) return design;
+    try {
+      // Previews always print from the house photography: four photos.
+      parseDesignerReply(html, 4);
+      return design;
+    } catch (error) {
+      cleared += 1;
+      logger?.warn?.('A stored preview no longer passes the print checks; it will be reprinted.', {
+        design: design.id,
+      });
+      const { previewReady, previewUpdatedAt, ...rest } = design;
+      return { ...rest, previewAttempts: (design.previewAttempts ?? 0) + 1 };
+    }
+  });
+  if (cleared > 0) {
+    putDesignCatalog(db, {
+      version: catalog.version,
+      expected: catalog.expected,
+      designs,
+    });
+  }
+  return { cleared };
 }
 
 /**
@@ -160,6 +203,7 @@ export async function buildPreviewForDesign(deps, design) {
   });
 
   let html = null;
+  let acceptedReply = '';
   let previousReply = '';
   let lastIssues = '';
   for (let attempt = 1; attempt <= DESIGNER_TRIES && !html; attempt += 1) {
@@ -178,6 +222,7 @@ export async function buildPreviewForDesign(deps, design) {
     previousReply = result.content;
     try {
       const document = parseDesignerReply(result.content, photos.length);
+      acceptedReply = result.content;
       html = compileGenerativeBrochure({
         order: SAMPLE_ORDER,
         materials,
@@ -204,6 +249,9 @@ export async function buildPreviewForDesign(deps, design) {
   if (!rendered || rendered.pageCount < MIN_DESIGN_PAGES || rendered.pageCount > MAX_DESIGN_PAGES) return false;
   const paths = previewPaths(dataDir, design.id);
   mkdirSync(paths.directory, { recursive: true });
+  // The stored document is the model's own reply with its tokens intact, so
+  // later print rules can judge it again. The compiled file is derivative.
+  writeFileSync(paths.html, acceptedReply, 'utf8');
   const rendersDir = path.join(dataDir, 'renders');
   copyFileSync(path.join(rendersDir, `${renderId}.pdf`), paths.pdf);
   copyFileSync(path.join(rendersDir, `${renderId}-1.png`), paths.png);
@@ -225,9 +273,7 @@ export async function buildPendingPreviews(deps, { limit = Infinity } = {}) {
   let finished = 0;
   for (;;) {
     const catalog = getDesignCatalog(db);
-    const next = catalog.designs.find(
-      (design) => !design.previewReady && !previewReadyOnDisk(dataDir, design.id),
-    );
+    const next = catalog.designs.find((design) => !design.previewReady);
     if (!next || finished >= limit) break;
     let ready = false;
     try {

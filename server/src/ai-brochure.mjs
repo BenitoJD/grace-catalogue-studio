@@ -513,6 +513,25 @@ function pageSegments(bodyHtml) {
   return segments;
 }
 
+/**
+ * The cover photograph must lead the page, not hide in a corner. A photo
+ * counts as prominent when it is an <img> tag, or when its own tag carries at
+ * least 80 mm of width or 120 mm of height in its style: full bleed, split,
+ * framed and masthead covers all clear that bar, a thumbnail does not.
+ */
+function coverPhotoProminent(coverHtml) {
+  const tags = coverHtml.match(/<\w+\b[^>]*>/gi) ?? [];
+  for (const tag of tags) {
+    if (!/\{\{\s*photo\d+\s*\}\}/.test(tag)) continue;
+    if (/^<img\b/i.test(tag)) return true;
+    const width = /(?:^|[^a-z-])width\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*mm/i.exec(tag);
+    if (width && Number.parseFloat(width[1]) >= 80) return true;
+    const height = /(?:^|[^a-z-])height\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*mm/i.exec(tag);
+    if (height && Number.parseFloat(height[1]) >= 120) return true;
+  }
+  return false;
+}
+
 function visibleText(html) {
   return String(html)
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -680,7 +699,11 @@ export function parseDesignerReply(content, photoCount = 4) {
 
   const middleHtml = middle.join('\n');
   if (pages.length > 0) {
-    if (!/photo\d+/.test(pages[0]) && !/\{\{photo/i.test(pages[0])) issues.push('the cover has no photograph');
+    if (!/photo\d+/.test(pages[0]) && !/\{\{photo/i.test(pages[0])) {
+      issues.push('the cover has no photograph');
+    } else if (!coverPhotoProminent(pages[0])) {
+      issues.push('the cover photograph is too small to lead the page; give it at least 80 mm of width');
+    }
     for (const token of ['title', 'customer']) {
       if (countToken(pages[0], token) === 0) issues.push(`the cover is missing {{${token}}}`);
     }

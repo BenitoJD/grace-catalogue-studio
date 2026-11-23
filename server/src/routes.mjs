@@ -69,7 +69,7 @@ import {
   parseCatalogReply,
   referenceForDesigner,
 } from './design-catalog.mjs';
-import { buildPendingPreviews, countReadyPreviews } from './design-previews.mjs';
+import { buildPendingPreviews, countReadyPreviews, revalidatePreviews } from './design-previews.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
   INTAKE_MAX_MESSAGE_CHARS,
@@ -569,6 +569,7 @@ export function createApp(options) {
     previewBuildState.active = true;
     void (async () => {
       try {
+        await revalidatePreviews(previewDeps(config));
         const finished = await buildPendingPreviews(previewDeps(config));
         logger.info('Design preview run finished.', { finished });
       } catch (error) {
