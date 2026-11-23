@@ -24,6 +24,7 @@ import {
   fileUrl,
   type IntakeMessage,
   type OrderAttachment,
+  type ReviewPhoto,
   type Render,
 } from '@/lib/api';
 import { openUrl } from '@/lib/actions';
@@ -50,6 +51,14 @@ type Bubble =
       orderId: string;
       orderNo: string;
       render: Render;
+    }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'review';
+      content: string;
+      at?: string;
+      photos: ReviewPhoto[];
     };
 
 const WELCOME =
@@ -173,6 +182,10 @@ export default function ChatScreen() {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [missing, setMissing] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
+  // True between the picture review and the client's answer about what to
+  // magnify. The brochure waits for that answer.
+  const [awaitingReview, setAwaitingReview] = useState(false);
+  const reviewDraft = useRef<Record<string, string> | null>(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [cooking, setCooking] = useState(false);
@@ -447,7 +460,11 @@ export default function ChatScreen() {
   // One chat is one order. As soon as the intake says it has enough, the order
   // is created, the copy is written and the voucher is rendered.
   const createOrderFor = useCallback(
-    async (orderDraft: Record<string, string>, files: OrderAttachment[] = orderFiles) => {
+    async (
+      orderDraft: Record<string, string>,
+      files: OrderAttachment[] = orderFiles,
+      direction = '',
+    ) => {
       setCooking(true);
       setCreateFailed(false);
       try {
@@ -472,7 +489,10 @@ export default function ChatScreen() {
         let render: Render | null = null;
         let designError: string | null = null;
         try {
-          const designed = await api.aiBrochure(order.id, brief ? { brief } : {});
+          const designed = await api.aiBrochure(order.id, {
+            ...(brief ? { brief } : {}),
+            ...(direction.trim() ? { direction: direction.trim() } : {}),
+          });
           render = designed.render;
         } catch (error) {
           designError = errorMessage(error, 'The brochure could not be designed.');
@@ -587,6 +607,42 @@ export default function ChatScreen() {
       }
       return;
     }
+    // The client has just answered the picture review. That answer is the
+    // direction for the designer, and only now is the order made.
+    if (awaitingReview && content !== '') {
+      sendingRef.current = true;
+      const at = stamp();
+      setBubbles((current) => [
+        ...current,
+        { id: nextId(), role: 'user', kind: 'text', content, at },
+      ]);
+      setInput('');
+      setInputHeight(38);
+      setAwaitingReview(false);
+      setSending(true);
+      try {
+        await createOrderFor(reviewDraft.current ?? draft, orderFiles, content);
+      } catch (error) {
+        setBubbles((current) => [
+          ...current,
+          {
+            id: nextId(),
+            role: 'assistant',
+            kind: 'text',
+            content: errorMessage(error, 'I could not create the order. Try again.'),
+            at: stamp(),
+            failed: true,
+          },
+        ]);
+        setInput(content);
+        setAwaitingReview(true);
+      } finally {
+        sendingRef.current = false;
+        setSending(false);
+      }
+      return;
+    }
+
     sendingRef.current = true;
     const previousInput = input;
     const previousFiles = pendingFiles;
@@ -604,6 +660,8 @@ export default function ChatScreen() {
       setMissing([]);
       setReady(false);
       setOrderCreated(false);
+    setAwaitingReview(false);
+    reviewDraft.current = null;
       setCreateFailed(false);
     }
 
@@ -648,6 +706,33 @@ export default function ChatScreen() {
         { id: nextId(), role: 'assistant', kind: 'text', content: result.reply, at: stamp() },
       ]);
       if (result.ready) {
+        const pictures = allFiles.filter((file) =>
+          String(file.contentType ?? '').startsWith('image/'),
+        );
+        if (pictures.length > 0) {
+          try {
+            const review = await api.analyzeImages(pictures.map((file) => file.url));
+            reviewDraft.current = result.draft;
+            setAwaitingReview(true);
+            if (review.photos.length > 0) {
+              setBubbles((current) => [
+                ...current,
+                {
+                  id: nextId(),
+                  role: 'assistant' as const,
+                  kind: 'review' as const,
+                  content:
+                    'Before I design, here is what I would magnify. I circled the details in your pictures and read these colours from them.',
+                  at: stamp(),
+                  photos: review.photos,
+                },
+              ]);
+            }
+            return;
+          } catch {
+            // A picture that cannot be read must not stop the order.
+          }
+        }
         await createOrderFor(result.draft, allFiles);
       }
     } catch (error) {
@@ -679,7 +764,7 @@ export default function ChatScreen() {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [activeOrderId, activeOrderNo, bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sending, skipping, uploadingFiles]);
+  }, [activeOrderId, activeOrderNo, awaitingReview, bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sending, skipping, uploadingFiles]);
 
   const skipMissing = useCallback(async () => {
     if (!missing.length || sending || cooking || skipping) return;
@@ -694,6 +779,33 @@ export default function ChatScreen() {
         { id: nextId(), role: 'assistant', kind: 'text', content: result.reply, at: stamp() },
       ]);
       if (result.ready) {
+        const pictures = orderFiles.filter((file) =>
+          String(file.contentType ?? '').startsWith('image/'),
+        );
+        if (pictures.length > 0) {
+          try {
+            const review = await api.analyzeImages(pictures.map((file) => file.url));
+            reviewDraft.current = result.draft;
+            setAwaitingReview(true);
+            if (review.photos.length > 0) {
+              setBubbles((current) => [
+                ...current,
+                {
+                  id: nextId(),
+                  role: 'assistant' as const,
+                  kind: 'review' as const,
+                  content:
+                    'Before I design, here is what I would magnify. I circled the details in your pictures and read these colours from them.',
+                  at: stamp(),
+                  photos: review.photos,
+                },
+              ]);
+            }
+            return;
+          } catch {
+            // A picture that cannot be read must not stop the order.
+          }
+        }
         await createOrderFor(result.draft, orderFiles);
       }
     } catch (error) {
@@ -867,7 +979,11 @@ export default function ChatScreen() {
             <View style={styles.statusCard}>
               <View style={styles.statusTop}>
                 <Text style={styles.statusTitle}>
-                  {ready ? 'Ready to build' : `${Math.min(ESSENTIAL_TOTAL, Math.max(0, ESSENTIAL_TOTAL - missing.length))} of ${ESSENTIAL_TOTAL} details`}
+                  {awaitingReview
+                    ? 'Pictures reviewed'
+                    : ready
+                      ? 'Ready to build'
+                      : `${Math.min(ESSENTIAL_TOTAL, Math.max(0, ESSENTIAL_TOTAL - missing.length))} of ${ESSENTIAL_TOTAL} details`}
                 </Text>
                 <View style={styles.progressTrack}>
                   <View
@@ -882,7 +998,11 @@ export default function ChatScreen() {
                   {Math.round((Math.min(ESSENTIAL_TOTAL, Math.max(0, ESSENTIAL_TOTAL - missing.length)) / ESSENTIAL_TOTAL) * 100)}%
                 </Text>
               </View>
-              {ready ? (
+              {awaitingReview ? (
+                <Text style={styles.statusHint}>
+                  Pick the details you want magnified, then the brochure is designed.
+                </Text>
+              ) : ready ? (
                 <Text style={styles.statusHint}>
                   The order and brochure are being made automatically. Check the thread for the PDF.
                 </Text>
@@ -1091,6 +1211,59 @@ function BubbleView({
   copied: boolean;
   onCopy: (bubble: Bubble) => void;
 }) {
+  if (bubble.kind === 'review') {
+    return (
+      <View style={styles.rowLeft}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarLabel}>JD</Text>
+        </View>
+        <View style={styles.bubbleColumn}>
+          <View style={[styles.bubble, styles.bubbleAssistant, styles.reviewBubble]}>
+            <Text style={[text.body, styles.reviewTitle]}>{bubble.content}</Text>
+            {bubble.photos.map((photo, photoIndex) => (
+              <View key={photo.url} style={styles.reviewPhoto}>
+                <Text style={[text.caption, styles.reviewPhotoLabel]}>
+                  {`Picture ${photoIndex + 1} · ${photo.analysis.orientation}`}
+                </Text>
+                <View style={styles.reviewFrame}>
+                  <Image
+                    source={{ uri: fileUrl(photo.url) }}
+                    style={styles.reviewImage}
+                    resizeMode="cover"
+                    accessibilityLabel={`Review picture ${photoIndex + 1}`}
+                  />
+                  {photo.analysis.candidates.map((candidate, index) => (
+                    <View
+                      key={candidate.id}
+                      style={[
+                        styles.reviewCircle,
+                        { left: `${candidate.x}%`, top: `${candidate.y}%` },
+                      ]}
+                      accessibilityLabel={`Magnify choice ${index + 1}`}>
+                      <Text style={styles.reviewCircleLabel}>{index + 1}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.reviewPalette}>
+                  {photo.analysis.palette.map((swatch) => (
+                    <View key={swatch.hex} style={styles.reviewSwatch}>
+                      <View style={[styles.reviewChip, { backgroundColor: swatch.hex }]} />
+                      <Text style={[text.caption, styles.reviewChipName]} numberOfLines={1}>
+                        {swatch.name}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+            <Text style={[text.caption, styles.reviewHint]}>
+              Reply with the numbers you want magnified, name a detail, or say you choose.
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
   if (bubble.kind === 'brochure') {
     const firstPage = bubble.render.pageUrls?.[0];
     return (
@@ -2086,6 +2259,79 @@ const styles = StyleSheet.create({
   },
   cookHintReady: {
     color: 'rgba(255,255,255,0.78)',
+  },
+  reviewBubble: {
+    gap: 12,
+    maxWidth: 520,
+  },
+  reviewTitle: {
+    fontWeight: '600',
+  },
+  reviewPhoto: {
+    gap: 6,
+  },
+  reviewPhotoLabel: {
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  reviewFrame: {
+    position: 'relative',
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: colors.fill,
+  },
+  reviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  reviewCircle: {
+    position: 'absolute',
+    marginLeft: -19,
+    marginTop: -19,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: '#B98A55',
+    backgroundColor: 'rgba(248,242,231,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewCircleLabel: {
+    color: colors.surface,
+    backgroundColor: '#173B44',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+    overflow: 'hidden',
+  },
+  reviewPalette: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  reviewSwatch: {
+    width: 64,
+    gap: 3,
+  },
+  reviewChip: {
+    height: 20,
+    borderRadius: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairInset,
+  },
+  reviewChipName: {
+    fontSize: 10,
+    color: colors.ink,
+  },
+  reviewHint: {
+    color: colors.muted,
+    fontStyle: 'italic',
   },
   brochure: {
     maxWidth: 440,

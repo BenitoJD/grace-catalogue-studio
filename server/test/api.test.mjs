@@ -3934,6 +3934,44 @@ test('the colours are read from the order photographs and served to the app', { 
   assert.equal(missing.status, 404);
 });
 
+test('the picture review circles likely details and shows the palette', { timeout: 240_000 }, async () => {
+  const customer = await (await postJson(`${baseUrl}/api/customers`, { name: 'Review Customer' })).json();
+  const created = await (
+    await postJson(`${baseUrl}/api/orders`, {
+      ...DEMO_ORDER,
+      title: 'Review Wardrobe',
+      customerId: customer.id,
+      attachments: FIXTURE_ROOM_FILES,
+    })
+  ).json();
+  const images = created.attachments.map((file) => file.url);
+  const response = await postJson(`${baseUrl}/api/analyze-images`, { images });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.photos.length, 2);
+  for (const photo of body.photos) {
+    assert.match(photo.url, /^\/media\//);
+    assert.equal(photo.analysis.palette.length, 4);
+    for (const swatch of photo.analysis.palette) {
+      assert.match(swatch.hex, /^#[0-9A-F]{6}$/i);
+      assert.ok(swatch.name.length >= 3);
+    }
+    assert.equal(photo.analysis.candidates.length, 3);
+    for (const candidate of photo.analysis.candidates) {
+      assert.ok(candidate.x > 0 && candidate.x < 100);
+      assert.ok(candidate.y > 0 && candidate.y < 100);
+      assert.ok(candidate.label.startsWith('Detail'));
+    }
+  }
+  assert.equal((await postJson(`${baseUrl}/api/analyze-images`, { images: [] })).status, 400);
+  assert.equal(
+    (await postJson(`${baseUrl}/api/analyze-images`, { images: ['/media/../etc/passwd'] })).status,
+    400,
+  );
+  const missing = await postJson(`${baseUrl}/api/analyze-images`, { images: ['/media/nope.png'] });
+  assert.equal(missing.status, 404);
+});
+
 test('network egress only allows the configured model provider and loopback', async () => {
   const calls = [];
   const fakeFetch = async (url, init) => {

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -107,6 +107,7 @@ import {
 } from './llm.mjs';
 import { createLogger, parseLogLevel } from './logger.mjs';
 import { colourName, photoPalettesFor } from './image-palette.mjs';
+import { analyseMediaFiles } from './image-analysis.mjs';
 import { buildKitValues, createRenderer, newRenderId } from './render.mjs';
 import {
   RATE_CARD_TEMPLATE,
@@ -1717,6 +1718,40 @@ export function createApp(options) {
   // File upload. There is no type restriction: photographs, drawings, PDFs,
   // spreadsheets and anything else the customer sends are stored as sent. A
   // sidecar JSON keeps the original name and content type for serving.
+  // The picture review the chat shows before any brochure exists: the busy
+  // details worth magnifying, with a circle centre and the picture palette, so
+  // the studio can pick what to magnify instead of guessing.
+  app.post('/api/analyze-images', async (c) => {
+    const parsed = await readJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const images = parsed.body.images;
+    if (!Array.isArray(images) || images.length === 0) {
+      return fail(c, 400, 'Field "images" must be a list of uploaded media paths.');
+    }
+    if (images.length > 12) return fail(c, 400, 'At most 12 pictures can be reviewed at once.');
+    const mediaDir = path.join(dataDir, 'media');
+    for (const image of images) {
+      if (typeof image !== 'string' || !/^\/media\/[A-Za-z0-9._-]+$/.test(image)) {
+        return fail(c, 400, 'Every image must be an uploaded media path.');
+      }
+      if (!/\.(png|jpe?g)$/i.test(image)) {
+        return fail(c, 400, 'Only PNG and JPEG photographs can be reviewed.');
+      }
+      if (!existsSync(path.join(mediaDir, path.basename(image)))) {
+        return fail(c, 404, `The picture "${image}" was not found.`);
+      }
+    }
+    const photos = analyseMediaFiles(images, mediaDir).map((entry) => {
+      if (!entry.analysis) {
+        throw new LlmError(`The picture "${entry.name}" could not be read.`, {
+          type: 'invalid_reply',
+        });
+      }
+      return entry;
+    });
+    return c.json({ photos });
+  });
+
   app.post('/api/media', uploadBodyLimit, async (c) => {
     const parsed = await readJsonObject(c);
     if (parsed.error) return fail(c, 400, parsed.error);

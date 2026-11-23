@@ -500,7 +500,30 @@ try {
   );
   const ordersBeforeChat = (await (await fetch(`${API}/api/orders`)).json()).length;
   check("chat accepts the dump", await clickAria(page, "Send message"));
-  check("the brief shows its progress", await waitForBodyText(page, "Ready to build", 90000));
+  check("the brief shows its progress", await waitForBodyText(page, "Pictures reviewed", 90000));
+  check(
+    "the pictures are reviewed before design",
+    await waitForBodyText(page, "what I would magnify", 90000)
+  );
+  check(
+    "the review circles likely details",
+    (await page.$$('[aria-label^="Magnify choice "]')).length >= 3
+  );
+  check(
+    "the review shows the picture palette",
+    await page.evaluate(() =>
+      ["Oat", "Greige", "Sand Beige", "Walnut", "Warm Ivory", "Chalk", "Custom"].some((name) =>
+        document.body.innerText.includes(name)
+      )
+    )
+  );
+  check(
+    "the review asks what to magnify",
+    await hasText(page, "Reply with the numbers you want magnified")
+  );
+  await page.screenshot({ path: `${shots}/06h-picture-review.png` });
+  await setValueByPlaceholder(page, chatInput, "Magnify 1 and 2. You choose the rest.");
+  check("chat takes the magnify answer", await clickAria(page, "Send message"));
   const cooked = await waitForBodyText(page, "the brochure is ready", 180000);
   check("chat creates the order on its own", cooked);
   const chatPageOk = await page
@@ -644,6 +667,9 @@ try {
     await setValueByPlaceholder(page, chatInput, "Another client needs a wardrobe for the guest room.")
   );
   check("chat takes the next customer", await clickAria(page, "Send message"));
+  await waitForBodyText(page, "what I would magnify", 90000);
+  await setValueByPlaceholder(page, chatInput, "You choose what to magnify.");
+  check("chat takes the fresh magnify answer", await clickAria(page, "Send message"));
   const freshChat = await waitForBodyText(page, "the brochure is ready", 180000);
   check("a new chat starts after New order", freshChat);
   const cleared = await page.evaluate(() => {

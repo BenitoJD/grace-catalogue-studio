@@ -14,7 +14,8 @@ The only external service is the language model chosen in Settings. Everything e
 
 1. A salesperson pastes the customer requirement into the chat and attaches the project photographs.
 2. The intake assistant pulls out the order and asks only for what is missing.
-3. The model designs and typesets a showroom brochure from the pictures: the kind a car or bike showroom hands over. Big hero photography, one idea per spread, named colour options like a paint card, feature callouts with magnified details, almost no text.
+3. Before designing, the chat shows the pictures back with numbered circles on the details worth magnifying and the colours read from them, and asks what to magnify. The client answers in the chat.
+4. The model designs and typesets a showroom brochure from the pictures: the kind a car or bike showroom hands over. Big hero photography, one idea per spread, named colour options like a paint card, feature callouts with magnified details, almost no text.
 4. The PDF is previewed page by page and can be printed, opened or shared.
 
 There is no template library and no pre-made layout. The model authors every page for that project.
@@ -26,6 +27,10 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again.
 - **The palette comes from the pictures and gets showroom names.** The engine decodes each photograph, then names its four dominant colours the way a paint card does: Warm Ivory, Oat, Sand Beige, Walnut. The brochure prints colour option strips, four named swatch chips with their hex values, so the pages mirror the project instead of an invented palette.
 - **The pages look like the project.** Type, photographs and colour are composed to belong with the pictures supplied.
+- **The picture review.** As soon as pictures are attached the studio analyses them, circles likely details, shows the named palette, and asks what to magnify before any brochure exists.
+
+![The picture review: circled details and the palette](docs/screenshots/picture-review.png)
+
 - **Magnifier callouts.** Name a detail in the chat, such as a handle, an edge, a grain or the colour palette, and the model prints a circular loupe: the same photograph enlarged on that detail, a thin ring, a leader line and a small label. When pictures arrive without a named detail, the intake assistant asks which detail to magnify.
 
 ![The colour study with the palette strips and the loupe](docs/screenshots/palette-study.png)
@@ -129,9 +134,9 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 111 server tests
+npm test          # 112 server tests
 npm run verify    # black box smoke test
-npm run e2e       # 92 browser checks
+npm run e2e       # 98 browser checks
 npm run typecheck
 npm run lint
 ```

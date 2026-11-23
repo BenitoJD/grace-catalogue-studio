@@ -160,6 +160,26 @@ export interface LlmTestResult {
   error?: { message?: string; status?: number; type?: string };
 }
 
+export interface ReviewCandidate {
+  id: string;
+  label: string;
+  /** Circle centre as a percentage of the photograph. */
+  x: number;
+  y: number;
+}
+
+export interface ReviewPhoto {
+  url: string;
+  name: string;
+  analysis: {
+    width: number;
+    height: number;
+    orientation: string;
+    palette: { hex: string; name: string }[];
+    candidates: ReviewCandidate[];
+  };
+}
+
 export interface OrderPalette {
   /** photo1, photo2 and so on, in upload order. */
   photo: string;
@@ -356,6 +376,13 @@ export const api = {
   listOrders(): Promise<Order[]> {
     return request<Order[]>('/api/orders');
   },
+  analyzeImages(images: string[]): Promise<{ photos: ReviewPhoto[] }> {
+    return request<{ photos: ReviewPhoto[] }>('/api/analyze-images', {
+      method: 'POST',
+      body: { images },
+    });
+  },
+
   orderPalettes(id: string): Promise<{ palettes: OrderPalette[] }> {
     return request<{ palettes: OrderPalette[] }>(`/api/orders/${id}/palettes`);
   },

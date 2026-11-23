@@ -19,16 +19,24 @@ function toRgbPixels(data, width, height, channels) {
   return pixels;
 }
 
-function decodeImage(buffer) {
+export function decodeImage(buffer) {
   // PNG
   if (buffer.length > 8 && buffer[0] === 0x89 && buffer[1] === 0x50) {
     const png = PNG.sync.read(buffer);
-    return toRgbPixels(png.data, png.width, png.height, 4);
+    return {
+      width: png.width,
+      height: png.height,
+      pixels: toRgbPixels(png.data, png.width, png.height, 4),
+    };
   }
   // JPEG
   if (buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8) {
     const jpeg = decodeJpeg(buffer, { useTArray: true, formatAsRGBA: false });
-    return toRgbPixels(jpeg.data, jpeg.width, jpeg.height, 3);
+    return {
+      width: jpeg.width,
+      height: jpeg.height,
+      pixels: toRgbPixels(jpeg.data, jpeg.width, jpeg.height, 3),
+    };
   }
   return null;
 }
@@ -52,13 +60,14 @@ export function photoPalette(filePath, count = 4) {
   } catch {
     return null;
   }
-  let pixels;
+  let decoded;
   try {
-    pixels = decodeImage(buffer);
+    decoded = decodeImage(buffer);
   } catch {
     return null;
   }
-  if (!pixels || pixels.length === 0) return null;
+  if (!decoded || !decoded.pixels || decoded.pixels.length === 0) return null;
+  const pixels = decoded.pixels;
 
   // Coarse histogram in 16-step buckets, then average each winning bucket.
   const buckets = new Map();
@@ -83,6 +92,21 @@ export function photoPalette(filePath, count = 4) {
   // A flat image (a colour chip upload) may not offer range; repeat its tone.
   while (chosen.length < count) chosen.push(ranked[0] ?? [128, 128, 128]);
   return chosen.map(toHex);
+}
+
+/** Raw pixels of one image file, or null when the format is not readable. */
+export function decodeImageFile(filePath) {
+  let buffer;
+  try {
+    buffer = readFileSync(filePath);
+  } catch {
+    return null;
+  }
+  try {
+    return decodeImage(buffer);
+  } catch {
+    return null;
+  }
 }
 
 /** Palettes for every image in an order, keyed photo1, photo2, ... */
