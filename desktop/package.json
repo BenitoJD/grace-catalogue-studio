@@ -1,7 +1,7 @@
 {
   "name": "grace-studio-desktop",
   "productName": "Grace Studio",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "private": true,
   "description": "Grace Studio desktop wrapper (Electron) around the Expo web build",
   "author": "Grace Wood Industry",

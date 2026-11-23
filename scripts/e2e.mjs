@@ -599,6 +599,14 @@ try {
   await page.screenshot({ path: `${shots}/06g2-chat-editor.png` });
 
   // Files can join a live order too: attach a plan with the next sentence.
+  // Wait until the previous edit fully settled: the picker refuses to open
+  // while a send is still in flight.
+  await page
+    .waitForFunction(() => document.querySelector('[aria-label="Send message"]') !== null, {
+      timeout: 120000,
+    })
+    .then(() => true)
+    .catch(() => false);
   const filesBefore = Array.isArray(editedOrder.attachments) ? editedOrder.attachments.length : 0;
   const attachMore = await page.$('[aria-label="Attach files"]');
   check("attach stays available after an order", Boolean(attachMore));
@@ -618,14 +626,17 @@ try {
       try {
         const attachChooser = await attachPromise;
         await attachChooser.accept([`${e2eDir}/plan.txt`]);
-        // The file name already appears in an earlier bubble, so wait for the
-        // composer tray chip itself: only that proves the upload finished.
-        attachedTray = await page
-          .waitForFunction(() => document.querySelector('[aria-label="Remove plan.txt"]') !== null, {
-            timeout: 30000,
-          })
-          .then(() => true)
-          .catch(() => false);
+        // The file name already appears in an earlier bubble, so poll for the
+        // composer tray chip itself with fresh queries: only that proves the
+        // upload finished.
+        for (let poll = 0; poll < 60 && !attachedTray; poll += 1) {
+          await sleep(500);
+          try {
+            attachedTray = (await page.$('[aria-label="Remove plan.txt"]')) !== null;
+          } catch {
+            attachedTray = false;
+          }
+        }
       } catch {
         attachedTray = false;
       }
