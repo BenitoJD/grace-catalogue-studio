@@ -2176,6 +2176,8 @@ const styles = StyleSheet.create({
   },
   plusH: {
     position: 'absolute',
+    left: 0,
+    top: 6.8,
     width: 16,
     height: 2.4,
     borderRadius: 1.2,
@@ -2183,6 +2185,8 @@ const styles = StyleSheet.create({
   },
   plusV: {
     position: 'absolute',
+    left: 6.8,
+    top: 0,
     width: 2.4,
     height: 16,
     borderRadius: 1.2,
