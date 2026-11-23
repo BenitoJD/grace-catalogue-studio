@@ -32,6 +32,7 @@ import {
   putDesignCatalog,
   listRenders,
   listRendersForOrder,
+  setOrderAttachments,
   setOrderCopy,
   setSetting,
   updateMaterial,
@@ -472,6 +473,16 @@ export function createApp(options) {
       weasyprintBin,
       pdftoppmBin,
     });
+  // Previews print on their own queue so a hundred background brochures can
+  // never stand in front of the one the studio just asked for.
+  const previewRenderer =
+    options.previewRenderer ??
+    createRenderer({
+      templatesDir,
+      dataDir,
+      weasyprintBin,
+      pdftoppmBin,
+    });
   const previewStore = createPreviewStore({
     variants,
     templatesDir,
@@ -542,7 +553,7 @@ export function createApp(options) {
   function previewDeps(config) {
     return {
       db,
-      renderer,
+      renderer: previewRenderer,
       templatesDir,
       dataDir,
       materials: listMaterials(db),
@@ -1633,14 +1644,38 @@ export function createApp(options) {
   // turns the sentence into order fields or new copy; the same sentence is then
   // handed to the brochure designer, which changes the pages it already has.
   app.post('/api/orders/:id/edit', async (c) => {
-    const order = getOrder(db, c.req.param('id'));
+    let order = getOrder(db, c.req.param('id'));
     if (!order) return fail(c, 404, 'Order not found.');
     const parsed = await readOptionalJsonObject(c);
     if (parsed.error) return fail(c, 400, parsed.error);
     const body = parsed.body ?? {};
     const message = typeof body.message === 'string' ? body.message.trim() : '';
-    if (message === '' || message.length > 1200) {
+    if (message.length > 1200) {
       return fail(c, 400, 'Field "message" must be a sentence under 1200 characters.');
+    }
+    const attachments = readAttachments(body);
+    if (attachments.error) return fail(c, 400, attachments.error);
+    if (message === '' && attachments.value.length === 0) {
+      return fail(c, 400, 'Send a sentence, a file, or both.');
+    }
+    // New files join the order so the next brochure prints them. Duplicates
+    // by URL are ignored; over the cap the whole edit is rejected.
+    let attachmentsAdded = 0;
+    if (attachments.value.length > 0) {
+      const current = Array.isArray(order.attachments) ? order.attachments : [];
+      const known = new Set(current.map((file) => file.url));
+      const merged = [...current];
+      for (const file of attachments.value) {
+        if (!known.has(file.url)) {
+          merged.push(file);
+          known.add(file.url);
+        }
+      }
+      if (merged.length > MAX_ORDER_ATTACHMENTS) {
+        return fail(c, 400, `An order may hold at most ${MAX_ORDER_ATTACHMENTS} attachments.`);
+      }
+      attachmentsAdded = merged.length - current.length;
+      if (attachmentsAdded > 0) order = setOrderAttachments(db, order.id, merged);
     }
     const config = resolveLlmConfig(db, llmEnv);
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
@@ -1657,7 +1692,7 @@ export function createApp(options) {
       '- No em dashes. No markdown.',
       `Current order: ${JSON.stringify(order)}`,
       `Current copy: ${JSON.stringify(order.copy ?? {})}`,
-      `Studio says: ${message}`,
+      `Studio says: ${message !== '' ? message : `[The studio attached ${attachments.value.length} new file(s) to this order: ${attachments.value.map((file) => file.name).join(', ')}. Acknowledge them briefly and note anything they change.]`}`,
     ].join('\n');
     try {
       const result = await requestChat({
@@ -1692,11 +1727,13 @@ export function createApp(options) {
       const assistantReply = typeof reply.reply === 'string' && reply.reply.trim() !== ''
         ? capText(reply.reply.trim(), 400)
         : 'Done, I updated the order.';
-      const changed = Object.keys(orderPatch).length > 0 || copy !== null;
+      const changed =
+        Object.keys(orderPatch).length > 0 || copy !== null || attachmentsAdded > 0;
       return c.json({
         reply: assistantReply,
         order: updated,
         copy: copy ?? order.copy ?? null,
+        attachmentsAdded,
         rerender: reply.rerender === false ? false : changed || reply.rerender === true,
         changedOrder: Object.keys(orderPatch).length > 0,
       });

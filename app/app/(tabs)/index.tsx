@@ -323,8 +323,10 @@ export default function ChatScreen() {
         const library = await api.listDesigns();
         if (!active) return;
         setDesigns(library.designs);
-        setDesignsBuilding(library.building);
-        if (library.building) timer = setTimeout(load, 4000);
+        // Keep polling while the library or its printed previews are still
+        // being written: every poll restarts a stalled background run.
+        setDesignsBuilding(library.building || library.previewsBuilding);
+        if (library.building || library.previewsBuilding) timer = setTimeout(load, 4000);
       } catch {
         if (active) setDesignsBuilding(false);
       }
@@ -672,20 +674,32 @@ export default function ChatScreen() {
     if (orderCreated && activeOrderId) {
       sendingRef.current = true;
       const previousInput = input;
+      const newFiles = pendingFiles;
       const at = stamp();
       setBubbles((current) => [
         ...current,
-        { id: nextId(), role: 'user', kind: 'text', content, at },
+        {
+          id: nextId(),
+          role: 'user',
+          kind: 'text',
+          content,
+          at,
+          ...(newFiles.length > 0 ? { attachments: newFiles } : {}),
+        },
       ]);
       setInput('');
       setInputHeight(38);
+      setPendingFiles([]);
       setSending(true);
       try {
-        const edited = await api.editOrder(activeOrderId, content);
+        const edited = await api.editOrder(activeOrderId, content, newFiles);
         let render = null;
         if (edited.rerender) {
           const result = await api.aiBrochure(activeOrderId, {
-            edit: content,
+            edit:
+              content !== ''
+                ? content
+                : 'New files were attached to this order. Use the photographs where they suit the brochure.',
             ...(edited.copy ? { copy: edited.copy } : {}),
           });
           render = result.render;
@@ -700,6 +714,7 @@ export default function ChatScreen() {
       } catch (error) {
         setBubbles((current) => [...current, { id: nextId(), role: 'assistant', kind: 'text', content: errorMessage(error, 'I could not apply that change. Try again.'), at: stamp(), failed: true }]);
         setInput(previousInput);
+        setPendingFiles(newFiles);
       } finally {
         sendingRef.current = false;
         setSending(false);

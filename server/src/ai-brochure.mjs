@@ -153,6 +153,7 @@ const DESIGNER_SYSTEM = [
   '- Page 3: all four material images and all four material names.',
   '- Page 4: every specification token and {{drawing}}.',
   '- Somewhere in the document: {{orderNo}}, {{phone}}, and at least one house motif token.',
+  '- Photographs are not optional. A document with no {{photo1}} is rejected outright and the work is wasted, so put {{photo1}} on the cover and {{photo2}} or {{photo3}} inside, every single time.',
   '',
   'DESIGN RULES',
   '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',

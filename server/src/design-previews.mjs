@@ -159,9 +159,10 @@ export async function buildPreviewForDesign(deps, design) {
 
   let html = null;
   let previousReply = '';
+  let lastIssues = '';
   for (let attempt = 1; attempt <= DESIGNER_TRIES && !html; attempt += 1) {
     const requestMessages =
-      attempt === 1 ? messages : buildDesignerRepairMessages(messages, previousReply, 'the print checks failed');
+      attempt === 1 ? messages : buildDesignerRepairMessages(messages, previousReply, lastIssues);
     const result = await requestChat({
       provider: config.provider,
       endpoint: config.endpoint,
@@ -186,9 +187,11 @@ export async function buildPreviewForDesign(deps, design) {
       });
     } catch (error) {
       if (error?.type !== 'invalid_reply') throw error;
+      lastIssues = error.message;
       logger?.warn?.('Design preview failed the print checks, asking once more.', {
         design: design.id,
         attempt,
+        reason: String(lastIssues).slice(0, 300),
       });
     }
   }

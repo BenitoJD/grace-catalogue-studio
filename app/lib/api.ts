@@ -445,17 +445,19 @@ export const api = {
   },
   editOrder(
     orderId: string,
-    message: string
+    message: string,
+    attachments: OrderAttachment[] = []
   ): Promise<{
     reply: string;
     order: Order;
     copy: BrochureCopy | null;
+    attachmentsAdded: number;
     rerender: boolean;
     changedOrder: boolean;
   }> {
     return request(`/api/orders/${orderId}/edit`, {
       method: 'POST',
-      body: { message },
+      body: { message, attachments },
       timeoutMs: 120000,
     });
   },

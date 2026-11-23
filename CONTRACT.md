@@ -132,7 +132,7 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | PATCH | `/api/orders/:id` | partial order fields | `Order` |
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
 | POST | `/api/orders/:id/ai-brochure` | `{ brief?, direction?, reference?, edit?, copy? }` | `{ render, design, copy, direction, model, latencyMs }` (kind `ai`) |
-| POST | `/api/orders/:id/edit` | `{ message }` | `{ reply, order, copy, rerender, changedOrder }` |
+| POST | `/api/orders/:id/edit` | `{ message?, attachments? }` | `{ reply, order, copy, attachmentsAdded, rerender, changedOrder }` |
 | GET | `/api/designs` | | `{ designs, expected, building, ready, previewsReady, previewsTotal, previewsBuilding }` (100 model written references, each with `previewUrl` and `previewPdfUrl` when printed) |
 | GET | `/design-previews/:id.(png|pdf)` | | `image/png` or `application/pdf` (printed proof of one reference) |
 | POST | `/api/orders/:id/render` | `{ kind: "voucher" \| "kit", templateId? }` | `Render` (201) |
@@ -320,7 +320,12 @@ normalised to hyphens before print. The document is stored on the render as
 `{ label, designed, direction, reference, referenceName }`.
 
 `POST /api/orders/:id/edit` maps a plain sentence to changed order fields and
-copy with `rerender` and `changedOrder` flags. Design sentences leave order and
+copy with `rerender` and `changedOrder` flags. It also accepts an `attachments`
+array in the same validated shape as order creation: new files are appended to
+the order by URL with duplicates ignored, the merged list past twenty files
+rejects the edit with 400, and any addition forces a re-render so the next
+brochure prints the new images. Either a sentence or at least one file is
+required. Design sentences leave order and
 copy empty and set `rerender` true; the same sentence then reaches the designer
 through the `edit` field, which replays the stored document and changes only
 what was asked.

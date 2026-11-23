@@ -548,11 +548,16 @@ try {
   check("chat takes the answer", await clickAria(page, "Send message"));
   const cooked = await waitForBodyText(page, "the brochure is ready", 180000);
   check("chat creates the order on its own", cooked);
-  const chatPageOk = await page.evaluate(() =>
-    [...document.querySelectorAll("img")].some(
-      (image) => image.src.includes("/pages/") && image.naturalWidth > 100
+  const chatPageOk = await page
+    .waitForFunction(
+      () =>
+        [...document.querySelectorAll("img")].some(
+          (image) => image.src.includes("/pages/") && image.naturalWidth > 100
+        ),
+      { timeout: 60000 }
     )
-  );
+    .then(() => true)
+    .catch(() => false);
   check("chat shows the first page", chatPageOk);
   const ordersAfterChatList = await (await fetch(`${API}/api/orders`)).json();
   check(
@@ -583,11 +588,78 @@ try {
     editedOrder.finishExt.includes("Dark walnut"),
     editedOrder.finishExt
   );
-  const editedBrochure = await page.evaluate(() =>
-    [...document.querySelectorAll("img")].some((image) => image.src.includes("/pages/"))
-  );
+  const editedBrochure = await page
+    .waitForFunction(
+      () => [...document.querySelectorAll("img")].some((image) => image.src.includes("/pages/")),
+      { timeout: 60000 }
+    )
+    .then(() => true)
+    .catch(() => false);
   check("the brochure re-renders after an edit", editedBrochure);
   await page.screenshot({ path: `${shots}/06g2-chat-editor.png` });
+
+  // Files can join a live order too: attach a plan with the next sentence.
+  const filesBefore = Array.isArray(editedOrder.attachments) ? editedOrder.attachments.length : 0;
+  const attachMore = await page.$('[aria-label="Attach files"]');
+  check("attach stays available after an order", Boolean(attachMore));
+  if (attachMore) {
+    // The chat re-renders under load, so re-query the button and retry once
+    // instead of trusting one bounding box.
+    let attachedTray = false;
+    for (let attempt = 0; attempt < 2 && !attachedTray; attempt += 1) {
+      const button = await page.$('[aria-label="Attach files"]');
+      if (!button) break;
+      await button.evaluate((element) => element.scrollIntoView({ block: 'nearest' }));
+      await sleep(400);
+      const box = await button.boundingBox();
+      if (!box) continue;
+      const attachPromise = page.waitForFileChooser({ timeout: 15000 });
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      try {
+        const attachChooser = await attachPromise;
+        await attachChooser.accept([`${e2eDir}/plan.txt`]);
+        // The file name already appears in an earlier bubble, so wait for the
+        // composer tray chip itself: only that proves the upload finished.
+        attachedTray = await page
+          .waitForFunction(() => document.querySelector('[aria-label="Remove plan.txt"]') !== null, {
+            timeout: 30000,
+          })
+          .then(() => true)
+          .catch(() => false);
+      } catch {
+        attachedTray = false;
+      }
+    }
+    check("the plan is waiting in the tray", attachedTray);
+  }
+  check(
+    "chat takes files with the change",
+    await setValueByPlaceholder(page, editInput, "The attached plan has the loft measurements.")
+  );
+  check("chat accepts the file change", await clickAria(page, "Send message"));
+  let orderWithFiles = null;
+  for (let attempt = 0; attempt < 90 && !orderWithFiles; attempt += 1) {
+    await sleep(2000);
+    const current = await (await fetch(`${API}/api/orders/${ordersAfterChatList[0].id}`)).json();
+    if (Array.isArray(current.attachments) && current.attachments.length === filesBefore + 1) {
+      orderWithFiles = current;
+    }
+  }
+  check(
+    "new files join the live order",
+    Boolean(orderWithFiles),
+    `${filesBefore} to ${orderWithFiles?.attachments?.length ?? filesBefore} files`
+  );
+  check("the file change applies", await waitForBodyText(page, "Done. I changed", 30000));
+  await page.screenshot({ path: `${shots}/06g3-chat-attach.png` });
+
+  // Let the file edit's re-render fully settle before starting fresh.
+  await page
+    .waitForFunction(() => document.querySelector('[aria-label="Send message"]') !== null, {
+      timeout: 180000,
+    })
+    .then(() => true)
+    .catch(() => false);
 
   // New order is the only way to start a fresh customer.
   await clickAria(page, "New order chat");

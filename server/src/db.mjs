@@ -606,6 +606,16 @@ export function setOrderCopy(db, id, copy) {
   return getOrder(db, id);
 }
 
+/**
+ * Replace the file list kept on an order. The caller passes validated
+ * attachment metadata; an empty list clears the column.
+ */
+export function setOrderAttachments(db, id, files) {
+  const json = Array.isArray(files) && files.length > 0 ? JSON.stringify(files) : null;
+  db.prepare('UPDATE orders SET attachments_json = ? WHERE id = ?').run(json, id);
+  return getOrder(db, id);
+}
+
 export function deleteRendersForOrder(db, orderId) {
   const renders = listRendersForOrder(db, orderId);
   db.prepare('DELETE FROM renders WHERE orderId = ?').run(orderId);

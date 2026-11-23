@@ -3859,6 +3859,77 @@ test('an order-only edit still requests a re-render', async () => {
   assert.equal(body.order.height, '2150 mm');
 });
 
+test('attaching files to a live order saves them and re-renders with them', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  mkdirSync(path.join(dataDir, 'media'), { recursive: true });
+  writeFileSync(path.join(dataDir, 'media', 'edit-proof.png'), png);
+  writeFileSync(path.join(dataDir, 'media', 'edit-proof-two.png'), png);
+  const file = {
+    url: '/media/edit-proof.png',
+    name: 'edit-proof.png',
+    contentType: 'image/png',
+    bytes: png.length,
+  };
+  const secondFile = {
+    url: '/media/edit-proof-two.png',
+    name: 'edit-proof-two.png',
+    contentType: 'image/png',
+    bytes: png.length,
+  };
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'Done. The new photograph is on the order.',
+      order: {},
+      rerender: true,
+    }),
+  });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/edit`, {
+    message: '',
+    attachments: [file, secondFile],
+  });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.attachmentsAdded, 2);
+  assert.equal(body.rerender, true);
+  assert.equal(body.order.attachments.length, 2);
+  assert.equal(body.order.attachments[0].url, '/media/edit-proof.png');
+  const stored = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
+  assert.equal(stored.attachments.length, 2);
+
+  // Attaching the same file again adds nothing but still succeeds.
+  const repeat = await postJson(`${baseUrl}/api/orders/${orderId}/edit`, {
+    message: 'Noted.',
+    attachments: [file],
+  });
+  assert.equal((await repeat.json()).attachmentsAdded, 0);
+
+  // Over the cap the whole edit is rejected and nothing is saved.
+  const tooMany = Array.from({ length: 21 }, (_, index) => ({ ...file, url: `/media/x-${index}.png` }));
+  const rejected = await postJson(`${baseUrl}/api/orders/${orderId}/edit`, {
+    message: 'Too many.',
+    attachments: tooMany,
+  });
+  assert.equal(rejected.status, 400);
+
+  // The brochure then prints with the new photograph in the set.
+  resetMockProvider({ reply: DESIGNER_HTML });
+  const revised = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {
+    edit: 'Use the new photograph on the cover.',
+    copy: body.copy,
+  });
+  const revisedRaw = await revised.text();
+  assert.equal(revised.status, 201, revisedRaw);
+  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
+  assert.ok(prompt.includes('1 by 1 px'), 'the attached photo reaches the designer');
+});
+
 test('network egress only allows the configured model provider and loopback', async () => {
   const calls = [];
   const fakeFetch = async (url, init) => {
