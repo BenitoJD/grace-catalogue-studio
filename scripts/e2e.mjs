@@ -203,7 +203,8 @@ const api = startProcess("node", ["server/src/index.mjs"], {
   // The suite drives a whole browser and uploads many page images from one IP.
   RATE_LIMIT_PER_MIN: "100000",
   RENDER_LIMIT_PER_MIN: "10000",
-  NOTE_LIMIT_PER_MIN: "10000"
+  NOTE_LIMIT_PER_MIN: "10000",
+  LLM_VISION_MODE: "auto"
 });
 const web = startProcess("node", ["scripts/serve-web.mjs", "8081"]);
 const mock = startProcess("node", ["scripts/mock-llm.mjs", "8793"]);

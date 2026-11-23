@@ -179,6 +179,13 @@ export interface ReviewPhoto {
   name: string;
   /** Human label: the uploaded file name, or "sheet.pdf · page 1 of 3". */
   label?: string;
+  /** What the vision model read in this picture, when it can see. */
+  insight?: {
+    summary?: string;
+    piece?: string;
+    room?: string;
+    colours?: string[];
+  };
   analysis: {
     width: number;
     height: number;

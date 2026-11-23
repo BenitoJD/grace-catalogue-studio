@@ -1283,10 +1283,18 @@ function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }
             })
           : null}
       </View>
+      {photo.insight?.summary ? (
+        <Text style={[text.caption, styles.reviewReadingLine]} numberOfLines={2}>
+          {`What the model reads: ${photo.insight.summary}`}
+        </Text>
+      ) : null}
       {photo.analysis.candidates.length > 0 ? (
         <Text style={[text.caption, styles.reviewMagnifiedLine]}>
           {`Magnified details: ${photo.analysis.candidates
-            .map((candidate, candidateIndex) => `${candidateIndex + 1} ${candidate.name} ${candidate.hex}`)
+            .map((candidate, candidateIndex) => {
+              const detail = /^Detail \d+$/.test(candidate.label) ? '' : `${candidate.label} · `;
+              return `${candidateIndex + 1} ${detail}${candidate.name} ${candidate.hex}`;
+            })
             .join(' · ')}`}
         </Text>
       ) : null}
@@ -2414,6 +2422,10 @@ const styles = StyleSheet.create({
   reviewMagnifiedLine: {
     color: colors.ink,
     letterSpacing: 0.4,
+  },
+  reviewReadingLine: {
+    color: colors.ink,
+    fontStyle: 'italic',
   },
   reviewCircle: {
     position: 'absolute',

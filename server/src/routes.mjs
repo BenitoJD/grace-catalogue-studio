@@ -110,7 +110,7 @@ import { createLogger, parseLogLevel } from './logger.mjs';
 import { colourName, photoPalette } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
 import { detailPlatesFor } from './image-detail.mjs';
-import { readPictureWithVision } from './vision.mjs';
+import { readPicturesWithVision, visionEnabled } from './vision.mjs';
 import {
   ensurePdfPages,
   isPdf,
@@ -312,19 +312,24 @@ async function pictureReadingFor(
   } catch {
     paths = [];
   }
-  const insight = await readPictureWithVision({
-    config,
-    requestChat,
-    filePath: paths[0],
-    logger,
-  });
+  const insight = visionEnabled(config)
+    ? (await readPicturesWithVision({
+        config,
+        requestChat,
+        filePaths: paths.slice(0, 4),
+        logger,
+      }))?.[0] ?? null
+    : null;
   if (insight) {
     const summary = insight.summary || `a ${facts.title.toLowerCase()} in the ${facts.room.toLowerCase()}`;
     const pieceLine = insight.piece || facts.title;
     const roomLine = insight.room || facts.room;
     const seenColours = insight.colours.length > 0 ? insight.colours.join(', ') : colourLineFallback(colours);
-    const detailLine = insight.details.length > 0
-      ? ` Details worth magnifying: ${insight.details.join(', ')}.`
+    const detailNames = insight.details
+      .map((detail) => (typeof detail === 'string' ? detail : detail?.label))
+      .filter(Boolean);
+    const detailLine = detailNames.length > 0
+      ? ` Details worth magnifying: ${detailNames.join(', ')}.`
       : '';
     return {
       title: pieceLine,
@@ -1607,6 +1612,15 @@ export function createApp(options) {
       }
 
       // 3. Design and typeset, then ask again with the exact print problems.
+      // The vision reading names the room, the piece and the joinery details,
+      // so the model composes for the actual project.
+      const reading = await pictureReadingFor(order.attachments ?? [], {
+        mediaDir: path.join(dataDir, 'media'),
+        dataDir,
+        pdftoppmBin,
+        config,
+        logger,
+      });
       const messages = buildDesignerMessages({
         order,
         brief,
@@ -1615,6 +1629,7 @@ export function createApp(options) {
         photos: attached,
         photoShapes,
         photoPalettes,
+        pictureReading: reading?.text ?? '',
         previousHtml,
         editNote,
       });
@@ -2013,6 +2028,58 @@ export function createApp(options) {
         label: displayName,
         analysis,
       });
+    }
+    // One batched vision call names the joinery details on the chosen circles.
+    if (visionEnabled(config) && photos.length > 0) {
+      const prepared = photos
+        .map((photo) => {
+          const pagePath = photo.previewUrl?.startsWith('/pdf-previews/')
+            ? path.join(pdfPreviewDir(dataDir), path.basename(photo.previewUrl))
+            : path.join(mediaDir, path.basename(photo.url));
+          return { photo, pagePath };
+        })
+        .filter((entry) => existsSync(entry.pagePath));
+      const insights = await readPicturesWithVision({
+        config,
+        requestChat,
+        filePaths: prepared.slice(0, 4).map((entry) => entry.pagePath),
+        logger,
+      });
+      if (insights) {
+        prepared.slice(0, insights.length).forEach((entry, index) => {
+          const insight = insights[index];
+          if (!insight) return;
+          entry.photo.insight = {
+            summary: insight.summary,
+            piece: insight.piece,
+            room: insight.room,
+            colours: insight.colours,
+          };
+          const candidates = entry.photo.analysis.candidates ?? [];
+          const used = new Set();
+          for (const detail of insight.details) {
+            let match = null;
+            if (Number.isFinite(detail.x) && Number.isFinite(detail.y)) {
+              let best = Infinity;
+              candidates.forEach((candidate, candidateIndex) => {
+                if (used.has(candidateIndex)) return;
+                const distance = Math.hypot(candidate.x - detail.x, candidate.y - detail.y);
+                if (distance < best) {
+                  best = distance;
+                  match = candidateIndex;
+                }
+              });
+            } else {
+              const next = candidates.findIndex((_, candidateIndex) => !used.has(candidateIndex));
+              if (next !== -1) match = next;
+            }
+            if (match !== null && match >= 0) {
+              used.add(match);
+              candidates[match].label = detail.label;
+            }
+          }
+        });
+      }
     }
     return c.json({ photos });
   });

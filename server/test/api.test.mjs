@@ -85,6 +85,8 @@ import { createApp } from '../src/routes.mjs';
 process.env.RATE_LIMIT_PER_MIN = '100000';
 process.env.RENDER_LIMIT_PER_MIN = '100000';
 process.env.NOTE_LIMIT_PER_MIN = '100000';
+// Vision only runs for models known to see; individual tests opt in.
+process.env.LLM_VISION_MODE = 'auto';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
@@ -4287,11 +4289,18 @@ test('a vision model reads the actual picture for the confirmation', { timeout: 
   resetLlmState();
   await configureLlm({ model: 'gpt-4o' });
   const visionReply = JSON.stringify({
-    summary: 'A modular kitchen with tall units and a stone counter',
-    piece: 'Modular Kitchen',
-    room: 'Kitchen',
-    colours: ['Ivory', 'Walnut', 'Brass'],
-    details: ['brass handle', 'edge banding'],
+    pictures: [
+      {
+        summary: 'A modular kitchen with tall units and a stone counter',
+        piece: 'Modular Kitchen',
+        room: 'Kitchen',
+        colours: ['Ivory', 'Walnut', 'Brass'],
+        details: [
+          { label: 'brass handle', x: 50, y: 55 },
+          { label: 'edge banding', x: 70, y: 45 },
+        ],
+      },
+    ],
   });
   const intakeReply = JSON.stringify({
     reply: 'From the picture this is a modular kitchen. Is that right?',
@@ -4331,6 +4340,64 @@ test('a vision model reads the actual picture for the confirmation', { timeout: 
   assert.match(intakePrompt, /modular kitchen/i);
   assert.match(intakePrompt, /brass handle/i);
   assert.match(intakePrompt, /Colours seen/i);
+});
+
+test('the picture review is labelled by the vision model', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm({ model: 'gpt-4o' });
+  const batch = JSON.stringify({
+    pictures: [
+      {
+        summary: 'A wardrobe wall in a bright bedroom',
+        piece: 'Wardrobe',
+        room: 'Master Bedroom',
+        colours: ['Ivory', 'Walnut'],
+        details: [
+          { label: 'brass handle', x: 40, y: 55 },
+          { label: 'shutter edge', x: 70, y: 60 },
+        ],
+      },
+      {
+        summary: 'A window seat beside the wardrobe',
+        piece: 'Window Seat',
+        room: 'Master Bedroom',
+        colours: ['Cream', 'Oak'],
+        details: [{ label: 'edge banding', x: 55, y: 50 }],
+      },
+    ],
+  });
+  resetMockProvider({ reply: batch });
+  const first = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: FIXTURE_PNG_BASE64,
+      name: 'wardrobe-one.png',
+      contentType: 'image/png',
+    })
+  ).json();
+  const second = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: FIXTURE_PNG_BASE64,
+      name: 'wardrobe-two.png',
+      contentType: 'image/png',
+    })
+  ).json();
+  const response = await postJson(`${baseUrl}/api/analyze-images`, {
+    images: [first.url, second.url],
+  });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.photos.length, 2);
+  assert.equal(body.photos[0].insight.summary, 'A wardrobe wall in a bright bedroom');
+  const labels = body.photos[0].analysis.candidates.map((candidate) => candidate.label);
+  assert.ok(labels.includes('brass handle'), labels.join(', '));
+  assert.ok(labels.includes('shutter edge'), labels.join(', '));
+  assert.ok(
+    body.photos[1].analysis.candidates.some((candidate) => candidate.label === 'edge banding'),
+  );
+  const request = mockProviderState.requests.at(-1).json;
+  const user = request.messages.find((message) => message.role === 'user');
+  assert.equal(user.content.filter((part) => part.type === 'image_url').length, 2);
 });
 
 test('network egress only allows the configured model provider and loopback', async () => {

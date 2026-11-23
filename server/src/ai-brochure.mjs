@@ -388,7 +388,7 @@ function copySummary(copy) {
   return `Headline ${headline.length} characters. Body ${words} words. Closing ${closing.length} characters.`;
 }
 
-function designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, previousHtml, editNote }) {
+function designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, previousHtml, editNote }) {
   const photoLines = photos.map((_, index) => {
     const shape = photoShapes[index] ? ` (${photoShapes[index]})` : '';
     return `photo${index + 1}${shape}`;
@@ -403,6 +403,11 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
     '',
     'PHOTOGRAPHS AVAILABLE',
     photoLines.length > 0 ? photoLines.join('\n') : 'No photographs supplied.',
+    '',
+    'WHAT THE PICTURES SHOW',
+    pictureReading && String(pictureReading).trim() !== ''
+      ? String(pictureReading).trim()
+      : 'No reading supplied; take the piece, the room and the colours from the order and the palettes.',
     '',
     'COLOURS FROM THE PICTURES',
     Object.entries(photoPalettes ?? {}).length > 0
@@ -440,8 +445,8 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
   return parts.join('\n');
 }
 
-export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], photoPalettes = {}, previousHtml = '', editNote = '' }) {
-  const user = designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, previousHtml, editNote });
+export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], photoPalettes = {}, pictureReading = '', previousHtml = '', editNote = '' }) {
+  const user = designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, previousHtml, editNote });
   const messages = [
     { role: 'system', content: DESIGNER_SYSTEM },
     { role: 'user', content: user },
