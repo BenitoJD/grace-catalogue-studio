@@ -167,7 +167,7 @@ const DESIGNER_SYSTEM = [
   '- The cover is the loudest page, the story is the warmest, the materials page is a quiet colour study, and the specification page is a calm technical colophon.',
   '- Use the whole safe area. No page should feel more than half empty, except where one photograph deliberately holds the page. Keep the last line of a page at least 18 mm above the trim.',
   '- This brochure is one of many. Do not repeat a stock arrangement from other orders; the photographs, the room and the mood decide the composition.',
-  '- If a studio reference is supplied, it is a feeling, not a layout. Take its warmth, palette and level of ornament, then compose original pages for this order. Never copy the reference arrangement.',
+  '- If a studio reference is supplied, it is the template: one prompt plus its asset manifest. Its palette, display type and ornament are mandatory, not suggestions. Set the CSS variables to exactly its palette, set --display to exactly its face, and use exactly its ornament. Compose original pages for this order, but never substitute the template assets and never copy a reference arrangement.',
   '- Tamil lines are set in Noto Sans Tamil, never forced into an English serif.',
   '',
   'AVAILABLE TYPE',
@@ -422,7 +422,7 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, ref
       `Display type: ${reference.displayFont || 'Instrument Serif'}. Body type: Barlow.`,
       reference.coverIdea ? `Cover idea: ${reference.coverIdea}.` : '',
       `Ornament: ${reference.ornament || 'none'}.`,
-      'Set the CSS variables at the top of your style block to this palette, and set --display to the reference display type. Take its mood and compose original pages for this order. Never copy a reference layout.',
+      'This reference is the template for this brochure: its palette, display type and ornament above are the asset manifest and are mandatory. Set the CSS variables to exactly this palette, set --display to exactly this face, and use exactly this ornament. Compose original pages for this order around them. Never substitute the template assets and never copy a reference layout.',
     );
   }
   if (editNote) {

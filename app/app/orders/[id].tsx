@@ -102,6 +102,7 @@ export default function OrderDetailScreen() {
   const [reference, setReference] = useState<string>(routeReference ?? '');
   const [referenceName, setReferenceName] = useState<string>(routeReferenceName ?? '');
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
+  const [referenceSummary, setReferenceSummary] = useState<string | null>(null);
   const [direction, setDirection] = useState('');
   const [designLoading, setDesignLoading] = useState(false);
   const [designError, setDesignError] = useState<string | null>(null);
@@ -138,6 +139,7 @@ export default function OrderDetailScreen() {
         const match = library.designs.find((design) => design.id === reference);
         setReferencePreview(match?.previewUrl ?? null);
         if (match?.name) setReferenceName(match.name);
+        setReferenceSummary(match?.summary ?? null);
       })
       .catch(() => {
         if (active) setReferencePreview(null);
@@ -380,6 +382,11 @@ export default function OrderDetailScreen() {
                     <Text style={styles.referenceTitle}>
                       {referenceName || reference ? referenceName || 'Selected reference' : 'No reference'}
                     </Text>
+                    {referenceSummary ? (
+                      <Text style={[text.caption, styles.referenceCaption]} numberOfLines={2}>
+                        {referenceSummary}
+                      </Text>
+                    ) : null}
                     <Text style={[text.caption, styles.referenceCaption]}>
                       {reference || referenceName
                         ? 'Reference feel. Change it whenever you like.'

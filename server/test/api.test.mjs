@@ -3581,6 +3581,7 @@ test('a studio reference guides the design but is never printed itself', { timeo
 
   const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
   assert.match(prompt, /STUDIO REFERENCE/);
+  assert.match(prompt, /never substitute the template assets/i);
   assert.ok(prompt.includes(reference.name));
   assert.ok(prompt.includes(reference.palette.paper));
   assert.ok(prompt.toLowerCase().includes('never copy a reference layout'));
