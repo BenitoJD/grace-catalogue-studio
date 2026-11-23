@@ -863,10 +863,18 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
       <View ref={frameRef} style={[styles.frame, { paddingTop: insets.top + space.lg }, dragging && styles.frameDragging]}>
         <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={text.eyebrow}>Grace Wood</Text>
-            <TamilLine />
-            <Text style={[text.screenTitle, styles.title]}>Studio chat</Text>
+          <View style={styles.headerBrand}>
+            <Image
+              source={require('@/assets/images/logo.png')}
+              style={styles.brandMark}
+              resizeMode="contain"
+              accessibilityLabel="Grace Wood Industry"
+            />
+            <View style={styles.headerText}>
+              <Text style={text.eyebrow}>Grace Wood</Text>
+              <TamilLine />
+              <Text style={[text.screenTitle, styles.title]}>Studio chat</Text>
+            </View>
           </View>
           <View style={styles.headerActions}>
             {modelReady === false ? (
@@ -1671,6 +1679,20 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingTop: space.sm,
     paddingBottom: space.sm,
+  },
+  headerBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 1,
+  },
+  brandMark: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
   },
   headerText: {
     flexShrink: 1,
