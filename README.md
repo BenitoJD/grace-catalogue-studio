@@ -36,6 +36,8 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **The palette comes from the pictures and gets showroom names.** The engine decodes each photograph, then names its four dominant colours the way a paint card does: Warm Ivory, Oat, Sand Beige, Walnut. The brochure prints colour option strips, four named swatch chips with their hex values, so the pages mirror the project instead of an invented palette.
 - **The pages look like the project.** Type, photographs and colour are composed to belong with the pictures supplied.
 - **The picture review.** As soon as pictures are attached the studio analyses them and shows each picture back large, with magnified circles on the details worth seeing. Each circle is a four times enlarged cut of that same picture and is named with the colour inside it, name plus hex code, so the client reads Oat #C9B996 or Walnut #794617 at a glance. The palette is printed under the picture with every code, and the studio asks what to magnify before any brochure exists.
+- **The sheet text is read too.** When a PDF arrives, its printed words are extracted as well as its pages, so the room and the piece come from the client's own drawing title, not only from a file name.
+- **A vision pass when the model can see.** If the configured model accepts images (GPT-4o, Gemini, Claude, Qwen VL and similar), the app sends it the first picture and gets back the room, the piece, the colours actually seen and the details worth magnifying. Those words drive the confirmation question in the chat. With a text-only model the app uses the deterministic reading instead, so nothing breaks.
 - **PDF sheets are unpacked page by page.** The studio can send the design as a PDF. Every page is rendered on the machine (up to twelve), and each page joins the review as its own picture with its own circles and palette. The brochure has to print every page, exactly like every photograph, so nothing a client sent is dropped.
 
 ![The picture review: circled details and the palette](docs/screenshots/picture-review.png)
@@ -144,7 +146,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 122 server tests
+npm test          # 124 server tests
 npm run verify    # black box smoke test
 npm run e2e       # 97 browser checks
 npm run typecheck

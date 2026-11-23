@@ -110,6 +110,7 @@ import { createLogger, parseLogLevel } from './logger.mjs';
 import { colourName, photoPalette } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
 import { detailPlatesFor } from './image-detail.mjs';
+import { readPictureWithVision } from './vision.mjs';
 import {
   ensurePdfPages,
   isPdf,
@@ -202,10 +203,29 @@ function orderPayload(order) {
 
 const MAX_ORDER_ATTACHMENTS = 20;
 
+function colourLineFallback(colours) {
+  return colours.length > 0 ? colours.join(', ') : 'warm neutrals';
+}
+
+// The words printed on a customer's PDF sheet, which usually name the room
+// and the piece far better than the file name does.
+async function pdfSheetText(mediaDir, mediaUrl) {
+  const filePath = path.join(mediaDir, path.basename(String(mediaUrl)));
+  try {
+    const { stdout } = await execFileAsync('pdftotext', ['-l', '1', filePath, '-'], {
+      timeout: 15000,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    return capText(String(stdout ?? '').replace(/\s+/g, ' ').trim(), 1200);
+  } catch {
+    return '';
+  }
+}
+
 // Reading the piece and the room from the customer's own words and file names.
-function inferOrderFacts(attachments, brief = '') {
+function inferOrderFacts(attachments, brief = '', sheetText = '') {
   const names = (attachments ?? []).map((file) => String(file.name ?? '')).join(' ');
-  const text = `${names} ${brief}`.toLowerCase();
+  const text = `${names} ${brief} ${sheetText}`.toLowerCase();
   const room =
     /master.*(bed|room)|(bed|room).*master/.test(text)
       ? 'Master Bedroom'
@@ -252,10 +272,19 @@ function inferOrderFacts(attachments, brief = '') {
  * confirmation question: colour names read from the frames plus the likely
  * piece and room taken from the file names.
  */
-async function pictureReadingFor(attachments, { mediaDir, dataDir, pdftoppmBin }) {
+async function pictureReadingFor(
+  attachments,
+  { mediaDir, dataDir, pdftoppmBin, config, logger },
+) {
   const list = Array.isArray(attachments) ? attachments : [];
   if (list.length === 0) return null;
-  const facts = inferOrderFacts(list);
+  let sheetText = '';
+  for (const file of list) {
+    if (/pdf/i.test(String(file.contentType ?? '')) || /\.pdf$/i.test(String(file.url ?? ''))) {
+      sheetText += ` ${await pdfSheetText(mediaDir, file.url)}`;
+    }
+  }
+  const facts = inferOrderFacts(list, '', sheetText);
   const colours = [];
   try {
     const paths = await orderPhotoPaths({ attachments: list }, { mediaDir, dataDir, pdftoppmBin });
@@ -271,11 +300,44 @@ async function pictureReadingFor(attachments, { mediaDir, dataDir, pdftoppmBin }
   } catch {
     // A picture that cannot be read simply gives a shorter reading.
   }
-  const colourLine = colours.length > 0 ? colours.join(', ') : 'warm neutrals';
+  const sheetLine = sheetText.trim() !== ''
+    ? ` The sheet itself reads: "${capText(sheetText.trim(), 140)}".`
+    : '';
+
+  // If the configured model can see, let it read the first picture. This is
+  // what makes the confirmation question describe the actual project.
+  let paths = [];
+  try {
+    paths = await orderPhotoPaths({ attachments: list }, { mediaDir, dataDir, pdftoppmBin });
+  } catch {
+    paths = [];
+  }
+  const insight = await readPictureWithVision({
+    config,
+    requestChat,
+    filePath: paths[0],
+    logger,
+  });
+  if (insight) {
+    const summary = insight.summary || `a ${facts.title.toLowerCase()} in the ${facts.room.toLowerCase()}`;
+    const pieceLine = insight.piece || facts.title;
+    const roomLine = insight.room || facts.room;
+    const seenColours = insight.colours.length > 0 ? insight.colours.join(', ') : colourLineFallback(colours);
+    const detailLine = insight.details.length > 0
+      ? ` Details worth magnifying: ${insight.details.join(', ')}.`
+      : '';
+    return {
+      title: pieceLine,
+      room: roomLine,
+      text: `Picture reading: ${summary} The piece looks like ${pieceLine.toLowerCase()} in the ${roomLine.toLowerCase()}. Colours seen: ${seenColours}.${detailLine}${sheetLine}`,
+    };
+  }
+
+  const colourLine = colourLineFallback(colours);
   return {
     title: facts.title,
     room: facts.room,
-    text: `Picture reading: likely a ${facts.title.toLowerCase()} in the ${facts.room.toLowerCase()}. Colours read from the pictures: ${colourLine}.`,
+    text: `Picture reading: likely a ${facts.title.toLowerCase()} in the ${facts.room.toLowerCase()}. Colours read from the pictures: ${colourLine}.${sheetLine}`,
   };
 }
 
@@ -834,7 +896,17 @@ export function createApp(options) {
     // The pictures and the words tell us the piece and the room; the studio is
     // never asked for them.
     if (!order.title.trim() || !order.room.trim()) {
-      const inferred = inferOrderFacts(attachments.value, fields.brief ?? '');
+      let sheetText = '';
+      for (const file of attachments.value) {
+        const isPdf =
+          /pdf/i.test(String(file.contentType ?? '')) || /\.pdf$/i.test(String(file.url ?? ''));
+        if (isPdf) sheetText += ` ${await pdfSheetText(path.join(dataDir, 'media'), file.url)}`;
+      }
+      const inferred = inferOrderFacts(
+        attachments.value,
+        fields.brief ?? '',
+        capText(sheetText, 2000),
+      );
       order = updateOrder(db, order.id, {
         ...(order.title.trim() ? {} : { title: inferred.title }),
         ...(order.room.trim() ? {} : { room: inferred.room }),
@@ -1364,6 +1436,8 @@ export function createApp(options) {
         mediaDir: path.join(dataDir, 'media'),
         dataDir,
         pdftoppmBin,
+        config,
+        logger,
       });
       if (reading) {
         attachmentContext = `${attachmentContext}\n${reading.text}\nThe customer has not been asked for the room or the piece: read them from this and ask for a short confirmation. If the customer name is unknown, ask "Who is the customer?"`;

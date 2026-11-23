@@ -4256,6 +4256,83 @@ test('intake reads the pictures and asks for a confirmation and the customer nam
   assert.match(prompt, /Never ask the customer for the room or the piece/i);
 });
 
+test('the words printed on a PDF sheet name the piece and the room', { timeout: 240_000 }, async () => {
+  const htmlPath = path.join(tempDir, 'named-sheet.html');
+  const pdfPath = path.join(tempDir, 'named-sheet.pdf');
+  writeFileSync(
+    htmlPath,
+    '<html><body style="font-family:Helvetica"><h1>MRS MEENA</h1><h2>GF MASTER BEDROOM TV UNIT</h2><p>Wall panelling and a low console.</p></body></html>',
+  );
+  execFileSync(weasyprintBin, [htmlPath, pdfPath], { stdio: 'ignore' });
+  const upload = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: readFileSync(pdfPath).toString('base64'),
+      name: 'sheet.pdf',
+      contentType: 'application/pdf',
+    })
+  ).json();
+  const customer = await (await postJson(`${baseUrl}/api/customers`, { name: 'Sheet Customer' })).json();
+  const created = await postJson(`${baseUrl}/api/orders`, {
+    customerId: customer.id,
+    attachments: [upload],
+  });
+  const raw = await created.text();
+  assert.equal(created.status, 201, raw);
+  const order = JSON.parse(raw);
+  assert.equal(order.title, 'TV Unit');
+  assert.equal(order.room, 'Master Bedroom');
+});
+
+test('a vision model reads the actual picture for the confirmation', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm({ model: 'gpt-4o' });
+  const visionReply = JSON.stringify({
+    summary: 'A modular kitchen with tall units and a stone counter',
+    piece: 'Modular Kitchen',
+    room: 'Kitchen',
+    colours: ['Ivory', 'Walnut', 'Brass'],
+    details: ['brass handle', 'edge banding'],
+  });
+  const intakeReply = JSON.stringify({
+    reply: 'From the picture this is a modular kitchen. Is that right?',
+    order: { customerName: 'Vision Customer' },
+    ready: true,
+  });
+  resetMockProvider({ replies: [visionReply, intakeReply] });
+  const upload = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: FIXTURE_PNG_BASE64,
+      name: 'kitchen.png',
+      contentType: 'image/png',
+    })
+  ).json();
+  const response = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'The pictures are attached. Who is the customer?' }],
+    attachments: [upload],
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.ready, true);
+  assert.equal(mockProviderState.requests.length, 2, 'one vision request and one intake request');
+
+  // The first request carried the picture as image content.
+  const visionRequest = mockProviderState.requests[0].json;
+  const userMessage = visionRequest.messages.find((message) => message.role === 'user');
+  assert.ok(Array.isArray(userMessage.content), 'the vision request sends content parts');
+  assert.ok(
+    userMessage.content.some((part) => part.type === 'image_url'),
+    'the picture itself is sent to the vision model',
+  );
+
+  // The intake prompt repeats what the model saw.
+  const intakePrompt = mockProviderState.requests[1].json.messages
+    .map((message) => String(message.content ?? ''))
+    .join('\n');
+  assert.match(intakePrompt, /modular kitchen/i);
+  assert.match(intakePrompt, /brass handle/i);
+  assert.match(intakePrompt, /Colours seen/i);
+});
+
 test('network egress only allows the configured model provider and loopback', async () => {
   const calls = [];
   const fakeFetch = async (url, init) => {

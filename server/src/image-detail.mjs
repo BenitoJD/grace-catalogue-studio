@@ -125,6 +125,32 @@ export function detailPlate(filePath, candidate, size = 560) {
   return { dataUri: pngDataUri(size, size, rows), hex, name: colourName(hex) };
 }
 
+/**
+ * A small copy of the picture for a vision model: big enough to read the room,
+ * small enough to keep the request cheap.
+ */
+export function thumbnailDataUri(filePath, max = 640) {
+  const image = decodeFull(filePath);
+  if (!image || !image.width || !image.height) return null;
+  const scale = Math.min(1, max / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const rows = [];
+  for (let y = 0; y < height; y += 1) {
+    const row = Buffer.alloc(1 + width * 3);
+    const sourceY = Math.min(image.height - 1, Math.round(y / scale));
+    for (let x = 0; x < width; x += 1) {
+      const sourceX = Math.min(image.width - 1, Math.round(x / scale));
+      const [r, g, b] = pixelAt(image, sourceX, sourceY);
+      row[1 + x * 3] = r;
+      row[1 + x * 3 + 1] = g;
+      row[1 + x * 3 + 2] = b;
+    }
+    rows.push(row);
+  }
+  return pngDataUri(width, height, rows);
+}
+
 /** Detail plates for the chosen candidates of one photograph. */
 export function detailPlatesFor(filePath, candidates) {
   return (candidates ?? []).map((candidate, index) => {
