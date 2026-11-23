@@ -14,7 +14,7 @@ The only external service is the language model chosen in Settings. Everything e
 
 1. A salesperson pastes the customer requirement into the chat and attaches the project photographs.
 2. The intake assistant pulls out the order and asks only for what is missing.
-3. The model designs and typesets the brochure from the pictures: the colours are read out of the photographs, every picture is used, and the studio can ask for a detail to be magnified.
+3. The model designs and typesets a showroom brochure from the pictures: the kind a car or bike showroom hands over. Big hero photography, one idea per spread, named colour options like a paint card, feature callouts with magnified details, almost no text.
 4. The PDF is previewed page by page and can be printed, opened or shared.
 
 There is no template library and no pre-made layout. The model authors every page for that project.
@@ -24,7 +24,7 @@ There is no template library and no pre-made layout. The model authors every pag
 The photographs are the source, not decoration. The brochure is a colour study, not a specification sheet: there are no dimensions, sizes or shapes anywhere in the product.
 
 - **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again.
-- **The palette comes from the pictures.** The engine decodes each photograph and gives the model its four dominant colours. The brochure prints those colour strips and chips, so the pages mirror the project's cream walls, warm timber and quiet accents instead of an invented palette.
+- **The palette comes from the pictures and gets showroom names.** The engine decodes each photograph, then names its four dominant colours the way a paint card does: Warm Ivory, Oat, Sand Beige, Walnut. The brochure prints colour option strips, four named swatch chips with their hex values, so the pages mirror the project instead of an invented palette.
 - **The pages look like the project.** Type, photographs and colour are composed to belong with the pictures supplied.
 - **Magnifier callouts.** Name a detail in the chat, such as a handle, an edge, a grain or the colour palette, and the model prints a circular loupe: the same photograph enlarged on that detail, a thin ring, a leader line and a small label. When pictures arrive without a named detail, the intake assistant asks which detail to magnify.
 

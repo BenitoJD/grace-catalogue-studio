@@ -360,14 +360,18 @@ export default function OrderDetailScreen() {
                       </Text>
                       <View style={styles.swatchRow}>
                         {palette.colors.map((colour, index) => (
-                          <View
-                            key={`${palette.photo}-${index}`}
-                            accessibilityLabel={`Colour ${colour}`}
-                            style={[styles.swatch, { backgroundColor: colour }]}
-                          />
+                          <View key={`${palette.photo}-${index}`} style={styles.swatchCard}>
+                            <View
+                              accessibilityLabel={`Colour ${colour}`}
+                              style={[styles.swatch, { backgroundColor: colour }]}
+                            />
+                            <Text style={[text.caption, styles.swatchName]} numberOfLines={1}>
+                              {palette.names[index] ?? ''}
+                            </Text>
+                            <Text style={[text.caption, styles.swatchHex]}>{colour}</Text>
+                          </View>
                         ))}
                       </View>
-                      <Text style={[text.caption, styles.paletteHex]}>{palette.colors.join('  ')}</Text>
                     </View>
                   ))}
                 </View>
@@ -675,7 +679,8 @@ const styles = StyleSheet.create({
   },
   swatchRow: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 12,
   },
   swatch: {
     width: 44,
@@ -684,8 +689,19 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.hairInset,
   },
-  paletteHex: {
-    letterSpacing: 0.4,
+  swatchCard: {
+    width: 72,
+    gap: 4,
+  },
+  swatchName: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    color: colors.ink,
+  },
+  swatchHex: {
+    fontSize: 10,
+    color: colors.faint,
   },
   noteBox: {
     marginTop: space.md,

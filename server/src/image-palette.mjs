@@ -100,3 +100,66 @@ export function photoPalettesFor(order, mediaDir) {
   });
   return palettes;
 }
+
+// Showroom brochures name their colours, the way a car brochure prints
+// "Pearl White" under the swatch. The nearest curated name is used, so the
+// brochure reads like a paint card rather than a hexadecimal dump.
+const COLOUR_NAMES = [
+  ['#F8F2E7', 'Warm Ivory'],
+  ['#F1E7D6', 'Vanilla Cream'],
+  ['#E8DCC8', 'Sand Beige'],
+  ['#D9C7A7', 'Almond'],
+  ['#C9B996', 'Oat'],
+  ['#B9A98F', 'Stone'],
+  ['#AC9B84', 'Greige'],
+  ['#9A9A94', 'Ash Grey'],
+  ['#8A7F72', 'Taupe'],
+  ['#8B6F47', 'Chestnut'],
+  ['#A9784B', 'Honey Oak'],
+  ['#794617', 'Walnut'],
+  ['#5C3A21', 'Espresso'],
+  ['#3F2A1D', 'Dark Walnut'],
+  ['#B98A55', 'Brass'],
+  ['#C79A3A', 'Antique Gold'],
+  ['#7C2A22', 'Merlot'],
+  ['#4A1116', 'Oxblood'],
+  ['#1AA3C8', 'Teal'],
+  ['#173B44', 'Deep Teal'],
+  ['#2E4740', 'Forest Slate'],
+  ['#1E2528', 'Charcoal'],
+  ['#6E7370', 'Graphite'],
+  ['#FFFFFF', 'Chalk'],
+];
+
+function hexToRgb(hex) {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(String(hex ?? '').trim());
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 16);
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
+}
+
+/** The nearest showroom name for one hex colour. */
+export function colourName(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 'Custom';
+  let best = COLOUR_NAMES[0];
+  let bestDistance = Infinity;
+  for (const entry of COLOUR_NAMES) {
+    const candidate = hexToRgb(entry[0]);
+    const distance =
+      (candidate[0] - rgb[0]) ** 2 + (candidate[1] - rgb[1]) ** 2 + (candidate[2] - rgb[2]) ** 2;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = entry;
+    }
+  }
+  // A colour far from the card keeps its own voice instead of borrowing the
+  // nearest name flatly.
+  const named = best[1];
+  if (bestDistance > 90 * 90) {
+    const [r, g, b] = rgb;
+    const warm = r > g && g >= b;
+    return warm ? `Custom ${named}` : `Custom ${named}`;
+  }
+  return named;
+}

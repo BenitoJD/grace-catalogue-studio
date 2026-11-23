@@ -16,6 +16,7 @@ import path from 'node:path';
 
 import { LlmError, clean } from './llm.mjs';
 import { buildVoucherValues, escapeHtml, paletteStripPng } from './render.mjs';
+import { colourName } from './image-palette.mjs';
 
 export const DESIGNER_MAX_TOKENS = 12000;
 export const DESIGNER_TEMPERATURE = 0.85;
@@ -121,7 +122,7 @@ const DESIGNER_SYSTEM = [
   '',
   'THE PAGES, IN ORDER',
   '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
-  '2 to 7. Story and colour. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. At least one page is the palette study: each photograph\'s colour strip shown at size with its hex values and a short name for the mood it creates. Extra photographs earn extra pages, and every photograph must appear.',
+  '2 to 7. Story, colour options and details. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. At least one page is the colour options page, laid out like a showroom paint card: for each photograph its colour strip, then four swatch chips, each with its NAME in caps, its hex value small, and one short line about the mood. Extra photographs earn extra pages, and every photograph must appear. Another page carries the feature callouts: a loupe on a named detail with a short caption, the way a car brochure points at a headlamp or a seam.',
   'Last. A quiet closing page for the client file: the brand mark, the order number, the telephone and one line of thanks. No dimensions and no specification table.',
   '',
   'HOW TO REPLY',
@@ -140,19 +141,19 @@ const DESIGNER_SYSTEM = [
   'The body is one piece of prose: set it in a comfortable measure, two or three columns at 8 to 9.5 pt, and let the paragraph flow. Do not cut it.',
   'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{orderNo}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}.',
   'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover.',
-  'Colour: every photograph has a palette strip {{photo1Palette}}, {{photo2Palette}} and so on, a ready made image of its colours. It also has single colours {{photo1Color1}} to {{photo1Color4}}, {{photo2Color1}} to {{photo2Color4}}, and so on, ready to use as text colour or background colour.',
+  'Colour: every photograph has a palette strip {{photo1Palette}}, {{photo2Palette}} and so on, a ready made image of its colours. It also has single colours {{photo1Color1}} to {{photo1Color4}}, and their showroom names {{photo1Color1Name}} to {{photo1Color4Name}}, and so on for every photograph. Use the named colours as paint card chips, with the hex value small underneath.',
   'Assets: {{logo}} is the brand mark. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image.',
   '',
   'REQUIRED',
   '- Page 1, the cover: at least one photograph, {{title}}, {{customer}}, {{brand}} or {{logo}}, and {{brandTamil}} or {{roomTamil}}.',
   '- {{headline}}, {{body}} and {{closing}} each exactly once, anywhere in the story pages.',
   '- Every photograph token from {{photo1}} to the last available must appear at least once.',
-  '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as small chips or as hex values using that photograph\'s colour tokens, with a short name for the mood.',
+  '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as paint card chips, each using its colour token and its colour NAME token, with its hex value small. This is the colour options spread of the showroom book.',
   '- The last page: {{brand}} or {{logo}}, {{orderNo}} and {{phone}}.',
   '- Somewhere in the document: at least one house motif token.',
   '- No dimension, size, shutter count or specification value may appear. Those tokens do not exist and naming them rejects the document.',
   '- The photographs are the design source. Mirror their colours, light and warmth. The pages must look like they belong to the same project as the pictures.',
-  '- Magnifier callouts: when the studio asks to magnify a detail (a handle, a grain, a colour palette, an edge), draw a circular loupe on the page. Use the same photograph enlarged: background-size 300% to 420%, background-position set to the detail, a thin ring, a short leader line and a small label naming the detail. Show one loupe per named detail and never a loupe without a label.',
+  '- Feature callouts, as in a showroom brochure: magnify details (a handle, a grain, a colour palette, an edge) with a circular loupe. Use the same photograph enlarged: background-size 300% to 420%, background-position set to the detail, a thin ring, a short leader line and a small caption naming the detail. Show one loupe per named detail and never a loupe without a caption. The studio will name the details; if it has not, choose the details the photographs make obvious.',
   '- When the studio asks for a colour palette callout, print the palette strip or its four chips beside a loupe of the pictured detail, with the mood name underneath.',
   '',
   'DESIGN RULES',
@@ -174,7 +175,7 @@ const DESIGNER_SYSTEM = [
   'Colours come as CSS variables that you may refine at the top of your style block: --paper, --ink, --deep, --accent, --gold, --hair, --muted, --on-dark. Keep the paper light and the ink dark, and take the accent from the picture palettes supplied.',
   '',
   'VOICE OF THE PAGES',
-  'Words are very few. The cover says almost nothing. The story carries the copy. The colour pages show the palette that the project is built from. A reader should feel the room and its colours before reading a sentence.',
+  'Words are very few. The cover says almost nothing. The story carries the copy. The colour options name the paints. The detail page points at what is beautifully made. A reader should feel the room and its colours before reading a sentence. This is a showroom book, not a catalogue and not a specification sheet.',
 ].join('\n');
 
 const TAMIL_ROOMS = [
@@ -644,7 +645,10 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
       const tokensForPhoto = [`photo${n}`];
       if (palettePhotos.includes(n)) {
         tokensForPhoto.push(`photo${n}Palette`);
-        for (let chip = 1; chip <= 4; chip += 1) tokensForPhoto.push(`photo${n}Color${chip}`);
+        for (let chip = 1; chip <= 4; chip += 1) {
+          tokensForPhoto.push(`photo${n}Color${chip}`);
+          tokensForPhoto.push(`photo${n}Color${chip}Name`);
+        }
       }
       return tokensForPhoto;
     }),
@@ -694,6 +698,9 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
     for (let chip = 1; chip <= 4; chip += 1) {
       if (countToken(whole, `photo${index}Color${chip}`) === 0) {
         issues.push(`{{photo${index}Color${chip}}} is missing; print the four colours beside the strip`);
+      }
+      if (countToken(whole, `photo${index}Color${chip}Name`) === 0) {
+        issues.push(`{{photo${index}Color${chip}Name}} is missing; name every colour like a showroom paint card`);
       }
     }
   }
@@ -794,7 +801,9 @@ function buildTokenValues({ values, photos, copy, photoPalettes = {} }) {
     if (!/^photo\d+$/.test(key) || !Array.isArray(palette) || palette.length === 0) continue;
     tokens[`${key}Palette`] = paletteStripPng(palette);
     for (let chip = 1; chip <= 4; chip += 1) {
-      tokens[`${key}Color${chip}`] = palette[chip - 1] ?? palette[0];
+      const hex = palette[chip - 1] ?? palette[0];
+      tokens[`${key}Color${chip}`] = hex;
+      tokens[`${key}Color${chip}Name`] = colourName(hex);
     }
   }
   return tokens;

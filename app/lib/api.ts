@@ -165,6 +165,8 @@ export interface OrderPalette {
   photo: string;
   /** Four hex colours read from that photograph. */
   colors: string[];
+  /** Their showroom names, the way a paint card names a colour. */
+  names: string[];
 }
 
 export interface OrderAttachment {

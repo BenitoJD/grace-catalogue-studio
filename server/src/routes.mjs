@@ -106,7 +106,7 @@ import {
   validateProvider,
 } from './llm.mjs';
 import { createLogger, parseLogLevel } from './logger.mjs';
-import { photoPalettesFor } from './image-palette.mjs';
+import { colourName, photoPalettesFor } from './image-palette.mjs';
 import { buildKitValues, createRenderer, newRenderId } from './render.mjs';
 import {
   RATE_CARD_TEMPLATE,
@@ -744,7 +744,11 @@ export function createApp(options) {
     if (!order) return fail(c, 404, 'Order not found.');
     const palettes = photoPalettesFor(order, path.join(dataDir, 'media'));
     return c.json({
-      palettes: Object.entries(palettes).map(([photo, colors]) => ({ photo, colors })),
+      palettes: Object.entries(palettes).map(([photo, colors]) => ({
+        photo,
+        colors,
+        names: colors.map((hex) => colourName(hex)),
+      })),
     });
   });
 

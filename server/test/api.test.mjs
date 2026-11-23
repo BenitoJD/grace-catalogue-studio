@@ -3519,7 +3519,7 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
     'the customer is printed',
   );
   assert.ok(flat.includes('The colour of the room'), 'the colour study is printed');
-  assert.ok(flat.includes('Cream, warm timber and a quiet teal'), 'the palette is described');
+  assert.ok(flat.includes('Cream walls, warm timber'), 'the palette is described');
   assert.ok(/2400/.test(flat) === false, 'no dimension reaches the brochure');
   assert.equal(flat.includes('{{'), false, 'no token is printed');
   assert.equal(/\u2014|\u2013/.test(flat), false, 'no em dash or en dash reaches print');
@@ -3572,7 +3572,7 @@ test('a longer brochure prints six pages when the content needs room', { timeout
   const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
   const flat = normaliseText(text);
   assert.ok(flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()), 'the headline is printed');
-  assert.ok(flat.includes('Cream, warm timber'), 'the palette study is printed');
+  assert.ok(flat.includes('Cream walls, warm timber'), 'the palette study is printed');
   assert.equal(flat.includes('{{'), false, 'no token is printed');
 });
 
@@ -3592,9 +3592,11 @@ test('the designer is told the pictures are the source and must all be used', { 
   assert.equal(response.status, 201, await response.text());
   const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
   assert.match(prompt, /every photograph token/i);
-  assert.match(prompt, /magnifier/i);
+  assert.match(prompt, /loupe/i);
   assert.match(prompt, /colour palette/i);
   assert.match(prompt, /mirror/i);
+  assert.match(prompt, /paint card/i);
+  assert.match(prompt, /showroom/i);
   assert.match(prompt, /photo1 palette:/i);
   assert.match(prompt, /#[0-9A-F]{6}/i);
 });
@@ -3920,6 +3922,10 @@ test('the colours are read from the order photographs and served to the app', { 
     assert.equal(palette.colors.length, 4);
     for (const colour of palette.colors) {
       assert.match(colour, /^#[0-9A-F]{6}$/i);
+    }
+    assert.equal(palette.names.length, 4, 'every colour has a showroom name');
+    for (const name of palette.names) {
+      assert.ok(typeof name === 'string' && name.length >= 3, name);
     }
   }
   // The fixture pictures are 1 by 1 red PNGs.
