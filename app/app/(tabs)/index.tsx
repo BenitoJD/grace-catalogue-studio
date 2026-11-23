@@ -257,6 +257,67 @@ export default function ChatScreen() {
   const scroll = useRef<ComponentRef<typeof ScrollView> | null>(null);
   const designScroll = useRef<ComponentRef<typeof ScrollView> | null>(null);
   const designOffset = useRef(0);
+  // Set while a cursor drag is panning the strip, so the click that ends the
+  // drag never lands on a tile as a choice.
+  const designDragging = useRef(false);
+
+  // The web strip pans with the cursor, not just the arrows: press and drag
+  // left or right like a trackpad. Touch keeps its native swipe.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const scroller = designScroll.current as unknown as {
+      getScrollableNode?: () => HTMLElement | null;
+    } | null;
+    const node =
+      scroller && typeof scroller.getScrollableNode === 'function'
+        ? scroller.getScrollableNode()
+        : null;
+    if (!node) return;
+    let down = false;
+    let startX = 0;
+    let startLeft = 0;
+    const downAt = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse' || event.button !== 0) return;
+      down = true;
+      startX = event.clientX;
+      startLeft = node.scrollLeft;
+    };
+    const moveAt = (event: PointerEvent) => {
+      if (!down) return;
+      const moved = event.clientX - startX;
+      if (Math.abs(moved) > 6 && !designDragging.current) {
+        designDragging.current = true;
+        node.style.cursor = 'grabbing';
+        node.style.userSelect = 'none';
+      }
+      if (designDragging.current) {
+        node.scrollLeft = startLeft - moved;
+        designOffset.current = node.scrollLeft;
+        event.preventDefault();
+      }
+    };
+    const upAt = () => {
+      if (!down) return;
+      down = false;
+      node.style.cursor = 'grab';
+      node.style.userSelect = '';
+      if (designDragging.current) {
+        setTimeout(() => {
+          designDragging.current = false;
+        }, 80);
+      }
+    };
+    node.style.cursor = 'grab';
+    node.addEventListener('pointerdown', downAt);
+    window.addEventListener('pointermove', moveAt);
+    window.addEventListener('pointerup', upAt);
+    return () => {
+      node.style.cursor = '';
+      node.removeEventListener('pointerdown', downAt);
+      window.removeEventListener('pointermove', moveAt);
+      window.removeEventListener('pointerup', upAt);
+    };
+  }, []);
   const frameRef = useRef<any>(null);
   const inputRef = useRef<any>(null);
   const anim = useRef(new Animated.Value(0)).current;
@@ -1059,7 +1120,10 @@ export default function ChatScreen() {
                 <DesignTile
                   selected={chosenDesign === 'ai'}
                   noDesign
-                  onPress={() => setChosenDesign('ai')}
+                  onPress={() => {
+                    if (designDragging.current) return;
+                    setChosenDesign('ai');
+                  }}
                 />
                 {(() => {
                   const visible = matchDesigns(designs, designQuery);
@@ -1079,7 +1143,10 @@ export default function ChatScreen() {
                           key={design.id}
                           design={design}
                           selected={chosenDesign === design.id}
-                          onPress={() => setChosenDesign(design.id)}
+                          onPress={() => {
+                            if (designDragging.current) return;
+                            setChosenDesign(design.id);
+                          }}
                         />
                       ))}
                     </>
