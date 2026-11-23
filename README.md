@@ -28,7 +28,7 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **The pages look like the project.** Type, photographs and colour are composed to belong with the pictures supplied.
 - **Magnifier callouts.** Name a detail in the chat, such as a handle, an edge, a grain or the colour palette, and the model prints a circular loupe: the same photograph enlarged on that detail, a thin ring, a leader line and a small label. When pictures arrive without a named detail, the intake assistant asks which detail to magnify.
 
-![The magnifier callout](docs/screenshots/loupe-detail.png)
+![The colour study with the palette strips and the loupe](docs/screenshots/palette-study.png)
 
 ## Chat first
 
