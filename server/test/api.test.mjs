@@ -3084,15 +3084,15 @@ test('conversational intake extracts an order and reports what is still missing'
   await configureLlm();
   resetMockProvider({
     reply: JSON.stringify({
-      reply: 'Noted, a wardrobe for Anitha. Which room is it for?',
+      reply: 'From the pictures I read a wardrobe in the master bedroom. Is that right?',
       order: {
-        customerName: 'Anitha Selvam',
         title: 'Master Bedroom Wardrobe',
+        room: 'Master bedroom',
         width: '2400 mm',
         budget: 'under one lakh',
         randomField: 'drop me',
       },
-      ready: true,
+      ready: false,
     }),
   });
 
@@ -3107,13 +3107,13 @@ test('conversational intake extracts an order and reports what is still missing'
   });
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.equal(body.draft.customerName, 'Anitha Selvam');
+  assert.equal(body.draft.room, 'Master bedroom');
   assert.equal(body.draft.width, '2400 mm');
   assert.equal('budget' in body.draft, false, 'unknown fields are dropped');
   assert.equal('randomField' in body.draft, false, 'unknown fields are dropped');
   assert.equal(body.ready, false, 'the model cannot declare ready while essentials are missing');
-  assert.ok(body.missing.includes('the room'));
-  assert.match(body.reply, /room/i);
+  assert.ok(body.missing.includes('customer name'));
+  assert.match(body.reply, /who is the customer/i);
   assert.equal(JSON.stringify(body).includes(LLM_KEY), false);
 
   // A second turn supplies the gaps and merges with the draft.
@@ -3121,7 +3121,7 @@ test('conversational intake extracts an order and reports what is still missing'
   resetMockProvider({
     reply: JSON.stringify({
       reply: 'That is everything needed. The brochure can be made.',
-      order: { room: 'Master bedroom' },
+      order: { customerName: 'Anitha Selvam' },
       ready: true,
     }),
   });
@@ -3129,14 +3129,14 @@ test('conversational intake extracts an order and reports what is still missing'
     messages: [
       { role: 'user', content: 'Need a wardrobe for Anitha in the master bedroom.' },
       { role: 'assistant', content: body.reply },
-      { role: 'user', content: 'It is the master bedroom.' },
+      { role: 'user', content: 'The customer is Anitha Selvam.' },
     ],
     draft: firstDraft,
   });
   assert.equal(second.status, 200);
   const merged = await second.json();
   assert.equal(merged.draft.width, '2400 mm', 'the earlier draft is kept');
-  assert.equal(merged.draft.room, 'Master bedroom');
+  assert.equal(merged.draft.customerName, 'Anitha Selvam');
   assert.equal(merged.ready, true);
   assert.deepEqual(merged.missing, []);
 
@@ -3258,7 +3258,7 @@ test('the intake route forces the missing list into the reply', async () => {
   resetMockProvider({
     reply: JSON.stringify({
       reply: 'I need more information.',
-      order: { customerName: 'Anita' },
+      order: {},
       ready: false,
     }),
   });
@@ -3269,23 +3269,21 @@ test('the intake route forces the missing list into the reply', async () => {
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.doesNotMatch(body.reply, /more information/i);
-  for (const phrase of ['the piece', 'the room']) {
-    assert.ok(body.reply.includes(phrase), `the reply names ${phrase}`);
-  }
-  assert.ok(body.missing.length >= 1);
+  assert.match(body.reply, /who is the customer/i);
+  assert.deepEqual(body.missing, ['customer name']);
 
   // If the model already listed everything, the reply is left untouched.
   resetMockProvider({
     reply: JSON.stringify({
-      reply: 'I have the name. I still need the piece and the room.',
-      order: { customerName: 'Anita' },
+      reply: 'I have the pictures. Who is the customer?',
+      order: {},
       ready: false,
     }),
   });
   const second = await (await postJson(`${baseUrl}/api/intake`, {
     messages: [{ role: 'user', content: 'A wardrobe for Anita please.' }],
   })).json();
-  assert.equal(second.reply, 'I have the name. I still need the piece and the room.');
+  assert.equal(second.reply, 'I have the pictures. Who is the customer?');
 });
 
 
@@ -3304,7 +3302,7 @@ test('a malformed intake reply is retried once before it fails', async () => {
   });
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.ok(body.reply.includes('the piece'), 'the honest reply is returned after the retry');
+  assert.equal(body.ready, true, 'the recovered order is complete');
   assert.equal(mockProviderState.requests.length, 2, 'one original request and one retry');
 
   resetMockProvider({ replies: ['still not json', 'also not json'] });
@@ -3799,20 +3797,19 @@ test('missing details can be skipped and marked to be confirmed', async () => {
   resetMockProvider({ reply: JSON.stringify({ reply: 'unused', order: {}, ready: false }) });
   const requestsBefore = mockProviderState.requests.length;
   const partialDraft = {
-    customerName: 'Rani',
     title: 'Wardrobe',
-    width: '2400 mm',
+    room: 'Guest bedroom',
   };
   const response = await postJson(`${baseUrl}/api/intake`, {
-    messages: [{ role: 'user', content: 'Customer name Rani, a wardrobe 2400 wide.' }],
+    messages: [{ role: 'user', content: 'A wardrobe for the guest bedroom.' }],
     draft: partialDraft,
-    skip: ['room'],
+    skip: ['customer name'],
   });
   const raw = await response.text();
   assert.equal(response.status, 200, raw);
   const body = JSON.parse(raw);
   assert.equal(body.ready, true);
-  assert.equal(body.draft.room, 'Room to confirm');
+  assert.equal(body.draft.customerName, 'Customer');
   assert.deepEqual(body.missing, []);
   assert.match(body.reply, /to be confirmed/i);
   assert.equal(mockProviderState.requests.length, requestsBefore, 'skipping makes no model call');
@@ -3824,19 +3821,18 @@ test('saying I do not know skips the detail without a model call', async () => {
   resetMockProvider({ reply: JSON.stringify({ reply: 'unused', order: {}, ready: false }) });
   const requestsBefore = mockProviderState.requests.length;
   const partialDraft = {
-    customerName: 'Rani',
     title: 'Wardrobe',
-    width: '2400 mm',
+    room: 'Guest bedroom',
   };
   const response = await postJson(`${baseUrl}/api/intake`, {
-    messages: [{ role: 'user', content: "I don't know the room." }],
+    messages: [{ role: 'user', content: "I don't know the customer name." }],
     draft: partialDraft,
   });
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.ready, true);
-  assert.equal(body.draft.room, 'Room to confirm');
-  assert.match(body.reply, /room/i);
+  assert.equal(body.draft.customerName, 'Customer');
+  assert.match(body.reply, /customer name/i);
   assert.match(body.reply, /to be confirmed/i);
   assert.equal(mockProviderState.requests.length, requestsBefore);
 });
@@ -4193,6 +4189,54 @@ test('a multi page PDF is reviewed and printed page by page', { timeout: 240_000
   assert.match(failure.error.message, /photo2/i);
   const palettes = await (await fetch(`${baseUrl}/api/orders/${order.id}/palettes`)).json();
   assert.equal(palettes.palettes.length, 2, 'one palette per PDF page');
+});
+
+test('the piece and the room are read for the order, never asked for', { timeout: 240_000 }, async () => {
+  const customer = await (await postJson(`${baseUrl}/api/customers`, { name: 'Infer Customer' })).json();
+  // A picture named like the client's own file: a TV unit in the living room.
+  const upload = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: FIXTURE_PNG_BASE64,
+      name: 'Mr.Sebastin LIVING TV UNIT.pdf.png',
+      contentType: 'image/png',
+    })
+  ).json();
+  const created = await postJson(`${baseUrl}/api/orders`, {
+    customerId: customer.id,
+    attachments: [upload],
+    brief: 'The living room TV unit and the panelling behind it.',
+  });
+  const createdRaw = await created.text();
+  assert.equal(created.status, 201, createdRaw);
+  const order = JSON.parse(createdRaw);
+  assert.equal(order.title, 'TV Unit', 'the piece is read from the customer file');
+  assert.equal(order.room, 'Living Room', 'the room is read from the customer file');
+});
+
+test('intake reads the pictures and asks for a confirmation and the customer name', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  resetMockProvider({ reply: JSON.stringify({ reply: 'Noted.', order: {}, ready: false }) });
+  const upload = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: FIXTURE_PNG_BASE64,
+      name: 'master-bedroom-wardrobe.png',
+      contentType: 'image/png',
+    })
+  ).json();
+  const response = await postJson(`${baseUrl}/api/intake`, {
+    messages: [{ role: 'user', content: 'Here are the pictures of the wardrobe.' }],
+    attachments: [upload],
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.missing, ['customer name']);
+  assert.match(body.reply, /who is the customer/i, 'the only question is who the customer is');
+  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
+  assert.match(prompt, /Picture reading:/i);
+  assert.match(prompt, /wardrobe/i);
+  assert.match(prompt, /master bedroom/i);
+  assert.match(prompt, /Never ask the customer for the room or the piece/i);
 });
 
 test('network egress only allows the configured model provider and loopback', async () => {

@@ -49,6 +49,7 @@ One chat is one order. It opens with the studio greeting, a date and time on eve
 
 - **Attachments**: any type up to 50 MB, picked, dragged or pasted. They wait in a tray with a thumbnail, size and remove button.
 - **Never lost**: a failed send puts the message and files back in the composer and explains what happened.
+- **The app reads the pictures, not asks for the brief.** Intake never asks for the room or the piece. It reads them from the pictures and the file names, says what it sees in one line and asks the customer to confirm. The only fact it asks for is who the customer is.
 - **Nothing is invented**: a detail the customer does not know is marked to be confirmed, never guessed.
 - **One conversation, one order**: after the brochure exists, every sentence edits that order. New order starts the next customer.
 
@@ -142,7 +143,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 119 server tests
+npm test          # 121 server tests
 npm run verify    # black box smoke test
 npm run e2e       # 97 browser checks
 npm run typecheck

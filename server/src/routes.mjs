@@ -154,9 +154,9 @@ function orderFieldMaxLength(field) {
 
 // Only these fields must be present on create. The rest start empty and can be
 // filled in with PATCH, which keeps the mobile form forgiving.
-// A brochure needs the piece and the room. Measurements are not part of the
-// product any more, so every technical field is optional.
-const REQUIRED_ORDER_FIELDS = new Set(['title', 'room']);
+// The pictures decide the piece and the room, and measurements are not part of
+// the product any more, so no order text field is mandatory.
+const REQUIRED_ORDER_FIELDS = new Set();
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const UPLOAD_EXTENSIONS = new Map([
@@ -200,6 +200,83 @@ function orderPayload(order) {
 }
 
 const MAX_ORDER_ATTACHMENTS = 20;
+
+// Reading the piece and the room from the customer's own words and file names.
+function inferOrderFacts(attachments, brief = '') {
+  const names = (attachments ?? []).map((file) => String(file.name ?? '')).join(' ');
+  const text = `${names} ${brief}`.toLowerCase();
+  const room =
+    /master.*(bed|room)|(bed|room).*master/.test(text)
+      ? 'Master Bedroom'
+      : /guest.*(bed|room)|(bed|room).*guest/.test(text)
+        ? 'Guest Bedroom'
+        : /kids|children/.test(text)
+          ? 'Kids Room'
+          : /bedroom|bed room/.test(text)
+            ? 'Bedroom'
+            : /tv|television|living|hall/.test(text)
+              ? 'Living Room'
+              : /kitchen/.test(text)
+                ? 'Kitchen'
+                : /dining/.test(text)
+                  ? 'Dining Room'
+                  : /study|office/.test(text)
+                    ? 'Study'
+                    : /pooja|puja/.test(text)
+                      ? 'Pooja Room'
+                      : 'Interior';
+  const title =
+    /tv|television/.test(text)
+      ? 'TV Unit'
+      : /kitchen/.test(text)
+        ? 'Modular Kitchen'
+        : /wardrobe|almirah|cupboard/.test(text)
+          ? 'Wardrobe'
+          : /bed/.test(text)
+            ? 'Bedroom Set'
+            : /dining/.test(text)
+              ? 'Dining Set'
+              : /pooja|puja/.test(text)
+                ? 'Pooja Unit'
+                : /study|office/.test(text)
+                  ? 'Study Unit'
+                  : /panel|panelling/.test(text)
+                    ? 'Wall Panelling'
+                    : 'Interior Project';
+  return { title, room };
+}
+
+/**
+ * What the pictures show, in words the intake assistant can repeat back for a
+ * confirmation question: colour names read from the frames plus the likely
+ * piece and room taken from the file names.
+ */
+async function pictureReadingFor(attachments, { mediaDir, dataDir, pdftoppmBin }) {
+  const list = Array.isArray(attachments) ? attachments : [];
+  if (list.length === 0) return null;
+  const facts = inferOrderFacts(list);
+  const colours = [];
+  try {
+    const paths = await orderPhotoPaths({ attachments: list }, { mediaDir, dataDir, pdftoppmBin });
+    for (const filePath of paths.slice(0, 6)) {
+      const analysis = analyseImage(filePath);
+      for (const swatch of analysis?.palette ?? []) {
+        if (colours.length < 6 && !colours.includes(swatch.name)) colours.push(swatch.name);
+      }
+      for (const candidate of analysis?.candidates ?? []) {
+        if (colours.length < 6 && !colours.includes(candidate.name)) colours.push(candidate.name);
+      }
+    }
+  } catch {
+    // A picture that cannot be read simply gives a shorter reading.
+  }
+  const colourLine = colours.length > 0 ? colours.join(', ') : 'warm neutrals';
+  return {
+    title: facts.title,
+    room: facts.room,
+    text: `Picture reading: likely a ${facts.title.toLowerCase()} in the ${facts.room.toLowerCase()}. Colours read from the pictures: ${colourLine}.`,
+  };
+}
 
 // The name the customer gave an uploaded file, read from its sidecar.
 function uploadedFileName(mediaDir, mediaUrl) {
@@ -748,11 +825,20 @@ export function createApp(options) {
     const attachments = readAttachments(parsed.body);
     if (attachments.error) return fail(c, 400, attachments.error);
 
-    const order = createOrder(db, {
+    let order = createOrder(db, {
       ...fields,
       customerId: customerId.value,
       attachments: attachments.value,
     });
+    // The pictures and the words tell us the piece and the room; the studio is
+    // never asked for them.
+    if (!order.title.trim() || !order.room.trim()) {
+      const inferred = inferOrderFacts(attachments.value, fields.brief ?? '');
+      order = updateOrder(db, order.id, {
+        ...(order.title.trim() ? {} : { title: inferred.title }),
+        ...(order.room.trim() ? {} : { room: inferred.room }),
+      });
+    }
     return c.json(orderPayload(order), 201);
   });
 
@@ -1267,10 +1353,20 @@ export function createApp(options) {
     try {
       const attachments = readAttachments(body);
       if (attachments.error) return fail(c, 400, attachments.error);
-      const attachmentContext = await describeAttachments(
+      let attachmentContext = await describeAttachments(
         attachments.value,
         path.join(dataDir, 'media'),
       );
+      // What the pictures show, so the assistant can propose it and ask for a
+      // confirmation instead of asking the customer for the room or the piece.
+      const reading = await pictureReadingFor(attachments.value, {
+        mediaDir: path.join(dataDir, 'media'),
+        dataDir,
+        pdftoppmBin,
+      });
+      if (reading) {
+        attachmentContext = `${attachmentContext}\n${reading.text}\nThe customer has not been asked for the room or the piece: read them from this and ask for a short confirmation. If the customer name is unknown, ask "Who is the customer?"`;
+      }
       const intakeMessages = buildIntakeMessages(
         cleanMessages,
         body.draft ?? {},

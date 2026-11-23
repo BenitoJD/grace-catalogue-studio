@@ -36,14 +36,9 @@ const MISSING_MATCHERS = {
   shutters: /\b(shutter|shutters|door|doors)\b/i,
 };
 
-// Dimensions, size and shape are no longer part of the product. A brochure is
-// a colour study built from the client's photographs; the piece, the room and
-// the customer are the only facts intake must have.
-export const INTAKE_ESSENTIALS = [
-  ['customerName', 'customer name'],
-  ['title', 'the piece, for example a wardrobe or a bench'],
-  ['room', 'the room'],
-];
+// The pictures tell us what the piece and the room are. The only fact the
+// studio must be asked for is who the customer is.
+export const INTAKE_ESSENTIALS = [['customerName', 'customer name']];
 
 const FIELD_LIMITS = Object.fromEntries(INTAKE_FIELDS.map((field) => [field, field === 'brief' ? 2000 : 120]));
 
@@ -59,7 +54,9 @@ const INTAKE_SYSTEM_PROMPT = [
   '- Never put a price, budget, discount, date, festival or deadline in any field, including brief, or in reply. Leave those words out entirely.',
   'Rules for reply:',
   '- One to three short sentences, warm and plain, British Indian English. No em dashes, no exclamation marks, no questions other than the ones allowed below.',
-  '- When any essential is missing, say exactly what is missing and leave nothing out, in one short sentence, for example "I still need the customer name and the room."',
+  '- Never ask the customer for the room or the piece. Read them from the pictures and from what the customer said, then say what you see in one short sentence and ask them to confirm: for example "From the pictures I read a wardrobe in the master bedroom, in cream, walnut and brass. Is that right?"',
+  '- The only fact you may ask for is the customer name. When it is missing, ask it as a direct question: "Who is the customer?"',
+  '- Keep the conversation interactive: one short confirmation question about what the pictures show, plus the customer name if it is unknown.',
   '- You may put at most two questions to the customer. If more than two things are missing, state the full list instead of asking question after question.',
   '- Never say "more information", "more details", "a few details", "some details" or "additional information". Name the fields.',
   '- When ready is true, confirm what you have and stop. Never ask for anything, and never ask for materials or finishes.',
@@ -199,6 +196,12 @@ export function ensureMissingMentioned(reply, fields) {
     return matcher ? !matcher.test(cleaned) : true;
   });
   if (unmentioned.length === 0) return cleaned;
+  // The customer name is the one thing we ask for, so ask it as a question.
+  if (unmentioned.length === 1 && unmentioned[0] === 'customerName') {
+    const base = cleaned === '' ? 'Noted' : cleaned;
+    const prefix = /[.!?]$/.test(base) ? '' : '.';
+    return `${base}${prefix} Who is the customer?`;
+  }
   const phrases = humanList(unmentioned.map((field) => MISSING_PHRASES[field] ?? field));
   const base = cleaned === '' ? 'Noted' : cleaned;
   const prefix = /[.!?]$/.test(base) ? '' : '.';

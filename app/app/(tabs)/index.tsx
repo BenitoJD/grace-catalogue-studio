@@ -80,7 +80,7 @@ const stamp = () =>
     hour12: true,
   });
 
-const ESSENTIAL_TOTAL = 3;
+const ESSENTIAL_TOTAL = 1;
 const MAX_UPLOAD_MB = 50;
 
 // The intake speaks in long friendly labels ("the piece, for example a
