@@ -147,7 +147,39 @@ function apiPaths() {
  * install: data lives in the app's user data folder, printing uses Electron and
  * the window talks to this loopback engine only.
  */
+/**
+ * The studio was renamed from Grace Studio. A working installation must keep
+ * its orders, uploads, prints and the saved model key, so the old user data
+ * folder is copied across once when the new one does not exist yet.
+ */
+function migrateLegacyData() {
+  const currentData = path.join(app.getPath('userData'), 'data');
+  const currentDb = path.join(currentData, 'catalog.db');
+  const appData = app.getPath('appData');
+  const legacyName = 'Grace Studio';
+  const currentName = path.basename(app.getPath('userData'));
+  if (legacyName === currentName) return;
+  const legacyData = path.join(appData, legacyName, 'data');
+  const legacyDb = path.join(legacyData, 'catalog.db');
+  if (!fs.existsSync(legacyDb)) return;
+
+  // An empty database means the new name created its folder before this
+  // migration existed; the old studio already holds the real work.
+  const currentEmpty = !fs.existsSync(currentDb) || fs.statSync(currentDb).size < 64 * 1024;
+  const legacyHasWork = fs.statSync(legacyDb).size >= 64 * 1024;
+  if (!currentEmpty || !legacyHasWork) return;
+  try {
+    fs.rmSync(currentData, { recursive: true, force: true });
+    fs.mkdirSync(currentData, { recursive: true });
+    fs.cpSync(legacyData, currentData, { recursive: true, force: true });
+    log('migrated legacy studio data.');
+  } catch (error) {
+    log(`legacy data migration failed: ${error.message}`);
+  }
+}
+
 async function startEmbeddedApi() {
+  migrateLegacyData();
   const dataDir = path.join(app.getPath('userData'), 'data');
   const templatesDir = apiPaths().templates;
   embeddedDataDir = dataDir;
