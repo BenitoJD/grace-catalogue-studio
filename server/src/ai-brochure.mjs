@@ -47,6 +47,7 @@ const PALETTE = {
 // the safe form for both Chromium and WeasyPrint.
 const ASSETS = {
   logo: '../assets/jacob-mark.png',
+  logoWhite: '../assets/jacob-mark-white.png',
   jaali: '../assets/indian/jaali.svg',
   paisley: '../assets/indian/paisley.svg',
   lotus: '../assets/indian/lotus.svg',
@@ -103,6 +104,7 @@ const IDENTITY_TOKENS = [
 
 const RAW_TOKENS = new Set([
   'logo',
+  'logoWhite',
   'jaali',
   'paisley',
   'lotus',
@@ -142,10 +144,12 @@ const DESIGNER_SYSTEM = [
   'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{orderNo}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}.',
   'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover.',
   'Colour: every photograph has a palette strip {{photo1Palette}}, {{photo2Palette}} and so on, a ready made image of its colours. It also has single colours {{photo1Color1}} to {{photo1Color4}}, and their showroom names {{photo1Color1Name}} to {{photo1Color4Name}}, and so on for every photograph. Use the named colours as paint card chips, with the hex value small underneath.',
-  'Assets: {{logo}} is the brand mark. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image.',
+  'Assets: {{logo}} is the brand mark for light backgrounds and {{logoWhite}} is the same mark in white for dark backgrounds, photographs and colour panels. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image.',
   '',
   'REQUIRED',
-  '- Page 1, the cover: at least one photograph, {{title}}, {{customer}}, {{brand}} or {{logo}}, and {{brandTamil}} or {{roomTamil}}.',
+  '- Page 1, the cover: at least one photograph, {{title}}, {{customer}}, the brand name {{brand}} AND the mark {{logo}} or {{logoWhite}}, and {{brandTamil}} or {{roomTamil}}.',
+  '- The brand is always legible: {{logoWhite}} on a dark, colour or photographic field, {{logo}} on cream or a light field. Never set either mark straight on a busy photograph without a solid panel or scrim behind it, and never tint or recolour a mark.',
+  '- The brand name and one mark must also appear on the closing page.',
   '- {{headline}}, {{body}} and {{closing}} each exactly once, anywhere in the story pages.',
   '- Every photograph token from {{photo1}} to the last available must appear at least once.',
   '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as paint card chips, each using its colour token and its colour NAME token, with its hex value small. This is the colour options spread of the showroom book.',
@@ -640,6 +644,7 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
     ...IDENTITY_TOKENS,
     ...MOTIF_TOKENS,
     'logo',
+    'logoWhite',
     ...[...Array(Math.max(1, photoCount)).keys()].flatMap((index) => {
       const n = index + 1;
       const tokensForPhoto = [`photo${n}`];
@@ -672,8 +677,11 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
   if (countToken(whole, 'brandTamil') + countToken(whole, 'roomTamil') === 0) {
     issues.push('no Tamil line is used');
   }
-  if (countToken(whole, 'brand') + countToken(whole, 'logo') === 0) {
-    issues.push('the brand is not named');
+  if (countToken(whole, 'brand') === 0) {
+    issues.push('the brand name {{brand}} is missing');
+  }
+  if (countToken(whole, 'logo') + countToken(whole, 'logoWhite') === 0) {
+    issues.push('the brand logo is missing; use {{logo}} or {{logoWhite}}');
   }
 
   const photoUses = [...tokens].filter((token) => /^photo\d+$/.test(token));
@@ -715,8 +723,11 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
     for (const token of ['title', 'customer']) {
       if (countToken(pages[0], token) === 0) issues.push(`the cover is missing {{${token}}}`);
     }
-    if (countToken(pages[0], 'brand') + countToken(pages[0], 'logo') === 0) {
-      issues.push('the cover does not carry the brand');
+    if (countToken(pages[0], 'brand') === 0) {
+      issues.push('the cover does not carry the brand name');
+    }
+    if (countToken(pages[0], 'logo') + countToken(pages[0], 'logoWhite') === 0) {
+      issues.push('the cover does not carry the logo');
     }
     if (countToken(pages[0], 'brandTamil') + countToken(pages[0], 'roomTamil') === 0) {
       issues.push('the cover has no Tamil line');
@@ -725,6 +736,9 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
   if (middle.length > 0) {
     for (const token of COPY_TOKENS) {
       if (countToken(middleHtml, token) === 0) issues.push(`the story is missing {{${token}}}`);
+    }
+    if (countToken(middleHtml, 'logo') + countToken(middleHtml, 'logoWhite') === 0) {
+      issues.push('the brochure body carries no brand mark');
     }
     for (const [offset, page] of middle.entries()) {
       if (!/photo\d+/.test(page) && !/photo\d+Palette/.test(page)) {
@@ -737,8 +751,11 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
       if (countToken(pages[0], token) > 0) issues.push(`{{${token}}} belongs in the story, not on the cover`);
     }
     const lastHtml = pages[last];
-    if (countToken(lastHtml, 'brand') + countToken(lastHtml, 'logo') === 0) {
-      issues.push('the last page does not carry the brand');
+    if (countToken(lastHtml, 'brand') === 0) {
+      issues.push('the closing page does not carry the brand name');
+    }
+    if (countToken(lastHtml, 'logo') + countToken(lastHtml, 'logoWhite') === 0) {
+      issues.push('the closing page does not carry the logo');
     }
     if (countToken(lastHtml, 'orderNo') === 0) issues.push('the last page is missing {{orderNo}}');
     if (countToken(lastHtml, 'phone') === 0) issues.push('the last page is missing {{phone}}');
@@ -788,6 +805,7 @@ function buildTokenValues({ values, photos, copy, photoPalettes = {} }) {
     body: clean(copy?.body),
     closing: clean(copy?.closing),
     logo: ASSETS.logo,
+    logoWhite: ASSETS.logoWhite,
     jaali: ASSETS.jaali,
     paisley: ASSETS.paisley,
     lotus: ASSETS.lotus,

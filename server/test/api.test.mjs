@@ -3626,6 +3626,64 @@ test('the intake asks which detail to magnify when pictures arrive unnamed', () 
   assert.match(prompt, /detail/);
 });
 
+test('a brochure without the brand mark is rejected', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const noLogo = DESIGNER_HTML.replaceAll('{{logo}}', '{{brand}}').replaceAll('{{logoWhite}}', '{{brand}}');
+  resetMockProvider({ reply: noLogo });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /logo/i);
+});
+
+test('a PDF page counts as a picture that must be used', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const htmlPath = path.join(tempDir, 'pdf-picture.html');
+  const pdfPath = path.join(tempDir, 'pdf-picture.pdf');
+  writeFileSync(
+    htmlPath,
+    '<html><body style="margin:0"><div style="width:210mm;height:297mm;background:#794617"></div></body></html>',
+  );
+  execFileSync(weasyprintBin, [htmlPath, pdfPath], { stdio: 'ignore' });
+  const pdfUpload = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: readFileSync(pdfPath).toString('base64'),
+      name: 'pdf-picture.pdf',
+      contentType: 'application/pdf',
+    })
+  ).json();
+  const customer = await (await postJson(`${baseUrl}/api/customers`, { name: 'PDF Picture Customer' })).json();
+  const order = await (
+    await postJson(`${baseUrl}/api/orders`, {
+      ...DEMO_ORDER,
+      title: 'Picture And Sheet Wardrobe',
+      customerId: customer.id,
+      attachments: [FIXTURE_ROOM_FILES[0], pdfUpload],
+    })
+  ).json();
+
+  db.prepare('UPDATE orders SET copy_json = ? WHERE id = ?').run(
+    JSON.stringify(BROCHURE_COPY),
+    order.id,
+  );
+
+  // The mock document prints photo1 and photo2, the upload and the PDF page.
+  resetMockProvider({ reply: DESIGNER_HTML });
+  const designed = await postJson(`${baseUrl}/api/orders/${order.id}/ai-brochure`, {});
+  assert.equal(designed.status, 201, await designed.text());
+
+  // Dropping the PDF page from the design is rejected.
+  resetMockProvider({ reply: DESIGNER_HTML.replaceAll('{{photo2}}', '{{photo1}}') });
+  const missing = await postJson(`${baseUrl}/api/orders/${order.id}/ai-brochure`, {});
+  assert.equal(missing.status, 502);
+  const body = await missing.json();
+  assert.match(body.error.message, /photo2/i);
+});
+
 test('an unusable design is retried once and then fails cleanly', { timeout: 120_000 }, async () => {
   resetLlmState();
   await configureLlm();
