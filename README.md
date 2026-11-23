@@ -24,7 +24,14 @@ There is no template library and no pre-made layout. The model authors every pag
 
 The photographs are the source, not decoration. The brochure is a colour study, not a specification sheet: there are no dimensions, sizes or shapes anywhere in the product.
 
-- **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again.
+- **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again. PDF sheets count as pictures too, through their first page.
+- **The theme comes from the pictures.** The paper, ink, deep tone and accent of every brochure are computed from the colours read out of the client's photographs and handed to the designer as the page palette. Two projects never share a house palette.
+- **The brand is always legible.** The mark, the brand name and the company details are printed on ready made brand and contact plates. Each plate carries its own solid ground, light or dark, with a keyline, so a pale photograph or a dark page can never fade them out. The cover takes a brand plate and the closing page takes a brand plate plus a contact plate with the phone, email and address.
+
+![The brand plate on the cover, legible over a photograph](docs/screenshots/brand-plate-cover.png)
+
+![The contact plate with phone, email and address](docs/screenshots/brand-contact-plate.png)
+
 - **The palette comes from the pictures and gets showroom names.** The engine decodes each photograph, then names its four dominant colours the way a paint card does: Warm Ivory, Oat, Sand Beige, Walnut. The brochure prints colour option strips, four named swatch chips with their hex values, so the pages mirror the project instead of an invented palette.
 - **The pages look like the project.** Type, photographs and colour are composed to belong with the pictures supplied.
 - **The picture review.** As soon as pictures are attached the studio analyses them and shows each picture back large, with magnified circles on the details worth seeing. Each circle is a four times enlarged cut of that same picture and is named with the colour inside it, name plus hex code, so the client reads Oat #C9B996 or Walnut #794617 at a glance. The palette is printed under the picture with every code, and the studio asks what to magnify before any brochure exists.
@@ -55,9 +62,9 @@ Files can join late: attach a photograph with the next sentence and it is saved 
 
 The model writes the words and authors the pages itself as HTML and CSS in one reply: four pages for a quiet order, up to eight when the photographs and their palettes need the room. The server supplies the print box, fonts, brand assets, the picture palettes and the words through tokens, then checks the document before printing.
 
-The checks cover the page count, per page word limits, the copy printed once, every photograph used, every photograph palette strip printed with its four chips, the brand and Tamil line on the cover, the order number and phone on the closing page, a house motif, no external URL, and no unfilled token. A failure is asked for again with the exact problems; two failures print nothing.
+The checks cover the page count, per page word limits, the copy printed once, every photograph used, every palette strip with its four named chips, a real magnifier plate with its colour name and code, a brand plate on the cover, a brand plate and contact plate on the closing page, a house motif, no external URL, and no unfilled token. A failure is asked for again with the exact problems; two failures print nothing.
 
-The brochure carries the order's creation date. The story pages carry the copy, the colour pages carry the strips and chips, and a quiet closing page carries the brand and the phone.
+The brochure carries the order's creation date. The story pages carry the copy, the colour pages carry the strips and chips, a premium spread carries the real magnifier loupe, and the closing page carries the brand and contact plates.
 
 ## Brand assets only
 
@@ -135,9 +142,9 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 113 server tests
+npm test          # 118 server tests
 npm run verify    # black box smoke test
-npm run e2e       # 98 browser checks
+npm run e2e       # 97 browser checks
 npm run typecheck
 npm run lint
 ```

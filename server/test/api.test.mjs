@@ -39,7 +39,7 @@ import {
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { parseDesignerReply } from '../src/ai-brochure.mjs';
+import { parseDesignerReply, themeFromPalettes } from '../src/ai-brochure.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -3597,6 +3597,10 @@ test('the designer is told the pictures are the source and must all be used', { 
   assert.match(prompt, /mirror/i);
   assert.match(prompt, /paint card/i);
   assert.match(prompt, /showroom/i);
+  assert.match(prompt, /magnifier plate/i);
+  assert.match(prompt, /photo1detail1/);
+  assert.match(prompt, /brand plate/i);
+  assert.match(prompt, /contact plate/i);
   assert.match(prompt, /photo1 palette:/i);
   assert.match(prompt, /#[0-9A-F]{6}/i);
 });
@@ -3615,6 +3619,23 @@ test('a document that ignores an uploaded picture is rejected', { timeout: 240_0
   assert.match(body.error.message, /never used|every photograph/i);
 });
 
+test('the brochure theme is read from the picture colours', () => {
+  const theme = themeFromPalettes({
+    photo1: ['#F8F2E7', '#C9B996', '#794617', '#1AA3C8'],
+    photo2: ['#EDE5C8', '#AC9B84', '#5C3A21', '#B98A55'],
+  });
+  assert.equal(theme.paper, '#F8F2E7');
+  assert.equal(theme.ink, '#5C3A21');
+  assert.equal(theme.deep, '#794617');
+  assert.equal(theme.accent, '#1AA3C8');
+  assert.equal(theme.hair.length, 7);
+  assert.equal(theme.muted.length, 7);
+  // Empty input falls back to the house palette, never to undefined colours.
+  const fallback = themeFromPalettes({});
+  assert.match(fallback.paper, /^#[0-9A-F]{6}$/i);
+  assert.match(fallback.ink, /^#[0-9A-F]{6}$/i);
+});
+
 test('the intake asks which detail to magnify when pictures arrive unnamed', () => {
   const messages = buildIntakeMessages(
     [{ role: 'user', content: 'Here are the project photos.' }],
@@ -3626,11 +3647,39 @@ test('the intake asks which detail to magnify when pictures arrive unnamed', () 
   assert.match(prompt, /detail/);
 });
 
+test('a closing page without the contact plate is rejected', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const noContact = DESIGNER_HTML.replace(/<img src="\{\{contactPlate(?:Dark|Light)\}\}"[^>]*>/g, '');
+  resetMockProvider({ reply: noContact });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /contact plate/i);
+});
+
+test('a brochure without a real magnifier is rejected', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const noMagnifier = DESIGNER_HTML.replace(/<img src="\{\{photo2detail1\}\}"[^>]*>/g, '')
+    .replaceAll('{{photo2detail1ColorName}}', '{{brand}}')
+    .replaceAll('{{photo2detail1Color}}', '{{invoice}}');
+  resetMockProvider({ reply: noMagnifier });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /magnifier plate/i);
+});
+
 test('a brochure without the brand mark is rejected', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();
   setOrderCopyForTest();
-  const noLogo = DESIGNER_HTML.replaceAll('{{logo}}', '{{brand}}').replaceAll('{{logoWhite}}', '{{brand}}');
+  const noLogo = DESIGNER_HTML.replace(/<img src="\{\{(?:brandPlateDark|brandPlateLight)\}\}"[^>]*>/g, '')
+    .replaceAll('{{logo}}', '{{brand}}')
+    .replaceAll('{{logoWhite}}', '{{brand}}');
   resetMockProvider({ reply: noLogo });
   const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
   assert.equal(response.status, 502);

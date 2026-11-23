@@ -17,6 +17,7 @@ import path from 'node:path';
 import { LlmError, clean } from './llm.mjs';
 import { buildVoucherValues, escapeHtml, paletteStripPng } from './render.mjs';
 import { colourName } from './image-palette.mjs';
+import { brandPlateTokens } from './brand-lockup.mjs';
 
 export const DESIGNER_MAX_TOKENS = 12000;
 export const DESIGNER_TEMPERATURE = 0.85;
@@ -105,6 +106,10 @@ const IDENTITY_TOKENS = [
 const RAW_TOKENS = new Set([
   'logo',
   'logoWhite',
+  'brandPlateDark',
+  'brandPlateLight',
+  'contactPlateDark',
+  'contactPlateLight',
   'jaali',
   'paisley',
   'lotus',
@@ -125,6 +130,7 @@ const DESIGNER_SYSTEM = [
   'THE PAGES, IN ORDER',
   '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
   '2 to 7. Story, colour options and details. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. At least one page is the colour options page, laid out like a showroom paint card: for each photograph its colour strip, then four swatch chips, each with its NAME in caps, its hex value small, and one short line about the mood. Extra photographs earn extra pages, and every photograph must appear. Another page carries the feature callouts: a loupe on a named detail with a short caption, the way a car brochure points at a headlamp or a seam.',
+  'Give one spread the premium brand treatment: a single photograph at full page, one real magnifier loupe on the joinery detail with its colour name and code, and almost nothing else on the page.',
   'Last. A quiet closing page for the client file: the brand mark, the order number, the telephone and one line of thanks. No dimensions and no specification table.',
   '',
   'HOW TO REPLY',
@@ -144,16 +150,19 @@ const DESIGNER_SYSTEM = [
   'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{orderNo}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}.',
   'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover.',
   'Colour: every photograph has a palette strip {{photo1Palette}}, {{photo2Palette}} and so on, a ready made image of its colours. It also has single colours {{photo1Color1}} to {{photo1Color4}}, and their showroom names {{photo1Color1Name}} to {{photo1Color4Name}}, and so on for every photograph. Use the named colours as paint card chips, with the hex value small underneath.',
-  'Assets: {{logo}} is the brand mark for light backgrounds and {{logoWhite}} is the same mark in white for dark backgrounds, photographs and colour panels. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image.',
+  'Magnifier plates: {{photo1detail1}}, {{photo1detail2}} and {{photo1detail3}} are real enlarged crops of that photograph, taken from the joinery detail, plus the same tokens for every photograph. Each plate has its colour {{photo1detail1Color}} and its name {{photo1detail1ColorName}}. Place one on a hero photograph as a circular loupe: a thin ring, a short leader line, and the caption naming the colour and its code. These plates are already magnified, so never fake a loupe with background-size and never crop a plate again.',
+  'Assets: {{logo}} is the brand mark for light backgrounds and {{logoWhite}} is the same mark in white for dark backgrounds. {{brandPlateLight}} and {{brandPlateDark}} are ready made brand panels: the mark and the brand name on their own solid ground, light and dark. {{contactPlateLight}} and {{contactPlateDark}} add the phone, email and address. Because each plate carries its own background, it stays legible on any page. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs.',
+  'The brand and the contact details must always read clearly. Put a brand plate on the cover and a brand plate plus a contact plate on the closing page. Use the light plate on cream pages and the dark plate on dark, colour or photographic pages. Never set the contact lines straight over a photograph.',
   '',
   'REQUIRED',
-  '- Page 1, the cover: at least one photograph, {{title}}, {{customer}}, the brand name {{brand}} AND the mark {{logo}} or {{logoWhite}}, and {{brandTamil}} or {{roomTamil}}.',
+  '- Page 1, the cover: at least one photograph, {{title}}, {{customer}}, a brand plate {{brandPlateDark}} or {{brandPlateLight}}, and {{brandTamil}} or {{roomTamil}}.',
   '- The brand is always legible: {{logoWhite}} on a dark, colour or photographic field, {{logo}} on cream or a light field. Never set either mark straight on a busy photograph without a solid panel or scrim behind it, and never tint or recolour a mark.',
-  '- The brand name and one mark must also appear on the closing page.',
+  '- The closing page carries a brand plate and a contact plate {{contactPlateLight}} or {{contactPlateDark}}. Those panels keep the company name, phone, email and address readable whatever the page background is.',
   '- {{headline}}, {{body}} and {{closing}} each exactly once, anywhere in the story pages.',
   '- Every photograph token from {{photo1}} to the last available must appear at least once.',
   '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as paint card chips, each using its colour token and its colour NAME token, with its hex value small. This is the colour options spread of the showroom book.',
-  '- The last page: {{brand}} or {{logo}}, {{orderNo}} and {{phone}}.',
+  '- At least one magnifier plate {{photoNdetailM}}, inside a circular loupe on a hero photograph, with its {{photoNdetailMColorName}} and {{photoNdetailMColor}} in the caption.',
+  '- The last page: a brand plate, a contact plate and {{orderNo}}.',
   '- Somewhere in the document: at least one house motif token.',
   '- No dimension, size, shutter count or specification value may appear. Those tokens do not exist and naming them rejects the document.',
   '- The photographs are the design source. Mirror their colours, light and warmth. The pages must look like they belong to the same project as the pictures.',
@@ -176,7 +185,7 @@ const DESIGNER_SYSTEM = [
   '',
   'AVAILABLE TYPE',
   "'Instrument Serif' for display and headline, 'Barlow' for labels, captions and small text, 'Noto Sans Tamil' for Tamil.",
-  'Colours come as CSS variables that you may refine at the top of your style block: --paper, --ink, --deep, --accent, --gold, --hair, --muted, --on-dark. Keep the paper light and the ink dark, and take the accent from the picture palettes supplied.',
+  'Colours come as CSS variables already set from the picture palettes: --paper, --ink, --deep, --accent, --gold, --hair, --muted, --on-dark. Use these, and if you refine them keep them inside the same family, so the printed book carries the colour of the actual project rather than a house style. Keep the paper light and the ink dark.',
   '',
   'VOICE OF THE PAGES',
   'Words are very few. The cover says almost nothing. The story carries the copy. The colour options name the paints. The detail page points at what is beautifully made. A reader should feel the room and its colours before reading a sentence. This is a showroom book, not a catalogue and not a specification sheet.',
@@ -645,6 +654,10 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
     ...MOTIF_TOKENS,
     'logo',
     'logoWhite',
+    'brandPlateDark',
+    'brandPlateLight',
+    'contactPlateDark',
+    'contactPlateLight',
     ...[...Array(Math.max(1, photoCount)).keys()].flatMap((index) => {
       const n = index + 1;
       const tokensForPhoto = [`photo${n}`];
@@ -653,6 +666,11 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
         for (let chip = 1; chip <= 4; chip += 1) {
           tokensForPhoto.push(`photo${n}Color${chip}`);
           tokensForPhoto.push(`photo${n}Color${chip}Name`);
+        }
+        for (let detail = 1; detail <= 3; detail += 1) {
+          tokensForPhoto.push(`photo${n}detail${detail}`);
+          tokensForPhoto.push(`photo${n}detail${detail}Color`);
+          tokensForPhoto.push(`photo${n}detail${detail}ColorName`);
         }
       }
       return tokensForPhoto;
@@ -677,11 +695,13 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
   if (countToken(whole, 'brandTamil') + countToken(whole, 'roomTamil') === 0) {
     issues.push('no Tamil line is used');
   }
-  if (countToken(whole, 'brand') === 0) {
-    issues.push('the brand name {{brand}} is missing');
-  }
-  if (countToken(whole, 'logo') + countToken(whole, 'logoWhite') === 0) {
-    issues.push('the brand logo is missing; use {{logo}} or {{logoWhite}}');
+  const brandMarkCount =
+    countToken(whole, 'logo') +
+    countToken(whole, 'logoWhite') +
+    countToken(whole, 'brandPlateDark') +
+    countToken(whole, 'brandPlateLight');
+  if (brandMarkCount === 0) {
+    issues.push('the brand is missing; use a brand plate or the logo');
   }
 
   const photoUses = [...tokens].filter((token) => /^photo\d+$/.test(token));
@@ -694,6 +714,21 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
   for (let index = 1; index <= photoCount; index += 1) {
     if (!tokens.has(`photo${index}`)) {
       issues.push(`{{photo${index}}} is supplied but never used; every photograph must appear`);
+    }
+  }
+
+  // The hero magnifier: a real enlarged crop of a picture, with the colour it
+  // holds named beside it. Premium brand treatment, always present.
+  const detailUses = [...tokens].filter((token) => /^photo\d+detail\d+$/.test(token));
+  if (detailUses.length === 0) {
+    issues.push('no magnifier plate is used; print one {{photoNdetailM}} as the hero detail');
+  }
+  for (const detailToken of detailUses) {
+    if (countToken(whole, `${detailToken}ColorName`) === 0) {
+      issues.push(`{{${detailToken}ColorName}} is missing; name the colour in the magnifier caption`);
+    }
+    if (countToken(whole, `${detailToken}Color`) === 0) {
+      issues.push(`{{${detailToken}Color}} is missing; print the colour code beside the magnifier`);
     }
   }
 
@@ -723,11 +758,8 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
     for (const token of ['title', 'customer']) {
       if (countToken(pages[0], token) === 0) issues.push(`the cover is missing {{${token}}}`);
     }
-    if (countToken(pages[0], 'brand') === 0) {
-      issues.push('the cover does not carry the brand name');
-    }
-    if (countToken(pages[0], 'logo') + countToken(pages[0], 'logoWhite') === 0) {
-      issues.push('the cover does not carry the logo');
+    if (countToken(pages[0], 'brandPlateDark') + countToken(pages[0], 'brandPlateLight') === 0) {
+      issues.push('the cover is missing a brand plate; the mark and name must read on any background');
     }
     if (countToken(pages[0], 'brandTamil') + countToken(pages[0], 'roomTamil') === 0) {
       issues.push('the cover has no Tamil line');
@@ -737,7 +769,13 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
     for (const token of COPY_TOKENS) {
       if (countToken(middleHtml, token) === 0) issues.push(`the story is missing {{${token}}}`);
     }
-    if (countToken(middleHtml, 'logo') + countToken(middleHtml, 'logoWhite') === 0) {
+    if (
+      countToken(middleHtml, 'logo') +
+        countToken(middleHtml, 'logoWhite') +
+        countToken(middleHtml, 'brandPlateDark') +
+        countToken(middleHtml, 'brandPlateLight') ===
+      0
+    ) {
       issues.push('the brochure body carries no brand mark');
     }
     for (const [offset, page] of middle.entries()) {
@@ -751,14 +789,13 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
       if (countToken(pages[0], token) > 0) issues.push(`{{${token}}} belongs in the story, not on the cover`);
     }
     const lastHtml = pages[last];
-    if (countToken(lastHtml, 'brand') === 0) {
-      issues.push('the closing page does not carry the brand name');
+    if (countToken(lastHtml, 'brandPlateDark') + countToken(lastHtml, 'brandPlateLight') === 0) {
+      issues.push('the closing page is missing a brand plate');
     }
-    if (countToken(lastHtml, 'logo') + countToken(lastHtml, 'logoWhite') === 0) {
-      issues.push('the closing page does not carry the logo');
+    if (countToken(lastHtml, 'contactPlateDark') + countToken(lastHtml, 'contactPlateLight') === 0) {
+      issues.push('the closing page is missing a contact plate; company details must stay readable');
     }
     if (countToken(lastHtml, 'orderNo') === 0) issues.push('the last page is missing {{orderNo}}');
-    if (countToken(lastHtml, 'phone') === 0) issues.push('the last page is missing {{phone}}');
     for (const token of COPY_TOKENS) {
       if (countToken(lastHtml, token) > 0) issues.push(`{{${token}}} belongs in the story, not the closing page`);
     }
@@ -787,7 +824,7 @@ function valueOr(value, fallback) {
   return text === '' ? fallback : text;
 }
 
-function buildTokenValues({ values, photos, copy, photoPalettes = {} }) {
+function buildTokenValues({ values, photos, copy, photoPalettes = {}, photoDetails = {}, templatesDir }) {
   const tokens = {
     brand: BRAND.name,
     brandTamil: BRAND.tamil,
@@ -806,6 +843,7 @@ function buildTokenValues({ values, photos, copy, photoPalettes = {} }) {
     closing: clean(copy?.closing),
     logo: ASSETS.logo,
     logoWhite: ASSETS.logoWhite,
+    ...brandPlateTokens(templatesDir),
     jaali: ASSETS.jaali,
     paisley: ASSETS.paisley,
     lotus: ASSETS.lotus,
@@ -815,6 +853,13 @@ function buildTokenValues({ values, photos, copy, photoPalettes = {} }) {
   photos.forEach((photo, index) => {
     tokens[`photo${index + 1}`] = photo;
   });
+  for (const [key, details] of Object.entries(photoDetails)) {
+    for (const detail of details ?? []) {
+      tokens[`${key}detail${detail.index}`] = detail.dataUri;
+      tokens[`${key}detail${detail.index}Color`] = detail.colour;
+      tokens[`${key}detail${detail.index}ColorName`] = detail.name;
+    }
+  }
   for (const [key, palette] of Object.entries(photoPalettes)) {
     if (!/^photo\d+$/.test(key) || !Array.isArray(palette) || palette.length === 0) continue;
     tokens[`${key}Palette`] = paletteStripPng(palette);
@@ -832,7 +877,11 @@ function fillTokens(html, tokens) {
     if (!(key in tokens)) return match;
     const value = tokens[key];
     if (typeof value !== 'string') return match;
-    const raw = RAW_TOKENS.has(key) || key.endsWith('Palette') || key.endsWith('Image');
+    const raw =
+      RAW_TOKENS.has(key) ||
+      key.endsWith('Palette') ||
+      key.endsWith('Image') ||
+      /^photo\d+detail\d+$/.test(key);
     return raw ? value : escapeHtml(value);
   });
 }
@@ -872,19 +921,97 @@ function contrastIssues(styles) {
   return issues;
 }
 
-const PAGE_CSS = `
+function hexRgb(hex) {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(String(hex ?? '').trim());
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 16);
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
+}
+
+function rgbHex([r, g, b]) {
+  return `#${[r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+function mix(a, b, weight) {
+  const one = hexRgb(a) ?? [128, 128, 128];
+  const two = hexRgb(b) ?? [128, 128, 128];
+  return rgbHex(one.map((value, index) => value * (1 - weight) + two[index] * weight));
+}
+
+function luminanceOf(hex) {
+  const rgb = hexRgb(hex) ?? [0, 0, 0];
+  const [r, g, b] = rgb.map((value) => {
+    const channel = value / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastOf(a, b) {
+  const one = luminanceOf(a);
+  const two = luminanceOf(b);
+  return (Math.max(one, two) + 0.05) / (Math.min(one, two) + 0.05);
+}
+
+function saturationOf(hex) {
+  const [r, g, b] = hexRgb(hex) ?? [0, 0, 0];
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return max === 0 ? 0 : (max - min) / max;
+}
+
+/**
+ * The brochure theme is read from the client's own pictures: their paper, ink,
+ * deep tone and accent come straight out of the photograph palettes, so the
+ * pages belong to the project rather than to a house style.
+ */
+export function themeFromPalettes(photoPalettes = {}) {
+  const colours = Object.values(photoPalettes).flat().filter((hex) => hexRgb(hex));
+  if (colours.length === 0) return { ...PALETTE };
+  const sorted = [...colours].sort((a, b) => luminanceOf(b) - luminanceOf(a));
+  const paperCandidate = sorted[0];
+  const inkCandidate = sorted[sorted.length - 1];
+  const paper = luminanceOf(paperCandidate) > 0.62 ? paperCandidate : PALETTE.paper;
+  const ink = luminanceOf(inkCandidate) < 0.24 ? inkCandidate : PALETTE.ink;
+  const deepCandidate = sorted.find((hex) => luminanceOf(hex) < luminanceOf(ink) + 0.18) ?? ink;
+  const accent = [...colours].sort((a, b) => saturationOf(b) - saturationOf(a))[0];
+  const warm = [...colours].sort((a, b) => {
+    const [ar, ag, ab] = hexRgb(a);
+    const [br, bg, bb] = hexRgb(b);
+    return br - bg - (ar - ag) + (bb - ab) * 0.2;
+  })[0];
+  const theme = {
+    paper,
+    ink,
+    deep: contrastOf(deepCandidate, paper) > 3 ? deepCandidate : PALETTE.deep,
+    accent: contrastOf(accent, paper) > 2.4 ? accent : PALETTE.accent,
+    gold: contrastOf(warm, paper) > 1.8 ? warm : PALETTE.gold,
+    hair: mix(paper, ink, 0.16),
+    muted: mix(paper, ink, 0.55),
+    onDark: paper,
+  };
+  if (contrastOf(theme.ink, theme.paper) < 4.5) {
+    theme.ink = PALETTE.ink;
+    theme.deep = PALETTE.deep;
+  }
+  return theme;
+}
+
+function pageCss(theme) {
+  const palette = theme ?? PALETTE;
+  return `
 @page { size: 216mm 303mm; margin: 0; }
 html, body { margin: 0; padding: 0; background: #fff; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 :root {
-  --paper: ${PALETTE.paper};
-  --ink: ${PALETTE.ink};
-  --deep: ${PALETTE.deep};
-  --accent: ${PALETTE.accent};
-  --gold: ${PALETTE.gold};
-  --hair: ${PALETTE.hair};
-  --muted: ${PALETTE.muted};
-  --on-dark: ${PALETTE.onDark};
+  --paper: ${palette.paper};
+  --ink: ${palette.ink};
+  --deep: ${palette.deep};
+  --accent: ${palette.accent};
+  --gold: ${palette.gold};
+  --hair: ${palette.hair};
+  --muted: ${palette.muted};
+  --on-dark: ${palette.onDark};
   --display: 'Instrument Serif', Georgia, serif;
   --body: 'Barlow', Helvetica, Arial, sans-serif;
   --tamil: 'Noto Sans Tamil', 'Barlow', sans-serif;
@@ -899,6 +1026,8 @@ html, body { margin: 0; padding: 0; background: #fff; }
 .page .label { font-family: var(--body); font-size: 6.4pt; letter-spacing: 0.22em; text-transform: uppercase; color: var(--deep); }
 .page .body { font-family: var(--body); font-size: 8.4pt; line-height: 1.6; color: var(--ink); }
 `;
+}
+
 
 /**
  * Turn the checked pages into one print ready document. The wrapper owns the
@@ -911,6 +1040,7 @@ export function compileGenerativeBrochure({
   dataDir,
   attachmentImages = [],
   photoPalettes = {},
+  photoDetails = {},
   copy,
   pages,
   styles = '',
@@ -924,7 +1054,7 @@ export function compileGenerativeBrochure({
     attachmentImages,
   });
   const photoTokens = Array.isArray(attachmentImages) ? attachmentImages.filter(Boolean) : [];
-  const tokens = buildTokenValues({ values, photos: photoTokens, copy, photoPalettes });
+  const tokens = buildTokenValues({ values, photos: photoTokens, copy, photoPalettes, photoDetails, templatesDir });
 
   const filledPages = pages.map((page) => fillTokens(page, tokens));
   const filledStyles = fillTokens(styles, tokens);
@@ -952,7 +1082,7 @@ export function compileGenerativeBrochure({
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)} · ${escapeHtml(values.orderNo)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
-<style>${PAGE_CSS}</style>
+<style>${pageCss(themeFromPalettes(photoPalettes))}</style>
 ${docStyles ? `<style>${docStyles}</style>` : ''}
 </head><body>
 ${docPages.map((page) => `<div class="page">${page}</div>`).join('\n')}

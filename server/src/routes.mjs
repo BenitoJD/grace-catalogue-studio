@@ -108,6 +108,7 @@ import {
 import { createLogger, parseLogLevel } from './logger.mjs';
 import { colourName, photoPalette } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
+import { detailPlatesFor } from './image-detail.mjs';
 import {
   ensurePdfPreview,
   isPdf,
@@ -1383,9 +1384,15 @@ export function createApp(options) {
     }
     const photoShapes = photoProfiles(attached, templatesDir);
     const photoPalettes = {};
+    const photoDetails = {};
     photoPaths.forEach((filePath, index) => {
       const palette = photoPalette(filePath);
       if (palette) photoPalettes[`photo${index + 1}`] = palette;
+      const analysis = analyseImage(filePath);
+      if (analysis?.candidates?.length) {
+        const plates = detailPlatesFor(filePath, analysis.candidates);
+        if (plates.length > 0) photoDetails[`photo${index + 1}`] = plates;
+      }
     });
 
     try {
@@ -1454,6 +1461,7 @@ export function createApp(options) {
             dataDir,
             attachmentImages: attached,
             photoPalettes,
+            photoDetails,
             copy,
             pages: document.pages,
             styles: document.styles,
@@ -1775,6 +1783,16 @@ export function createApp(options) {
       }
       const analysis = analyseImage(analysisPath);
       if (!analysis) return fail(c, 400, `The picture "${image}" could not be read.`);
+      // Name the colour of the actual magnified crop, so the review and the
+      // brochure agree on the colour.
+      const plates = detailPlatesFor(analysisPath, analysis.candidates ?? []);
+      plates.forEach((plate) => {
+        const candidate = analysis.candidates[plate.index - 1];
+        if (candidate) {
+          candidate.hex = plate.colour;
+          candidate.name = plate.name;
+        }
+      });
       photos.push({ url: image, previewUrl, name: path.basename(image), analysis });
     }
     return c.json({ photos });
