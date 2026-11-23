@@ -324,11 +324,15 @@ export default function ChatScreen() {
         if (!active) return;
         setDesigns(library.designs);
         // Keep polling while the library or its printed previews are still
-        // being written: every poll restarts a stalled background run.
-        setDesignsBuilding(library.building || library.previewsBuilding);
-        if (library.building || library.previewsBuilding) timer = setTimeout(load, 4000);
+        // being written: every poll restarts a stalled background run, and
+        // every finished preview flips its tile from a palette card to the
+        // printed glimpse. A failed poll retries instead of going quiet.
+        const working = library.building || library.previewsBuilding;
+        setDesignsBuilding(working);
+        if (working) timer = setTimeout(load, 4000);
       } catch {
-        if (active) setDesignsBuilding(false);
+        if (!active) return;
+        timer = setTimeout(load, 8000);
       }
     };
     void load();

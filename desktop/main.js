@@ -51,6 +51,7 @@ const PROXY_PREFIXES = Object.freeze([
   '/files',
   '/pages',
   '/previews',
+  '/design-previews',
   '/media',
   '/health',
   '/ready',
