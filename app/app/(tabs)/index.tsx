@@ -1056,10 +1056,14 @@ export default function ChatScreen() {
                 }}
                 scrollEventThrottle={48}
                 contentContainerStyle={styles.designRow}>
+                <DesignTile
+                  selected={chosenDesign === 'ai'}
+                  noDesign
+                  onPress={() => setChosenDesign('ai')}
+                />
                 {(() => {
-                  const query = designQuery.trim().toLowerCase();
                   const visible = matchDesigns(designs, designQuery);
-                  if (visible.length === 0) {
+                  if (visible.length === 0 && designQuery.trim() !== '') {
                     return (
                       <Text style={[text.caption, styles.designPickerHint]}>
                         {designQuery.trim() === ''
@@ -1078,13 +1082,6 @@ export default function ChatScreen() {
                           onPress={() => setChosenDesign(design.id)}
                         />
                       ))}
-                      {query === '' ? (
-                        <DesignTile
-                          selected={chosenDesign === 'ai'}
-                          noDesign
-                          onPress={() => setChosenDesign('ai')}
-                        />
-                      ) : null}
                     </>
                   );
                 })()}
