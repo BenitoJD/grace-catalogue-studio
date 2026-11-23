@@ -4137,6 +4137,64 @@ test('a PDF sheet joins the picture review as a page image', { timeout: 240_000 
   assert.equal(palettes.palettes[0].names.length, 4);
 });
 
+test('a multi page PDF is reviewed and printed page by page', { timeout: 240_000 }, async () => {
+  const htmlPath = path.join(tempDir, 'pdf-book.html');
+  const pdfPath = path.join(tempDir, 'pdf-book.pdf');
+  writeFileSync(
+    htmlPath,
+    '<html><body style="margin:0"><div style="width:210mm;height:290mm;background:#C9B996;page-break-after:always"></div><div style="width:210mm;height:290mm;background:#794617"></div></body></html>',
+  );
+  execFileSync(weasyprintBin, [htmlPath, pdfPath], { stdio: 'ignore' });
+  const upload = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: readFileSync(pdfPath).toString('base64'),
+      name: 'pdf-book.pdf',
+      contentType: 'application/pdf',
+    })
+  ).json();
+
+  const review = await postJson(`${baseUrl}/api/analyze-images`, { images: [upload.url] });
+  const raw = await review.text();
+  assert.equal(review.status, 200, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.photos.length, 2, 'both pages are reviewed');
+  assert.match(body.photos[0].label, /page 1 of 2/);
+  assert.match(body.photos[1].label, /page 2 of 2/);
+  assert.notEqual(body.photos[0].previewUrl, body.photos[1].previewUrl);
+  for (const photo of body.photos) {
+    assert.equal(photo.analysis.palette.length, 4);
+    assert.equal(photo.analysis.candidates.length, 3);
+    const page = await fetch(`${baseUrl}${photo.previewUrl}`);
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get('content-type') ?? '', /image\/png/);
+  }
+
+  // A two page PDF is two pictures: the design must print both pages.
+  const customer = await (await postJson(`${baseUrl}/api/customers`, { name: 'Book Customer' })).json();
+  const order = await (
+    await postJson(`${baseUrl}/api/orders`, {
+      ...DEMO_ORDER,
+      title: 'Two Page Sheet Wardrobe',
+      customerId: customer.id,
+      attachments: [upload],
+    })
+  ).json();
+  resetLlmState();
+  await configureLlm();
+  db.prepare('UPDATE orders SET copy_json = ? WHERE id = ?').run(JSON.stringify(BROCHURE_COPY), order.id);
+  resetMockProvider({ reply: DESIGNER_HTML });
+  const designed = await postJson(`${baseUrl}/api/orders/${order.id}/ai-brochure`, {});
+  assert.equal(designed.status, 201, await designed.text());
+
+  resetMockProvider({ reply: DESIGNER_HTML.replaceAll('{{photo2}}', '{{photo1}}') });
+  const missing = await postJson(`${baseUrl}/api/orders/${order.id}/ai-brochure`, {});
+  assert.equal(missing.status, 502);
+  const failure = await missing.json();
+  assert.match(failure.error.message, /photo2/i);
+  const palettes = await (await fetch(`${baseUrl}/api/orders/${order.id}/palettes`)).json();
+  assert.equal(palettes.palettes.length, 2, 'one palette per PDF page');
+});
+
 test('network egress only allows the configured model provider and loopback', async () => {
   const calls = [];
   const fakeFetch = async (url, init) => {

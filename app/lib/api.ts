@@ -177,6 +177,8 @@ export interface ReviewPhoto {
   /** PNG page image for a PDF, otherwise equal to url. */
   previewUrl?: string;
   name: string;
+  /** Human label: the uploaded file name, or "sheet.pdf · page 1 of 3". */
+  label?: string;
   analysis: {
     width: number;
     height: number;

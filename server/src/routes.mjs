@@ -110,7 +110,7 @@ import { colourName, photoPalette } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
 import { detailPlatesFor } from './image-detail.mjs';
 import {
-  ensurePdfPreview,
+  ensurePdfPages,
   isPdf,
   orderPhotoPaths,
   pdfPreviewDir,
@@ -200,6 +200,23 @@ function orderPayload(order) {
 }
 
 const MAX_ORDER_ATTACHMENTS = 20;
+
+// The name the customer gave an uploaded file, read from its sidecar.
+function uploadedFileName(mediaDir, mediaUrl) {
+  try {
+    const meta = JSON.parse(
+      readFileSync(
+        path.join(mediaDir, `${path.basename(String(mediaUrl), path.extname(String(mediaUrl)))}.json`),
+        'utf8',
+      ),
+    );
+    return typeof meta.name === 'string' && meta.name.trim() !== ''
+      ? meta.name.trim()
+      : path.basename(String(mediaUrl));
+  } catch {
+    return path.basename(String(mediaUrl));
+  }
+}
 const MAX_ATTACHMENT_TEXT = 2500;
 const execFileAsync = promisify(execFile);
 
@@ -1771,21 +1788,40 @@ export function createApp(options) {
       }
       const mediaFile = path.join(mediaDir, path.basename(image));
       if (!existsSync(mediaFile)) return fail(c, 404, `The picture "${image}" was not found.`);
-      let analysisPath = mediaFile;
-      let previewUrl = image;
+      const displayName = uploadedFileName(mediaDir, image);
       if (/\.pdf$/i.test(image)) {
+        let pages;
         try {
-          analysisPath = await ensurePdfPreview(dataDir, mediaDir, image, pdftoppmBin);
-          previewUrl = `/pdf-previews/${path.basename(analysisPath)}`;
+          pages = await ensurePdfPages(dataDir, mediaDir, image, pdftoppmBin);
         } catch (error) {
           return fail(c, 400, error instanceof Error ? error.message : 'The PDF could not be read.');
         }
+        pages.forEach((pagePath, pageIndex) => {
+          const analysis = analyseImage(pagePath);
+          if (!analysis) return;
+          const plates = detailPlatesFor(pagePath, analysis.candidates ?? []);
+          plates.forEach((plate) => {
+            const candidate = analysis.candidates[plate.index - 1];
+            if (candidate) {
+              candidate.hex = plate.colour;
+              candidate.name = plate.name;
+            }
+          });
+          photos.push({
+            url: image,
+            previewUrl: `/pdf-previews/${path.basename(pagePath)}`,
+            name: path.basename(pagePath),
+            label: `${displayName} · page ${pageIndex + 1} of ${pages.length}`,
+            analysis,
+          });
+        });
+        continue;
       }
-      const analysis = analyseImage(analysisPath);
+      const analysis = analyseImage(mediaFile);
       if (!analysis) return fail(c, 400, `The picture "${image}" could not be read.`);
       // Name the colour of the actual magnified crop, so the review and the
       // brochure agree on the colour.
-      const plates = detailPlatesFor(analysisPath, analysis.candidates ?? []);
+      const plates = detailPlatesFor(mediaFile, analysis.candidates ?? []);
       plates.forEach((plate) => {
         const candidate = analysis.candidates[plate.index - 1];
         if (candidate) {
@@ -1793,7 +1829,13 @@ export function createApp(options) {
           candidate.name = plate.name;
         }
       });
-      photos.push({ url: image, previewUrl, name: path.basename(image), analysis });
+      photos.push({
+        url: image,
+        previewUrl: image,
+        name: path.basename(image),
+        label: displayName,
+        analysis,
+      });
     }
     return c.json({ photos });
   });

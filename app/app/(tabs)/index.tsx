@@ -1217,8 +1217,8 @@ function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }
   const ready = frame.width > 0 && frame.height > 0;
   return (
     <View style={styles.reviewPhoto}>
-      <Text style={[text.caption, styles.reviewPhotoLabel]}>
-        {`Picture ${index + 1} · ${photo.analysis.orientation}`}
+      <Text style={[text.caption, styles.reviewPhotoLabel]} numberOfLines={1}>
+        {`${photo.label ?? `Picture ${index + 1}`} · ${photo.analysis.orientation}`}
       </Text>
       <View
         style={styles.reviewFrameBox}

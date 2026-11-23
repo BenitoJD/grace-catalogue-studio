@@ -2,7 +2,7 @@
 // The brochure needs pixels, so the first page of a PDF is rasterised once and
 // cached beside the uploads. Poppler does the conversion when it is installed.
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -28,9 +28,9 @@ export function pdfPreviewPath(dataDir, mediaUrl) {
  * PDF rasteriser is installed, the largest embedded JPEG is still a perfectly
  * usable picture: extract it straight from the file.
  */
-export function extractLargestJpeg(buffer) {
+export function extractEmbeddedJpegs(buffer) {
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer ?? []);
-  let best = null;
+  const found = [];
   let cursor = 0;
   while (cursor < bytes.length) {
     const start = bytes.indexOf('stream', cursor);
@@ -41,60 +41,98 @@ export function extractLargestJpeg(buffer) {
     const end = bytes.indexOf('endstream', dataStart);
     if (end === -1) break;
     const chunk = bytes.subarray(dataStart, end);
-    // JPEG streams begin with SOI and end with EOI.
     const soi = chunk.indexOf(Buffer.from([0xff, 0xd8, 0xff]));
     if (soi !== -1) {
       const eoi = chunk.lastIndexOf(Buffer.from([0xff, 0xd9]));
-      if (eoi > soi && (!best || eoi - soi > best.length)) {
-        best = chunk.subarray(soi, eoi + 2);
-      }
+      if (eoi > soi) found.push(chunk.subarray(soi, eoi + 2));
     }
     cursor = end + 'endstream'.length;
   }
-  return best;
+  // The biggest images are the actual pages; small ones are thumbnails.
+  return found.filter((jpeg) => jpeg.length > 10_000);
+}
+
+/** Kept for callers that only want one picture out of a PDF. */
+export function extractLargestJpeg(buffer) {
+  const found = extractEmbeddedJpegs(buffer);
+  return found.sort((a, b) => b.length - a.length)[0] ?? null;
 }
 
 /**
  * Rasterise the first page of one uploaded PDF, cached by file name. Returns
  * the preview path, or throws with a readable reason when it cannot.
  */
-export async function ensurePdfPreview(dataDir, mediaDir, mediaUrl, pdftoppmBin = 'pdftoppm') {
-  const previewPath = pdfPreviewPath(dataDir, mediaUrl);
-  if (existsSync(previewPath) && readFileSync(previewPath).length > 0) return previewPath;
+export const MAX_PDF_PAGES = 12;
+
+export function pdfManifestPath(dataDir, mediaUrl) {
+  return path.join(pdfPreviewDir(dataDir), `${path.basename(String(mediaUrl), '.pdf')}.json`);
+}
+
+function pageNumber(file) {
+  const match = /-(\d+)\.(png|jpe?g)$/i.exec(file);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
+function listPageFiles(mediaUrl, dataDir) {
+  const base = path.basename(String(mediaUrl), '.pdf');
+  const dir = pdfPreviewDir(dataDir);
+  let entries = [];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((name) => name.startsWith(`${base}-`) && /\.(png|jpe?g)$/i.test(name))
+    .sort((a, b) => pageNumber(a) - pageNumber(b))
+    .slice(0, MAX_PDF_PAGES)
+    .map((name) => path.join(dir, name))
+    .filter((filePath) => existsSync(filePath));
+}
+
+/**
+ * Rasterise every page of one uploaded PDF, cached as page images. Returns an
+ * ordered list of page picture paths.
+ */
+export async function ensurePdfPages(dataDir, mediaDir, mediaUrl, pdftoppmBin = 'pdftoppm') {
+  const cached = listPageFiles(mediaUrl, dataDir);
+  if (cached.length > 0) return cached;
   const source = path.join(mediaDir, path.basename(String(mediaUrl)));
   if (!existsSync(source)) throw new Error('The PDF attachment was not found.');
   mkdirSync(pdfPreviewDir(dataDir), { recursive: true });
-  const prefix = previewPath.replace(/\.png$/i, '');
+  const base = path.basename(String(mediaUrl), '.pdf');
+  const prefix = path.join(pdfPreviewDir(dataDir), base);
   try {
     await execFileAsync(pdftoppmBin, [
       '-png',
-      '-f',
-      '1',
-      '-l',
-      '1',
       '-scale-to',
       '1600',
-      '-singlefile',
       source,
       prefix,
     ]);
   } catch (error) {
-    // No poppler on this machine: fall back to the render embedded in the PDF.
-    const embedded = extractLargestJpeg(readFileSync(source));
-    if (embedded && embedded.length > 10_000) {
-      const jpegPath = previewPath.replace(/\.png$/i, '.jpg');
-      writeFileSync(jpegPath, embedded);
-      return jpegPath;
-    }
-    if (error?.code === 'ENOENT') {
+    // No poppler on this machine: every render embedded in the PDF becomes a
+    // page picture instead.
+    const embedded = extractEmbeddedJpegs(readFileSync(source)).slice(0, MAX_PDF_PAGES);
+    if (embedded.length > 0) {
+      embedded.forEach((jpeg, index) => {
+        writeFileSync(path.join(pdfPreviewDir(dataDir), `${base}-${index + 1}.jpg`), jpeg);
+      });
+    } else if (error?.code === 'ENOENT') {
       throw new Error(
         'PDF pages cannot be read on this machine yet. Send the pages as pictures as well, or install poppler.',
       );
+    } else {
+      throw new Error(`The PDF could not be read. ${String(error?.message ?? '').slice(0, 120)}`);
     }
-    throw new Error(`The PDF page could not be read. ${String(error?.message ?? '').slice(0, 120)}`);
   }
-  if (!existsSync(previewPath)) throw new Error('The PDF page could not be converted.');
-  return previewPath;
+  const pages = listPageFiles(mediaUrl, dataDir);
+  if (pages.length === 0) throw new Error('The PDF has no readable pages.');
+  writeFileSync(
+    pdfManifestPath(dataDir, mediaUrl),
+    JSON.stringify({ pages: pages.map((filePath) => path.basename(filePath)) }),
+  );
+  return pages;
 }
 
 /** Ordered picture files for an order: uploads plus PDF first pages. */
@@ -110,10 +148,10 @@ export async function orderPhotoPaths(order, { mediaDir, dataDir, pdftoppmBin })
     }
     if (isPdf(file)) {
       try {
-        files.push(await ensurePdfPreview(dataDir, mediaDir, url, pdftoppmBin));
+        files.push(...(await ensurePdfPages(dataDir, mediaDir, url, pdftoppmBin)));
       } catch {
-        // A PDF without a page image simply does not join the picture set; the
-        // studio can still attach the page as a picture.
+        // A PDF without page images simply does not join the picture set; the
+        // studio can still attach the pages as pictures.
       }
     }
   }
