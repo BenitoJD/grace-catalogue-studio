@@ -452,6 +452,10 @@ try {
     .then(() => true)
     .catch(() => false);
   check("gallery shows printed previews", previewImage);
+  check("gallery search filters", await setValueByPlaceholder(page, "Search the looks", "zzz-no-such-look"));
+  check("empty search explains itself", await waitForBodyText(page, "No looks match", 15000));
+  check("search clears", await clickText(page, "Clear search"));
+  check("library returns after clear", await waitForBodyText(page, "100 looks", 15000));
   await page.screenshot({ path: `${shots}/06b-reference-gallery.png` });
 
   // 4. back to the history, the order and its generated brochure are there

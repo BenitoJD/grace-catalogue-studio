@@ -85,6 +85,20 @@ function shortLabel(label: string): string {
   return SHORT_LABELS[label] ?? label.replace(/^the /, '').slice(0, 18);
 }
 
+function matchDesigns(
+  designs: DesignReference[],
+  query: string
+): DesignReference[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return designs;
+  return designs.filter((design) =>
+    [design.name, design.family, design.mood, design.summary]
+      .join(' ')
+      .toLowerCase()
+      .includes(needle)
+  );
+}
+
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '';
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -272,6 +286,7 @@ export default function ChatScreen() {
   const [chosenDesign, setChosenDesign] = useState<string>('ai');
   const [modelReady, setModelReady] = useState<boolean | null>(null);
   const [showDesignPicker, setShowDesignPicker] = useState(true);
+  const [designQuery, setDesignQuery] = useState('');
   const [skipping, setSkipping] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -1012,6 +1027,26 @@ export default function ChatScreen() {
                   </Pressable>
                 </View>
               </View>
+              <View style={styles.designSearchRow}>
+                <TextInput
+                  value={designQuery}
+                  onChangeText={setDesignQuery}
+                  placeholder="Search the looks"
+                  placeholderTextColor={colors.faint}
+                  style={styles.designSearch}
+                  accessibilityLabel="Search the looks"
+                  maxLength={60}
+                />
+                {designQuery !== '' ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear search"
+                    onPress={() => setDesignQuery('')}
+                    style={({ pressed }) => [styles.designArrow, pressed && styles.sendPressed]}>
+                    <Text style={styles.designArrowLabel}>×</Text>
+                  </Pressable>
+                ) : null}
+              </View>
               <ScrollView
                 ref={designScroll}
                 horizontal
@@ -1021,24 +1056,45 @@ export default function ChatScreen() {
                 }}
                 scrollEventThrottle={48}
                 contentContainerStyle={styles.designRow}>
-                {designs.map((design) => (
-                  <DesignTile
-                    key={design.id}
-                    design={design}
-                    selected={chosenDesign === design.id}
-                    onPress={() => setChosenDesign(design.id)}
-                  />
-                ))}
-                <DesignTile
-                  selected={chosenDesign === 'ai'}
-                  noDesign
-                  onPress={() => setChosenDesign('ai')}
-                />
+                {(() => {
+                  const query = designQuery.trim().toLowerCase();
+                  const visible = matchDesigns(designs, designQuery);
+                  if (visible.length === 0) {
+                    return (
+                      <Text style={[text.caption, styles.designPickerHint]}>
+                        {designQuery.trim() === ''
+                          ? ''
+                          : `No looks match "${designQuery.trim()}". Try a mood, a family or a name.`}
+                      </Text>
+                    );
+                  }
+                  return (
+                    <>
+                      {visible.map((design) => (
+                        <DesignTile
+                          key={design.id}
+                          design={design}
+                          selected={chosenDesign === design.id}
+                          onPress={() => setChosenDesign(design.id)}
+                        />
+                      ))}
+                      {query === '' ? (
+                        <DesignTile
+                          selected={chosenDesign === 'ai'}
+                          noDesign
+                          onPress={() => setChosenDesign('ai')}
+                        />
+                      ) : null}
+                    </>
+                  );
+                })()}
               </ScrollView>
               <Text style={[text.caption, styles.designPickerHint]}>
-                {chosenDesign === 'ai'
-                  ? 'No reference: the model chooses the mood from the room and the photographs.'
-                  : `Reference: ${designs.find((design) => design.id === chosenDesign)?.name ?? 'a design'}. The model designs new pages in this spirit.`}
+                {designQuery.trim() !== ''
+                  ? `${matchDesigns(designs, designQuery).length} of ${designs.length} looks match.`
+                  : chosenDesign === 'ai'
+                    ? 'No reference: the model chooses the mood from the room and the photographs.'
+                    : `Reference: ${designs.find((design) => design.id === chosenDesign)?.name ?? 'a design'}. The model designs new pages in this spirit.`}
               </Text>
             </View>
           ) : null}
@@ -2134,6 +2190,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: space.sm,
+  },
+  designSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+  },
+  designSearch: {
+    flex: 1,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: colors.ink,
   },
   designArrows: {
     flexDirection: 'row',

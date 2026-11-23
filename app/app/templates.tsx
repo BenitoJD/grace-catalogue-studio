@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
@@ -27,6 +27,7 @@ export default function DesignReferencesScreen() {
   const [designs, setDesigns] = useState<DesignReference[]>([]);
   const [expected, setExpected] = useState(100);
   const [building, setBuilding] = useState(false);
+  const [query, setQuery] = useState('');
   const [previewsReady, setPreviewsReady] = useState(0);
   const [previewsTotal, setPreviewsTotal] = useState(100);
   const [loading, setLoading] = useState(true);
@@ -80,6 +81,17 @@ export default function DesignReferencesScreen() {
     () => designs.find((design) => design.id === selected) ?? null,
     [designs, selected]
   );
+
+  const visibleDesigns = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (needle === '') return designs;
+    return designs.filter((design) =>
+      [design.name, design.family, design.mood, design.summary]
+        .join(' ')
+        .toLowerCase()
+        .includes(needle)
+    );
+  }, [designs, query]);
 
   const finish = useCallback(
     (referenceId: string) => {
@@ -214,15 +226,49 @@ export default function DesignReferencesScreen() {
                   <Text style={styles.modelAction}>{selected ? 'Use' : 'Using'}</Text>
                 </Pressable>
 
+                <View style={styles.searchRow}>
+                  <TextInput
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Search the looks"
+                    placeholderTextColor={colors.faint}
+                    style={styles.search}
+                    accessibilityLabel="Search the looks"
+                    maxLength={60}
+                  />
+                  {query !== '' ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear search"
+                      onPress={() => setQuery('')}
+                      style={({ pressed }) => [styles.searchClear, pressed && styles.pressed]}>
+                      <Text style={styles.searchClearLabel}>×</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+
                 <View style={styles.gridHeading}>
                   <Text style={text.sectionLabel}>The library</Text>
                   <Text style={text.caption}>
-                    {designs.length} {designs.length === 1 ? 'look' : 'looks'}
+                    {query.trim() === ''
+                      ? `${designs.length} ${designs.length === 1 ? 'look' : 'looks'}`
+                      : `${visibleDesigns.length} of ${designs.length} looks`}
                   </Text>
                 </View>
 
+                {visibleDesigns.length === 0 ? (
+                  <View style={styles.emptySearch}>
+                    <Text style={styles.emptySearchTitle}>
+                      No looks match &quot;{query.trim()}&quot;
+                    </Text>
+                    <Text style={[text.muted, styles.emptySearchBody]}>
+                      Try a mood, a family, a palette or a name.
+                    </Text>
+                    <Button label="Clear search" variant="secondary" onPress={() => setQuery('')} />
+                  </View>
+                ) : (
                 <View style={styles.grid}>
-                  {designs.map((design) => (
+                  {visibleDesigns.map((design) => (
                     <ReferenceTile
                       key={design.id}
                       design={design}
@@ -232,6 +278,7 @@ export default function DesignReferencesScreen() {
                     />
                   ))}
                 </View>
+                )}
               </>
             ) : null}
 
@@ -442,6 +489,53 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     justifyContent: 'space-between',
     marginBottom: space.md,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    marginBottom: space.lg,
+  },
+  search: {
+    flex: 1,
+    height: 42,
+    borderRadius: layout.radiusSmall,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    backgroundColor: colors.surface,
+    paddingHorizontal: space.md,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  searchClear: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchClearLabel: {
+    fontSize: 20,
+    lineHeight: 22,
+    color: colors.muted,
+  },
+  emptySearch: {
+    alignItems: 'flex-start',
+    gap: space.sm,
+    paddingVertical: space.xl,
+  },
+  emptySearchTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  emptySearchBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: space.sm,
   },
   grid: {
     flexDirection: 'row',
