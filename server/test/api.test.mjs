@@ -3961,6 +3961,9 @@ test('the picture review circles likely details and shows the palette', { timeou
       assert.ok(candidate.x > 0 && candidate.x < 100);
       assert.ok(candidate.y > 0 && candidate.y < 100);
       assert.ok(candidate.label.startsWith('Detail'));
+      // Every magnified circle names the colour inside it.
+      assert.match(candidate.hex, /^#[0-9A-F]{6}$/i);
+      assert.ok(candidate.name.length >= 3, candidate.name);
     }
   }
   assert.equal((await postJson(`${baseUrl}/api/analyze-images`, { images: [] })).status, 400);

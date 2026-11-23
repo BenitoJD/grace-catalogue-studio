@@ -89,19 +89,35 @@ export function analyseImage(filePath) {
     chosen.push([gx, gy]);
   }
 
+  // The colour of the magnified area itself, named like a paint chip. This is
+  // what the loupe label says, so the client knows what they are looking at.
+  const candidateDetails = chosen.map(([gx, gy], index) => {
+    const cell = cells[gy * GRID + gx] ?? [];
+    let hex = '#000000';
+    if (cell.length > 0) {
+      const mean = cell.reduce(
+        (acc, entry) => [acc[0] + entry.pixel[0], acc[1] + entry.pixel[1], acc[2] + entry.pixel[2]],
+        [0, 0, 0],
+      ).map((value) => Math.round(value / cell.length));
+      hex = `#${mean.map((value) => value.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+    }
+    return {
+      id: `detail-${index + 1}`,
+      label: `Detail ${index + 1}`,
+      x: Math.round(((gx + 0.5) / GRID) * 100),
+      y: Math.round(((gy + 0.5) / GRID) * 100),
+      hex,
+      name: colourName(hex),
+    };
+  });
+
   const palette = photoPalette(filePath) ?? [];
   return {
     width,
     height,
     orientation: width >= height ? 'landscape' : 'portrait',
     palette: palette.map((hex) => ({ hex, name: colourName(hex) })),
-    candidates: chosen.map(([gx, gy], index) => ({
-      id: `detail-${index + 1}`,
-      label: `Detail ${index + 1}`,
-      // Circle centre as a percentage of the photograph.
-      x: Math.round(((gx + 0.5) / GRID) * 100),
-      y: Math.round(((gy + 0.5) / GRID) * 100),
-    })),
+    candidates: candidateDetails,
   };
 }
 

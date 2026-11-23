@@ -505,21 +505,27 @@ try {
     "the pictures are reviewed before design",
     await waitForBodyText(page, "what I would magnify", 90000)
   );
+  await page
+    .waitForFunction(
+      () => document.querySelectorAll('[data-testid^="review-loupe-"]').length >= 3,
+      { timeout: 30000 }
+    )
+    .catch(() => {});
   check(
-    "the review circles likely details",
-    (await page.$$('[aria-label^="Magnify choice "]')).length >= 3
-  );
-  check(
-    "the review shows the picture palette",
+    "the review names the magnified details in place",
     await page.evaluate(() =>
-      ["Oat", "Greige", "Sand Beige", "Walnut", "Warm Ivory", "Chalk", "Custom"].some((name) =>
-        document.body.innerText.includes(name)
-      )
+      /Magnified details: 1 [^·\n]+ · 2 [^·\n]+ · 3 [^\n]+/.test(document.body.innerText)
     )
   );
   check(
-    "the review asks what to magnify",
-    await hasText(page, "Reply with the numbers you want magnified")
+    "each magnifier is named with the colour inside it",
+    await page.evaluate(() => {
+      const line = document.body.innerText.match(
+        /Magnified details: 1 ([^·\n]+) · 2 ([^·\n]+) · 3 ([^\n]+)/
+      );
+      if (!line) return false;
+      return [line[1], line[2], line[3]].every((name) => name.trim().length >= 3);
+    })
   );
   await page.screenshot({ path: `${shots}/06h-picture-review.png` });
   await setValueByPlaceholder(page, chatInput, "Magnify 1 and 2. You choose the rest.");

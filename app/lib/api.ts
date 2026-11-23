@@ -166,6 +166,9 @@ export interface ReviewCandidate {
   /** Circle centre as a percentage of the photograph. */
   x: number;
   y: number;
+  /** The colour inside the magnified area, named like a paint chip. */
+  hex: string;
+  name: string;
 }
 
 export interface ReviewPhoto {

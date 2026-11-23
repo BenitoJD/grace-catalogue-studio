@@ -722,7 +722,7 @@ export default function ChatScreen() {
                   role: 'assistant' as const,
                   kind: 'review' as const,
                   content:
-                    'Before I design, here is what I would magnify. I circled the details in your pictures and read these colours from them.',
+                    'Before I design, here is what I would magnify. Each circle is a magnified cut of your picture, named with the colour inside it.',
                   at: stamp(),
                   photos: review.photos,
                 },
@@ -795,7 +795,7 @@ export default function ChatScreen() {
                   role: 'assistant' as const,
                   kind: 'review' as const,
                   content:
-                    'Before I design, here is what I would magnify. I circled the details in your pictures and read these colours from them.',
+                    'Before I design, here is what I would magnify. Each circle is a magnified cut of your picture, named with the colour inside it.',
                   at: stamp(),
                   photos: review.photos,
                 },
@@ -1202,6 +1202,102 @@ export default function ChatScreen() {
   );
 }
 
+function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }) {
+  const [frame, setFrame] = useState({ width: 0, height: 0 });
+  const LOUPE = 64;
+  const ZOOM = 3.2;
+  const zoomWidth = frame.width * ZOOM;
+  const zoomHeight = frame.height * ZOOM;
+  const ready = frame.width > 0 && frame.height > 0;
+  return (
+    <View style={styles.reviewPhoto}>
+      <Text style={[text.caption, styles.reviewPhotoLabel]}>
+        {`Picture ${index + 1} · ${photo.analysis.orientation}`}
+      </Text>
+      <View
+        style={styles.reviewFrameBox}
+        onLayout={(event) => setFrame(event.nativeEvent.layout)}>
+        <View style={styles.reviewFrame}>
+          <Image
+            source={{ uri: fileUrl(photo.url) }}
+            style={styles.reviewImage}
+            resizeMode="cover"
+            accessibilityLabel={`Review picture ${index + 1}`}
+          />
+        </View>
+        {ready
+          ? photo.analysis.candidates.map((candidate, candidateIndex) => {
+              // Keep the loupe and its label inside the picture frame.
+              const cx = Math.min(84, Math.max(16, candidate.x));
+              const cy = Math.min(76, Math.max(16, candidate.y));
+              const labelTop = Math.min(cy + ((LOUPE + 8) / frame.height) * 100, 94);
+              return (
+                <View key={candidate.id}>
+                  <View
+                    testID={`review-loupe-${candidateIndex + 1}`}
+                    accessibilityLabel={`Magnify detail ${candidateIndex + 1} ${candidate.name}`}
+                    style={[
+                      styles.reviewLoupe,
+                      {
+                        width: LOUPE,
+                        height: LOUPE,
+                        marginLeft: -LOUPE / 2,
+                        marginTop: -LOUPE / 2,
+                        left: `${cx}%`,
+                        top: `${cy}%`,
+                      },
+                    ]}>
+                    <Image
+                      source={{ uri: fileUrl(photo.url) }}
+                      style={{
+                        position: 'absolute',
+                        width: zoomWidth,
+                        height: zoomHeight,
+                        left: LOUPE / 2 - (cx / 100) * zoomWidth,
+                        top: LOUPE / 2 - (cy / 100) * zoomHeight,
+                      }}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.reviewLoupeNumber}>
+                      <Text style={styles.reviewLoupeNumberLabel}>{candidateIndex + 1}</Text>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.reviewLoupeLabel,
+                      { left: `${cx}%`, top: `${labelTop}%` },
+                    ]}>
+                    <View style={[styles.reviewLoupeDot, { backgroundColor: candidate.hex }]} />
+                    <Text style={styles.reviewLoupeName} numberOfLines={1}>
+                      {candidate.name}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
+          : null}
+      </View>
+      {photo.analysis.candidates.length > 0 ? (
+        <Text style={[text.caption, styles.reviewMagnifiedLine]}>
+          {`Magnified details: ${photo.analysis.candidates
+            .map((candidate, candidateIndex) => `${candidateIndex + 1} ${candidate.name}`)
+            .join(' · ')}`}
+        </Text>
+      ) : null}
+      <View style={styles.reviewPalette}>
+        {photo.analysis.palette.map((swatch) => (
+          <View key={swatch.hex} style={styles.reviewSwatch}>
+            <View style={[styles.reviewChip, { backgroundColor: swatch.hex }]} />
+            <Text style={[text.caption, styles.reviewChipName]} numberOfLines={1}>
+              {swatch.name}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function BubbleView({
   bubble,
   copied,
@@ -1221,40 +1317,7 @@ function BubbleView({
           <View style={[styles.bubble, styles.bubbleAssistant, styles.reviewBubble]}>
             <Text style={[text.body, styles.reviewTitle]}>{bubble.content}</Text>
             {bubble.photos.map((photo, photoIndex) => (
-              <View key={photo.url} style={styles.reviewPhoto}>
-                <Text style={[text.caption, styles.reviewPhotoLabel]}>
-                  {`Picture ${photoIndex + 1} · ${photo.analysis.orientation}`}
-                </Text>
-                <View style={styles.reviewFrame}>
-                  <Image
-                    source={{ uri: fileUrl(photo.url) }}
-                    style={styles.reviewImage}
-                    resizeMode="cover"
-                    accessibilityLabel={`Review picture ${photoIndex + 1}`}
-                  />
-                  {photo.analysis.candidates.map((candidate, index) => (
-                    <View
-                      key={candidate.id}
-                      style={[
-                        styles.reviewCircle,
-                        { left: `${candidate.x}%`, top: `${candidate.y}%` },
-                      ]}
-                      accessibilityLabel={`Magnify choice ${index + 1}`}>
-                      <Text style={styles.reviewCircleLabel}>{index + 1}</Text>
-                    </View>
-                  ))}
-                </View>
-                <View style={styles.reviewPalette}>
-                  {photo.analysis.palette.map((swatch) => (
-                    <View key={swatch.hex} style={styles.reviewSwatch}>
-                      <View style={[styles.reviewChip, { backgroundColor: swatch.hex }]} />
-                      <Text style={[text.caption, styles.reviewChipName]} numberOfLines={1}>
-                        {swatch.name}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
+              <ReviewPhotoCard key={photo.url} photo={photo} index={photoIndex} />
             ))}
             <Text style={[text.caption, styles.reviewHint]}>
               Reply with the numbers you want magnified, name a detail, or say you choose.
@@ -2274,10 +2337,17 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
-  reviewFrame: {
+  reviewFrameBox: {
     position: 'relative',
     width: '100%',
     aspectRatio: 16 / 9,
+  },
+  reviewFrame: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
     borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: colors.fill,
@@ -2285,6 +2355,55 @@ const styles = StyleSheet.create({
   reviewImage: {
     width: '100%',
     height: '100%',
+  },
+  reviewLoupe: {
+    position: 'absolute',
+    borderRadius: 32,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#B98A55',
+    backgroundColor: colors.fill,
+  },
+  reviewLoupeNumber: {
+    position: 'absolute',
+    right: 3,
+    bottom: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#173B44',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewLoupeNumberLabel: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  reviewLoupeLabel: {
+    position: 'absolute',
+    marginLeft: -48,
+    width: 96,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  reviewLoupeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairInset,
+  },
+  reviewLoupeName: {
+    fontSize: 10,
+    color: colors.ink,
+    fontWeight: '600',
+  },
+  reviewMagnifiedLine: {
+    color: colors.ink,
+    letterSpacing: 0.4,
   },
   reviewCircle: {
     position: 'absolute',

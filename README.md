@@ -27,7 +27,7 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again.
 - **The palette comes from the pictures and gets showroom names.** The engine decodes each photograph, then names its four dominant colours the way a paint card does: Warm Ivory, Oat, Sand Beige, Walnut. The brochure prints colour option strips, four named swatch chips with their hex values, so the pages mirror the project instead of an invented palette.
 - **The pages look like the project.** Type, photographs and colour are composed to belong with the pictures supplied.
-- **The picture review.** As soon as pictures are attached the studio analyses them, circles likely details, shows the named palette, and asks what to magnify before any brochure exists.
+- **The picture review.** As soon as pictures are attached the studio analyses them and shows the picture back with magnified circles on the details worth seeing. Each circle is an enlarged cut of that same picture (using the published picture, no phone screenshot) and is named with the colour inside it, so the client reads Oat, Walnut, Greige at a glance. The palette is printed under the picture, and the studio asks what to magnify before any brochure exists.
 
 ![The picture review: circled details and the palette](docs/screenshots/picture-review.png)
 
