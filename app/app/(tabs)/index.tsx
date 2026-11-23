@@ -1181,19 +1181,42 @@ export default function ChatScreen() {
           <View style={styles.composer}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Attach files"
+              accessibilityLabel={
+                pendingFiles.length > 0
+                  ? `Attach files, ${pendingFiles.length} attached`
+                  : 'Attach files'
+              }
               onPress={() => void pickFiles()}
               disabled={busy || uploadingFiles}
               style={({ pressed }) => [
                 styles.plus,
+                pendingFiles.length > 0 && styles.plusActive,
                 (busy || uploadingFiles) && styles.sendDisabled,
                 pressed && styles.sendPressed,
               ]}>
               {uploadingFiles ? (
                 <ActivityIndicator size="small" color={colors.copper} />
               ) : (
-                <Text style={styles.plusLabel}>+</Text>
+                <View style={styles.plusGlyph} pointerEvents="none">
+                  <View
+                    style={[
+                      styles.plusH,
+                      pendingFiles.length > 0 && styles.plusBarActive,
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.plusV,
+                      pendingFiles.length > 0 && styles.plusBarActive,
+                    ]}
+                  />
+                </View>
               )}
+              {pendingFiles.length > 0 && !uploadingFiles ? (
+                <View style={styles.plusBadge} pointerEvents="none">
+                  <Text style={styles.plusBadgeLabel}>{pendingFiles.length}</Text>
+                </View>
+              ) : null}
             </Pressable>
             <TextInput
               ref={inputRef}
@@ -1988,15 +2011,59 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.fill,
+    backgroundColor: colors.copperSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(166, 94, 34, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 1,
   },
-  plusLabel: {
-    fontSize: 21,
-    lineHeight: 23,
-    color: colors.ink,
+  plusActive: {
+    backgroundColor: colors.copper,
+    borderColor: colors.copper,
+  },
+  plusGlyph: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusH: {
+    position: 'absolute',
+    width: 16,
+    height: 2.4,
+    borderRadius: 1.2,
+    backgroundColor: colors.copper,
+  },
+  plusV: {
+    position: 'absolute',
+    width: 2.4,
+    height: 16,
+    borderRadius: 1.2,
+    backgroundColor: colors.copper,
+  },
+  plusBarActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  plusBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: colors.copper,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusBadgeLabel: {
+    fontSize: 10.5,
+    lineHeight: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   input: {
     flex: 1,
