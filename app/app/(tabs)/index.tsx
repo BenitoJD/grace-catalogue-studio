@@ -64,7 +64,13 @@ const nextId = () => {
 };
 
 const stamp = () =>
-  new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  new Date().toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 
 const ESSENTIAL_TOTAL = 7;
 const MAX_UPLOAD_MB = 50;
@@ -116,6 +122,7 @@ function DesignTile({
   noDesign?: boolean;
   onPress: () => void;
 }) {
+  const [glimpseFailed, setGlimpseFailed] = useState(false);
   if (noDesign || !design) {
     return (
       <Pressable
@@ -143,6 +150,7 @@ function DesignTile({
     );
   }
   const palette = design.palette;
+  const showGlimpse = Boolean(design.previewUrl) && !glimpseFailed;
   return (
     <Pressable
       accessibilityRole="button"
@@ -153,12 +161,13 @@ function DesignTile({
         selected && styles.designCardSelected,
         pressed && styles.sendPressed,
       ]}>
-      {design.previewUrl ? (
+      {showGlimpse ? (
         <Image
-          source={{ uri: fileUrl(design.previewUrl) }}
+          source={{ uri: fileUrl(design.previewUrl ?? '') }}
           style={[styles.designThumb, styles.designThumbImage]}
           resizeMode="cover"
           accessibilityLabel={`Printed preview of ${design.name}`}
+          onError={() => setGlimpseFailed(true)}
         />
       ) : (
         <View

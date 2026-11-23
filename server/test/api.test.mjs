@@ -11,6 +11,8 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -320,6 +322,32 @@ const DEMO_MATERIALS = [
   },
 ];
 
+// Product photography always comes from uploads, so the suite brings its
+// own: one tiny valid PNG written into data/media wherever a render or a
+// preview needs customer photography or finish swatches.
+const FIXTURE_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const FIXTURE_ROOM_FILES = [1, 2, 3].map((index) => ({
+  url: `/media/fixture-room-${index}.png`,
+  name: `fixture-room-${index}.png`,
+  contentType: 'image/png',
+  bytes: 69,
+}));
+const FIXTURE_SWATCH_FILE = {
+  url: '/media/fixture-swatch.png',
+  name: 'fixture-swatch.png',
+  contentType: 'image/png',
+  bytes: 69,
+};
+
+function writeFixtureMedia() {
+  const bytes = Buffer.from(FIXTURE_PNG_BASE64, 'base64');
+  mkdirSync(path.join(dataDir, 'media'), { recursive: true });
+  for (const file of [...FIXTURE_ROOM_FILES, FIXTURE_SWATCH_FILE]) {
+    writeFileSync(path.join(dataDir, 'media', path.basename(file.url)), bytes);
+  }
+}
+
 const DEMO_ORDER = {
   title: 'Master Bedroom Wardrobe',
   room: 'Master bedroom',
@@ -489,9 +517,11 @@ test('rejects an order without a customerId', async () => {
 });
 
 test('creates an order with a generated order number', async () => {
+  writeFixtureMedia();
   const response = await postJson(`${baseUrl}/api/orders`, {
     ...DEMO_ORDER,
     customerId,
+    attachments: FIXTURE_ROOM_FILES,
   });
   assert.equal(response.status, 201);
   const order = await response.json();
@@ -545,6 +575,26 @@ test('creates a material', async () => {
   assert.equal(material.imageUrl, '/media/tex-band.jpg');
   assert.ok(material.id);
   assert.ok(material.createdAt);
+});
+
+test('workshop finish photos come from uploads, never from a bundle', async () => {
+  const materials = await (await fetch(`${baseUrl}/api/materials`)).json();
+  assert.ok(materials.length >= 4, 'the seeded finishes exist');
+  for (const material of materials) {
+    if (typeof material.imageUrl === 'string' && material.imageUrl.startsWith('/media/tex-')) {
+      const response = await fetch(`${baseUrl}/api/materials/${material.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: FIXTURE_SWATCH_FILE.url }),
+      });
+      assert.equal(response.status, 200, material.name);
+    }
+  }
+  const stored = await (await fetch(`${baseUrl}/api/materials`)).json();
+  assert.ok(
+    stored.every((material) => material.imageUrl === null || material.imageUrl === FIXTURE_SWATCH_FILE.url),
+    'every material points at an upload or at nothing',
+  );
 });
 
 test('renders a voucher with 4 pages and a real PDF', async () => {
@@ -677,7 +727,6 @@ test('deletes an order and its renders', async () => {
 // Thirty complete document families, one palette each
 // ---------------------------------------------------------------------------
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const templateManifest = JSON.parse(readFileSync(path.join(templatesDir, 'variants.json'), 'utf8'));
 const PALETTE_IDS = templateManifest.palettes.map((palette) => palette.id);
 const FAMILY_IDS = templateManifest.families.map((family) => family.id);
@@ -864,6 +913,7 @@ test('cover title is the order title and the whole title is in the PDF text laye
     title: longTitle,
     room: 'Guest bedroom',
     customerId,
+    attachments: FIXTURE_ROOM_FILES,
   });
   assert.equal(created.status, 201);
   const order = await created.json();
@@ -907,6 +957,7 @@ test('customer names stay in sentence case on the cover and the signature line',
       ...DEMO_ORDER,
       title: 'Master Bedroom Wardrobe',
       customerId: tamilCustomer.id,
+      attachments: FIXTURE_ROOM_FILES,
     })
   ).json();
   const tamilResponse = await postJson(`${baseUrl}/api/orders/${tamilOrder.id}/render`, {
@@ -2365,6 +2416,7 @@ test('a voucher prints the generated copy and still renders without one', { time
     ...DEMO_ORDER,
     title: 'No Copy Wardrobe',
     customerId,
+    attachments: FIXTURE_ROOM_FILES,
   });
   assert.equal(created.status, 201);
   const noCopyOrder = await created.json();
@@ -2389,6 +2441,7 @@ test('a malformed copy_json is ignored by a render instead of failing it', { tim
     ...DEMO_ORDER,
     title: 'Malformed Copy Wardrobe',
     customerId,
+    attachments: FIXTURE_ROOM_FILES,
   });
   assert.equal(created.status, 201);
   const order = await created.json();
@@ -2467,6 +2520,7 @@ test('orders without materials fall back to the house specification', { timeout:
     height: '2100 mm',
     depth: '600 mm',
     shutters: '2',
+    attachments: FIXTURE_ROOM_FILES,
   });
   assert.equal(response.status, 201);
   const order = await response.json();
@@ -3388,18 +3442,18 @@ test('orders keep their attachments and the intake reads text files', async () =
 });
 
 
-test('customer photos replace the house photography in the voucher', async () => {
+test('customer photos become the voucher photography', async () => {
   const values = buildVoucherValues({
     order: { ...DEMO_ORDER, customerName: 'Ravi', title: 'Master Bedroom Wardrobe' },
     materials: [],
     templatesDir,
     logger: createLogger({ level: 'error' }),
-    attachmentImages: ['file:///tmp/one.jpg', 'file:///tmp/two.jpg', 'file:///tmp/three.jpg'],
+    attachmentImages: ['file:///tmp/one.jpg', 'file:///tmp/two.jpg', 'file:///tmp/three.jpg', 'file:///tmp/four.jpg'],
   });
   assert.equal(values.coverImage, 'file:///tmp/one.jpg');
   assert.equal(values.insideImage, 'file:///tmp/two.jpg');
   assert.equal(values.insideImage2, 'file:///tmp/three.jpg');
-  assert.match(values.detailImage, /assets\/company/, 'missing slots keep the house shot');
+  assert.equal(values.detailImage, 'file:///tmp/four.jpg');
 });
 
 
@@ -3665,7 +3719,12 @@ test('each reference earns its preview from a real printed brochure', { timeout:
   for (const design of previewDesigns) {
     const png = path.join(dataDir, 'design-previews', `${design.id}.png`);
     assert.ok(existsSync(png), `${design.id} cover exists`);
-    assert.ok(statSync(png).size > 20000, 'the cover is a real page image');
+    // Flat sample plates compress well: the cover proves itself by existing
+    // as a full page raster, not by byte bulk.
+    assert.ok(
+      statSync(png).size > 4000 && readFileSync(png).subarray(0, 8).equals(PNG_SIGNATURE),
+      'the cover is a real page image',
+    );
     const flat = normaliseText(pdfText(path.join(dataDir, 'design-previews', `${design.id}.pdf`)));
     assert.ok(
       flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()),
@@ -3681,8 +3740,16 @@ test('each reference earns its preview from a real printed brochure', { timeout:
   assert.equal(await buildPendingPreviews(deps), 0);
   assert.equal(mockProviderState.requests.length, 0);
 
-  // A stored document that stops passing the rules loses its flag but keeps
-  // showing its old glimpse until the reprint lands.
+  // A glimpse printed under an older rule set is re-judged: a saved document
+  // that still passes is reprinted locally, one that fails loses its flag and
+  // keeps showing its old image until the model reprint lands.
+  const previewCatalog = getDesignCatalog(db);
+  putDesignCatalog(db, {
+    ...previewCatalog,
+    designs: previewCatalog.designs.map((design) =>
+      design.id === 'preview-proof-1' ? { ...design, previewVersion: 1 } : design,
+    ),
+  });
   const shrunk = DESIGNER_HTML.replace('width:216mm;height:303mm', 'width:20mm;height:20mm');
   writeFileSync(path.join(dataDir, 'design-previews', 'preview-proof-1.html'), shrunk);
   const revalidated = await revalidatePreviews(deps);
@@ -3940,10 +4007,10 @@ test('attaching files to a live order saves them and re-renders with them', { ti
   const body = JSON.parse(raw);
   assert.equal(body.attachmentsAdded, 2);
   assert.equal(body.rerender, true);
-  assert.equal(body.order.attachments.length, 2);
-  assert.equal(body.order.attachments[0].url, '/media/edit-proof.png');
+  assert.equal(body.order.attachments.length, 3 + 2);
+  assert.ok(body.order.attachments.some((file) => file.url === '/media/edit-proof.png'));
   const stored = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
-  assert.equal(stored.attachments.length, 2);
+  assert.equal(stored.attachments.length, 3 + 2);
 
   // Attaching the same file again adds nothing but still succeeds.
   const repeat = await postJson(`${baseUrl}/api/orders/${orderId}/edit`, {

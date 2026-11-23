@@ -21,7 +21,7 @@ import { ErrorState, LoadingState } from '@/components/StateViews';
 import { openUrl, shareLink } from '@/lib/actions';
 import { copyText } from '@/lib/clipboard';
 import { api, errorMessage, fileUrl, type Order, type OrderNote, type Render } from '@/lib/api';
-import { displayValue, formatDate, pageCountLabel, statusLabel } from '@/lib/format';
+import { displayValue, formatDate, formatDateTime, pageCountLabel, statusLabel } from '@/lib/format';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
 const PAGE_ASPECT = 794 / 1123;
@@ -37,7 +37,10 @@ const SPEC_SECTIONS: {
       { label: 'Customer', value: (order) => displayValue(order.customerName) },
       { label: 'Room', value: (order) => displayValue(order.room) },
       { label: 'Status', value: (order) => statusLabel(order.status) },
-      { label: 'Created', value: (order) => formatDate(order.createdAt) || 'Not set' },
+      {
+        label: 'Created',
+        value: (order) => formatDateTime(order.createdAt) || 'Not set',
+      },
     ],
   },
   {

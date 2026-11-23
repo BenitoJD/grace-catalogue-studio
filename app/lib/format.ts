@@ -27,6 +27,22 @@ export function formatDate(value: string | null | undefined): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
+/** Date and time together: 21 Nov 2026, 4:32 pm. */
+export function formatDateTime(value: string | null | undefined): string {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const suffix = hours >= 12 ? 'pm' : 'am';
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${formatDate(value)}, ${hour12}:${minutes} ${suffix}`;
+}
+
 /** Joins the stored dimension strings, skipping anything left blank. */
 export function orderDimensions(order: Pick<Order, 'width' | 'height' | 'depth'>): string {
   const parts: string[] = [];

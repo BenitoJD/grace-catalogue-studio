@@ -21,6 +21,10 @@ writeFileSync(
   `${e2eDir}/plan.txt`,
   "Customer plan. Width 2600 mm, height 2100 mm, three shutters. Loft on top."
 );
+const ROOM_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+writeFileSync(`${e2eDir}/room-photo.png`, Buffer.from(ROOM_PNG_BASE64, "base64"));
+writeFileSync(`${e2eDir}/room-photo-two.png`, Buffer.from(ROOM_PNG_BASE64, "base64"));
 
 let failures = 0;
 const results = [];
@@ -212,6 +216,31 @@ try {
   check("web build served", webUp, webUp ? "" : web.dump().slice(-300));
   if (!apiUp || !webUp) throw new Error("servers did not start");
 
+  // A real photograph for orders the suite creates through the API. Brochures
+  // require customer photography, so the suite brings its own upload.
+  const uploadRoom = async (name) =>
+    await (
+      await fetch(`${API}/api/media`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data: ROOM_PNG_BASE64, name, contentType: "image/png" })
+      })
+    ).json();
+  const roomUpload = await uploadRoom("room-photo.png");
+  const roomUploadTwo = await uploadRoom("room-photo-two.png");
+  const roomPhoto = {
+    url: roomUpload.url,
+    name: roomUpload.name,
+    contentType: roomUpload.contentType,
+    bytes: roomUpload.bytes
+  };
+  const roomPhotoTwo = {
+    url: roomUploadTwo.url,
+    name: roomUploadTwo.name,
+    contentType: roomUploadTwo.contentType,
+    bytes: roomUploadTwo.bytes
+  };
+
   // seed a customer so the order flow can pick one
   await fetch(`${API}/api/customers`, {
     method: "POST",
@@ -305,7 +334,8 @@ try {
         width: "2600 mm",
         height: "2100 mm",
         depth: "600 mm",
-        shutters: "3"
+        shutters: "3",
+        attachments: [roomPhoto, roomPhotoTwo]
       })
     })
   ).json();
@@ -527,7 +557,7 @@ try {
     const attachPromise = page.waitForFileChooser({ timeout: 15000 });
     await page.mouse.click(attachBox.x + attachBox.width / 2, attachBox.y + attachBox.height / 2);
     const attachChooser = await attachPromise;
-    await attachChooser.accept([`${e2eDir}/plan.txt`]);
+    await attachChooser.accept([`${e2eDir}/plan.txt`, `${e2eDir}/room-photo.png`, `${e2eDir}/room-photo-two.png`]);
     attachedFile = await waitForBodyText(page, "plan.txt", 30000);
   }
   check("chat accepts an uploaded file of any type", attachedFile);

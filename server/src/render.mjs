@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { deflateSync } from 'node:zlib';
 import { randomBytes } from 'node:crypto';
 import {
   existsSync,
@@ -10,6 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 import {
@@ -35,10 +37,10 @@ const COMPANY = {
 
 // Image paths are relative to the template directory, see CONTRACT.md.
 const VOUCHER_IMAGES = {
-  coverImage: '../assets/company/bedroom-wardrobe.jpg',
-  detailImage: '../assets/company/grey-detail.jpg',
-  insideImage: '../assets/company/walk-in.jpg',
-  insideImage2: '../assets/company/beige-wardrobe.jpg',
+  coverImage: null,
+  detailImage: null,
+  insideImage: null,
+  insideImage2: null,
 };
 
 const LAYOUT_LINES = [
@@ -48,10 +50,10 @@ const LAYOUT_LINES = [
 ];
 
 const FALLBACK_MATERIALS = [
-  { name: 'Dark Walnut', image: '../assets/company/tex-walnut.jpg' },
-  { name: 'Cream', image: '../assets/company/tex-cream.jpg' },
-  { name: 'Ash Grey', image: '../assets/company/tex-grey.jpg' },
-  { name: 'Edge band', image: '../assets/company/tex-band.jpg' },
+  { name: 'Dark Walnut', image: null, hex: '#3F2A1D' },
+  { name: 'Cream', image: null, hex: '#E8DCC8' },
+  { name: 'Ash Grey', image: null, hex: '#9A9A94' },
+  { name: 'Edge band', image: null, hex: '#8B5A2B' },
 ];
 
 const TEMPLATE_FILE = 'index.html';
@@ -93,17 +95,71 @@ export function escapeHtml(value) {
   });
 }
 
-// Material images are stored as app paths such as /media/tex-walnut.jpg. The
-// template needs a path relative to its own directory.
-function materialImagePath(imageUrl, templatesDir) {
+// A finish without an uploaded photograph still prints as its exact colour.
+// A tiny PNG is generated for it: honest, flat, and never a stock texture.
+const CRC_TABLE = (() => {
+  const table = new Int32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value;
+  }
+  return table;
+})();
+
+function crc32(buffer) {
+  let crc = -1;
+  for (const byte of buffer) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ -1) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const typeBytes = Buffer.from(type, 'ascii');
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBytes, data])), 0);
+  return Buffer.concat([length, typeBytes, data, crc]);
+}
+
+/** A solid colour 8 by 8 PNG as a data URI. Used for finishes with no photo. */
+export function flatColourPlate(hex) {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(String(hex ?? '').trim());
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 16);
+  const red = (value >> 16) & 0xff;
+  const green = (value >> 8) & 0xff;
+  const blue = value & 0xff;
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(8, 0);
+  header.writeUInt32BE(8, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const row = Buffer.from([0, red, green, blue, red, green, blue, red, green, blue, red, green, blue, red, green, blue, red, green, blue, red, green, blue, red, green, blue]);
+  const raw = Buffer.concat(Array.from({ length: 8 }, () => row));
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+  return `data:image/png;base64,${png.toString('base64')}`;
+}
+
+// Material images are stored as app paths such as /media/abc123.jpg. The
+// printed document needs a file the renderer can open, so uploaded images
+// resolve to file URLs and anything else resolves to nothing.
+function materialImagePath(imageUrl, dataDir) {
   if (typeof imageUrl !== 'string' || imageUrl === '') return null;
-  if (imageUrl.startsWith('../assets/')) return imageUrl;
+  if (typeof dataDir !== 'string' || dataDir === '') return null;
   if (!imageUrl.startsWith('/media/')) return null;
 
   const name = path.basename(imageUrl.slice('/media/'.length));
   if (!name || name.includes('..')) return null;
-  const source = path.join(templatesDir, 'assets', 'company', name);
-  return existsSync(source) ? `../assets/company/${name}` : null;
+  const source = path.join(dataDir, 'media', name);
+  return existsSync(source) ? pathToFileURL(source).href : null;
 }
 
 // Dimensions arrive as strings such as "2400 mm". The blueprint family prints a
@@ -159,23 +215,27 @@ export function noteCopyValues(order, logger) {
   };
 }
 
-export function buildVoucherValues({ order, materials = [], templatesDir, logger, attachmentImages = [] }) {
+export function buildVoucherValues({ order, materials = [], templatesDir, dataDir, logger, attachmentImages = [] }) {
   const materialSlots = FALLBACK_MATERIALS.map((fallback, index) => {
     const material = materials[index];
-    const image = materialImagePath(material?.imageUrl, templatesDir);
+    const image = materialImagePath(material?.imageUrl, dataDir);
     return {
       name: material?.name?.trim() || fallback.name,
-      image: image ?? fallback.image,
+      image: image ?? flatColourPlate(material?.hex ?? fallback.hex) ?? fallback.image,
     };
   });
 
   // Customer photos uploaded in the chat stand in for the house photography:
   // first image is the cover, then interior and detail shots.
   const photos = Array.isArray(attachmentImages) ? attachmentImages.filter(Boolean) : [];
-  const coverImage = photos[0] ?? VOUCHER_IMAGES.coverImage;
-  const insideImage = photos[1] ?? VOUCHER_IMAGES.insideImage;
-  const insideImage2 = photos[2] ?? VOUCHER_IMAGES.insideImage2;
-  const detailImage = photos[3] ?? VOUCHER_IMAGES.detailImage;
+  // Customer photography fills every slot in rotation. A single uploaded
+  // photograph covers the whole document; nothing is ever invented or
+  // borrowed from a stock library.
+  const pick = (index) => (photos.length > 0 ? photos[index % photos.length] : null);
+  const coverImage = pick(0) ?? VOUCHER_IMAGES.coverImage;
+  const insideImage = pick(1) ?? VOUCHER_IMAGES.insideImage;
+  const insideImage2 = pick(2) ?? VOUCHER_IMAGES.insideImage2;
+  const detailImage = pick(3) ?? VOUCHER_IMAGES.detailImage;
 
   const widthMeasure = splitMeasure(order.width);
   const heightMeasure = splitMeasure(order.height);
@@ -184,7 +244,7 @@ export function buildVoucherValues({ order, materials = [], templatesDir, logger
   return {
     orderNo: order.orderNo,
     title: order.title,
-    date: formatOrderDate(),
+    date: formatOrderDate(order.createdAt ? new Date(order.createdAt) : new Date()),
     customerName: order.customerName,
     width: order.width,
     height: order.height,
@@ -232,7 +292,28 @@ export function buildVoucherValues({ order, materials = [], templatesDir, logger
   };
 }
 
-export function buildKitValues() {
+const KIT_FALLBACK_MATERIALS = [
+  { name: 'Dark Walnut', color: '#3F2A1D' },
+  { name: 'Cream', color: '#E8DCC8' },
+  { name: 'Ash Grey', color: '#9A9A94' },
+  { name: 'Edge band', color: '#8B5A2B' },
+];
+
+/**
+ * Company details plus the finish swatches as flat colours from the materials
+ * table. No photography appears in the kit: brand assets and database colours
+ * carry it.
+ */
+export function buildKitValues(materials = []) {
+  const slots = [0, 1, 2, 3].map((index) => {
+    const material = materials[index];
+    const fallback = KIT_FALLBACK_MATERIALS[index];
+    const hex = typeof material?.hex === 'string' ? material.hex.trim() : '';
+    return {
+      name: material?.name?.trim() || fallback.name,
+      color: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : fallback.color,
+    };
+  });
   return {
     addressLine1: COMPANY.addressLine1,
     addressLine2: COMPANY.addressLine2,
@@ -240,6 +321,14 @@ export function buildKitValues() {
     phone: COMPANY.phone,
     email: COMPANY.email,
     shopLine: COMPANY.shopLine,
+    mat1Name: slots[0].name,
+    mat2Name: slots[1].name,
+    mat3Name: slots[2].name,
+    mat4Name: slots[3].name,
+    mat1Color: slots[0].color,
+    mat2Color: slots[1].color,
+    mat3Color: slots[2].color,
+    mat4Color: slots[3].color,
   };
 }
 

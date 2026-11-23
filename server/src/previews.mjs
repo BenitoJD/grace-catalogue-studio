@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { RenderError } from './render.mjs';
 import {
@@ -52,12 +53,25 @@ export function createPreviewStore({ variants, templatesDir, dataDir, renderer, 
       pending = (async () => {
         mkdirSync(previewsDir, { recursive: true });
         const selection = resolveTemplateSelection(variants, templateId);
+        const attachmentImages = (SAMPLE_ORDER.attachments ?? [])
+          .filter((file) => /^image\//i.test(String(file.contentType ?? '')))
+          .map((file) => path.join(dataDir, 'media', path.basename(file.url)))
+          .filter((filePath) => {
+            try {
+              return readFileSync(filePath).length > 0;
+            } catch {
+              return false;
+            }
+          })
+          .map((filePath) => pathToFileURL(filePath).href);
         const values = buildVoucherDocumentValues({
           order: SAMPLE_ORDER,
           materials: SAMPLE_MATERIALS,
           templatesDir,
+          dataDir,
           variants,
           templateId,
+          attachmentImages,
         });
         const filePath = await renderer.renderPreview({
           templateId,

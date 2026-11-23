@@ -25,7 +25,7 @@ import {
   buildDesignerRepairMessages,
   parseDesignerReply,
   compileGenerativeBrochure,
-  defaultPhotoUrls,
+  samplePhotoPlates,
   photoProfiles,
 } from './ai-brochure.mjs';
 import { referenceForDesigner } from './design-catalog.mjs';
@@ -139,46 +139,96 @@ export function previewReadyOnDisk(dataDir, designId) {
   }
 }
 
+// Bumped whenever the print rules or the sample plates change. A stored
+// glimpse from an older version is reprinted from its own saved document:
+// no model call, just the current checks and plates.
+export const PREVIEW_VERSION = 2;
+
+async function writePreviewFiles(deps, design, html) {
+  const { renderer, dataDir, newRenderId } = deps;
+  const renderId = newRenderId();
+  const rendered = await renderer.renderHtml({ html, renderId });
+  if (!rendered || rendered.pageCount < MIN_DESIGN_PAGES || rendered.pageCount > MAX_DESIGN_PAGES) {
+    return false;
+  }
+  const rendersDir = path.join(dataDir, 'renders');
+  const paths = previewPaths(dataDir, design.id);
+  mkdirSync(paths.directory, { recursive: true });
+  copyFileSync(path.join(rendersDir, `${renderId}.pdf`), paths.pdf);
+  copyFileSync(path.join(rendersDir, `${renderId}-1.png`), paths.png);
+  rmSync(path.join(rendersDir, `${renderId}.pdf`), { force: true });
+  for (let index = 1; index <= rendered.pageCount; index += 1) {
+    rmSync(path.join(rendersDir, `${renderId}-${index}.png`), { force: true });
+  }
+  return true;
+}
+
 /**
- * Re-check every stored preview against the current print rules, which only
- * ever get stricter. A document that no longer passes loses its ready flag
- * and joins the next print run; its files stay on disk until replaced, so the
- * gallery never shows an empty tile.
+ * Re-judge every stored preview against the current rules and plates. A
+ * document that still passes is reprinted locally from its saved HTML with
+ * the current assets, without asking the model anything. Anything that no
+ * longer passes loses its ready flag and joins the next model print run; its
+ * files stay on disk until replaced, so a tile never goes empty.
  */
 export async function revalidatePreviews(deps) {
-  const { db, dataDir, logger } = deps;
+  const { db, dataDir, materials, templatesDir, logger } = deps;
   const catalog = getDesignCatalog(db);
   let cleared = 0;
-  const designs = catalog.designs.map((design) => {
-    if (!design.previewReady) return design;
-    let html = null;
+  let refreshed = 0;
+  const designs = [];
+  for (const design of catalog.designs) {
+    if (!design.previewReady || design.previewVersion === PREVIEW_VERSION) {
+      designs.push(design);
+      continue;
+    }
+    let stored = null;
     try {
-      html = readFileSync(previewPaths(dataDir, design.id).html, 'utf8');
+      stored = readFileSync(previewPaths(dataDir, design.id).html, 'utf8');
     } catch {
-      return design;
-    }
-    if (typeof html !== 'string' || html.length < 500) return design;
-    try {
-      // Previews always print from the house photography: four photos.
-      parseDesignerReply(html, 4);
-      return design;
-    } catch (error) {
+      // An older glimpse with no saved document cannot be re-judged locally.
+      // It is cleared and reprinted from a fresh model reply instead of
+      // keeping art the current rules were never applied to.
       cleared += 1;
-      logger?.warn?.('A stored preview no longer passes the print checks; it will be reprinted.', {
-        design: design.id,
-      });
-      const { previewReady, previewUpdatedAt, ...rest } = design;
-      return { ...rest, previewAttempts: (design.previewAttempts ?? 0) + 1 };
+      const { previewReady, previewUpdatedAt, previewVersion: staleVersion, ...rest } = design;
+      designs.push({ ...rest, previewAttempts: (design.previewAttempts ?? 0) + 1 });
+      continue;
     }
-  });
-  if (cleared > 0) {
+    try {
+      const document = parseDesignerReply(stored, 4);
+      const html = compileGenerativeBrochure({
+        order: SAMPLE_ORDER,
+        materials,
+        templatesDir,
+        dataDir,
+        attachmentImages: samplePhotoPlates(),
+        copy: sampleCopyFromDb(db) ?? { headline: '', body: '', closing: '' },
+        pages: document.pages,
+        styles: document.styles,
+      });
+      const written = await writePreviewFiles(deps, design, html);
+      if (written) {
+        refreshed += 1;
+        designs.push({ ...design, previewVersion: PREVIEW_VERSION });
+        continue;
+      }
+    } catch {
+      // Falls through to the model reprint below.
+    }
+    cleared += 1;
+    logger?.warn?.('A stored preview no longer passes the print checks; it will be reprinted.', {
+      design: design.id,
+    });
+    const { previewReady, previewUpdatedAt, previewVersion, ...rest } = design;
+    designs.push({ ...rest, previewAttempts: (design.previewAttempts ?? 0) + 1 });
+  }
+  if (cleared > 0 || refreshed > 0) {
     putDesignCatalog(db, {
       version: catalog.version,
       expected: catalog.expected,
       designs,
     });
   }
-  return { cleared };
+  return { cleared, refreshed };
 }
 
 /**
@@ -188,7 +238,7 @@ export async function revalidatePreviews(deps) {
  */
 export async function buildPreviewForDesign(deps, design) {
   const { db, renderer, templatesDir, dataDir, materials, config, requestChat, newRenderId, logger } = deps;
-  const photos = defaultPhotoUrls(templatesDir);
+  const photos = samplePhotoPlates();
   const photoShapes = photoProfiles(photos, templatesDir);
   const { copy } = await ensureSampleCopy({ db, config, requestChat, logger });
   const reference = referenceForDesigner(design);
@@ -227,7 +277,8 @@ export async function buildPreviewForDesign(deps, design) {
         order: SAMPLE_ORDER,
         materials,
         templatesDir,
-        attachmentImages: [],
+        dataDir,
+        attachmentImages: photos,
         copy,
         pages: document.pages,
         styles: document.styles,
@@ -244,21 +295,13 @@ export async function buildPreviewForDesign(deps, design) {
   }
   if (!html) return false;
 
-  const renderId = newRenderId();
-  const rendered = await renderer.renderHtml({ html, renderId });
-  if (!rendered || rendered.pageCount < MIN_DESIGN_PAGES || rendered.pageCount > MAX_DESIGN_PAGES) return false;
-  const paths = previewPaths(dataDir, design.id);
-  mkdirSync(paths.directory, { recursive: true });
   // The stored document is the model's own reply with its tokens intact, so
   // later print rules can judge it again. The compiled file is derivative.
-  writeFileSync(paths.html, acceptedReply, 'utf8');
-  const rendersDir = path.join(dataDir, 'renders');
-  copyFileSync(path.join(rendersDir, `${renderId}.pdf`), paths.pdf);
-  copyFileSync(path.join(rendersDir, `${renderId}-1.png`), paths.png);
-  rmSync(path.join(rendersDir, `${renderId}.pdf`), { force: true });
-  for (let index = 1; index <= rendered.pageCount; index += 1) {
-    rmSync(path.join(rendersDir, `${renderId}-${index}.png`), { force: true });
-  }
+  const finalPaths = previewPaths(dataDir, design.id);
+  mkdirSync(finalPaths.directory, { recursive: true });
+  writeFileSync(finalPaths.html, acceptedReply, 'utf8');
+  const written = await writePreviewFiles(deps, design, html);
+  if (!written) return false;
   logger?.info?.('Design preview printed.', { design: design.id });
   return true;
 }
@@ -271,10 +314,17 @@ export async function buildPreviewForDesign(deps, design) {
 export async function buildPendingPreviews(deps, { limit = Infinity } = {}) {
   const { db, dataDir, logger } = deps;
   let finished = 0;
+  // One attempt per design per run: a design whose reply keeps failing must
+  // not spin forever inside one build pass. Its attempt counter grows and a
+  // later run tries it again.
+  const attempted = new Set();
   for (;;) {
     const catalog = getDesignCatalog(db);
-    const next = catalog.designs.find((design) => !design.previewReady);
+    const next = catalog.designs.find(
+      (design) => !design.previewReady && !attempted.has(design.id),
+    );
     if (!next || finished >= limit) break;
+    attempted.add(next.id);
     let ready = false;
     try {
       ready = await buildPreviewForDesign(deps, next);
@@ -291,7 +341,14 @@ export async function buildPendingPreviews(deps, { limit = Infinity } = {}) {
         version: refreshed.version,
         expected: refreshed.expected,
         designs: refreshed.designs.map((design) =>
-          design.id === next.id ? { ...design, previewReady: true, previewUpdatedAt: new Date().toISOString() } : design,
+          design.id === next.id
+            ? {
+                ...design,
+                previewReady: true,
+                previewVersion: PREVIEW_VERSION,
+                previewUpdatedAt: new Date().toISOString(),
+              }
+            : design,
         ),
       });
       finished += 1;

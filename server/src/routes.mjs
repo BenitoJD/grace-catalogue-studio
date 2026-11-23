@@ -55,7 +55,7 @@ import {
   buildDesignerMessages,
   buildDesignerRepairMessages,
   compileGenerativeBrochure,
-  defaultPhotoUrls,
+  samplePhotoPlates,
   designLabel,
   parseDesignerReply,
   photoProfiles,
@@ -69,7 +69,12 @@ import {
   parseCatalogReply,
   referenceForDesigner,
 } from './design-catalog.mjs';
-import { buildPendingPreviews, countReadyPreviews, revalidatePreviews } from './design-previews.mjs';
+import {
+  PREVIEW_VERSION,
+  buildPendingPreviews,
+  countReadyPreviews,
+  revalidatePreviews,
+} from './design-previews.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
   INTAKE_MAX_MESSAGE_CHARS,
@@ -1044,6 +1049,7 @@ export function createApp(options) {
       requestId: c.get('requestId') ?? null,
       type: typeof error?.type === 'string' ? error.type : 'unknown',
       providerStatus: Number.isInteger(error?.status) ? error.status : undefined,
+      debugStack: error instanceof Error ? String(error.stack).slice(0, 600) : String(error).slice(0, 200),
     });
     return c.json(llmFailureBody(error), 502);
   }
@@ -1444,7 +1450,9 @@ export function createApp(options) {
     }
     const libraryReady = catalog.designs.length >= CATALOG_SIZE;
     if (libraryReady && previewsEnabled && !previewBuildState.active) {
-      const pending = catalog.designs.filter((design) => !design.previewReady).length;
+      const pending = catalog.designs.filter(
+        (design) => !design.previewReady || design.previewVersion !== PREVIEW_VERSION,
+      ).length;
       if (pending > 0) startPreviewBuild(config);
     }
     const designs = catalog.designs ?? [];
@@ -1530,8 +1538,14 @@ export function createApp(options) {
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
 
     const attached = voucherPhotoFiles(order, path.join(dataDir, 'media'));
-    const photos = attached.length > 0 ? attached : defaultPhotoUrls(templatesDir);
-    const photoShapes = photoProfiles(photos, templatesDir);
+    if (attached.length === 0) {
+      return fail(
+        c,
+        400,
+        'Attach at least one photograph to this order before designing the brochure. Customer photography always comes from the chat, never from a stock library.',
+      );
+    }
+    const photoShapes = photoProfiles(attached, templatesDir);
 
     try {
       // 1. Words. Studio edited copy wins, then the stored copy, then a fresh
@@ -1562,7 +1576,7 @@ export function createApp(options) {
         brief,
         direction,
         copy,
-        photos,
+        photos: attached,
         photoShapes,
         reference,
         previousHtml,
@@ -1588,11 +1602,12 @@ export function createApp(options) {
         latencyMs = result.latencyMs;
         previousReply = result.content;
         try {
-          const document = parseDesignerReply(result.content, photos.length);
+          const document = parseDesignerReply(result.content, attached.length);
           html = compileGenerativeBrochure({
             order,
             materials: listMaterials(db),
             templatesDir,
+            dataDir,
             attachmentImages: attached,
             copy,
             pages: document.pages,
@@ -1788,6 +1803,17 @@ export function createApp(options) {
       templateId = requested;
     }
 
+    if (kind === 'voucher') {
+      const attachedFiles = voucherPhotoFiles(order, path.join(dataDir, 'media'));
+      if (attachedFiles.length === 0) {
+        return fail(
+          c,
+          400,
+          'Attach at least one photograph to this order before rendering the voucher. Customer photography always comes from the chat, never from a stock library.',
+        );
+      }
+    }
+
     // Concurrent identical renders (same order, kind and template) share one
     // build: the second request awaits the first instead of queueing another.
     const renderKey = `${order.id}|${kind}|${kind === 'voucher' ? templateId : ''}`;
@@ -1802,12 +1828,13 @@ export function createApp(options) {
                 order,
                 materials: listMaterials(db),
                 templatesDir,
+                dataDir,
                 variants,
                 templateId,
                 logger,
                 attachmentImages: voucherPhotoFiles(order, path.join(dataDir, 'media')),
               })
-            : buildKitValues();
+            : buildKitValues(listMaterials(db));
         const renderId = newRenderId();
         const result = await renderer.render({
           kind,

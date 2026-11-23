@@ -69,6 +69,16 @@ After a brochure exists the chat stays on that order. Every plain sentence is tr
 
 Files can join late too. Attach a photograph or a plan with the next sentence and it is saved on the order: the brochure re-renders with the new images in the set, and duplicates are ignored. Past the twenty file cap the whole edit is rejected so nothing is half saved.
 
+A brochure cannot be designed without at least one uploaded photograph. The studio sees that as a plain 400 message, never a stock cover.
+
+Every chat message carries its date and time, and every order shows the date and time it was created. The printed brochure carries the order's creation date.
+
+## Assets: brand only
+
+The installer carries brand identity and nothing else: the logo, the house motifs (jaali, paisley, lotus, rangoli, temple arch), the fonts and the print engine. Every room photograph and every finish photograph comes from the studio through the chat, and every finish without a photograph prints as its exact colour chip generated from the materials table. No stock room, no stock wood, no borrowed image can ever reach a customer document.
+
+The info kit follows the same rule: maroon brand panels, white logo and house ornaments over cream, never a photograph of somebody else's wardrobe.
+
 ## Generated design
 
 There is no fixed template behind a brochure, and no fixed length either. When the chat finalises an order, the model writes the words and then authors the pages itself as HTML and CSS: one reply, one complete document, four pages for a quiet order and up to eight when the photographs, the story and the specification need the room. The server only supplies the print box, the fonts, the assets and the facts through tokens, then checks the document before anything is printed.

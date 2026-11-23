@@ -12,7 +12,7 @@ import { loadConfig } from './config.mjs';
 import { openDb, pruneLlmCache } from './db.mjs';
 import { isExecutable } from './http.mjs';
 import { createLogger } from './logger.mjs';
-import { ensureMedia } from './media.mjs';
+import { ensureMedia, removeStockMedia } from './media.mjs';
 import { createRenderer } from './render.mjs';
 import { runRetentionSweep } from './retention.mjs';
 import { createApp } from './routes.mjs';
@@ -51,6 +51,7 @@ export async function startCatalogServer(options = {}) {
   ensureMedia(templatesDir, dataDir);
 
   const db = openDb(dbPath);
+  removeStockMedia(db, dataDir);
 
   // Only the configured model provider (and loopback) may receive traffic.
   // This is the in-code promise behind "the app works offline except for the

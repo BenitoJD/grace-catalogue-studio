@@ -323,6 +323,8 @@ function ReferenceTile({
 }) {
   const palette = design.palette;
   const glyph = ORNAMENT_GLYPH[design.ornament] ?? '';
+  const [glimpseFailed, setGlimpseFailed] = useState(false);
+  const showGlimpse = Boolean(design.previewUrl) && !glimpseFailed;
   return (
     <Pressable
       accessibilityRole="button"
@@ -334,9 +336,9 @@ function ReferenceTile({
         selected && styles.tileSelected,
         pressed && styles.pressed,
       ]}>
-      {design.previewUrl ? (
+      {showGlimpse ? (
         <Image
-          source={{ uri: fileUrl(design.previewUrl) }}
+          source={{ uri: fileUrl(design.previewUrl ?? '') }}
           style={[
             styles.canvas,
             styles.canvasImage,
@@ -344,6 +346,7 @@ function ReferenceTile({
           ]}
           resizeMode="cover"
           accessibilityLabel={`Printed preview of ${design.name}`}
+          onError={() => setGlimpseFailed(true)}
         />
       ) : (
         <View
@@ -375,7 +378,7 @@ function ReferenceTile({
       )}
       <View style={styles.readyBadge}>
         <Text style={styles.readyBadgeLabel}>
-          {design.previewUrl ? 'Printed preview' : 'Direction only'}
+          {showGlimpse ? 'Printed preview' : 'Direction only'}
         </Text>
       </View>
       <View style={styles.tileText}>

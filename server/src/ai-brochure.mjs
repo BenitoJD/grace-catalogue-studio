@@ -259,16 +259,24 @@ function elevationSvg(values) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-/** The four house photographs used when the customer sent none. */
-export function defaultPhotoUrls(templatesDir) {
-  const values = buildVoucherValues({
-    order: {},
-    materials: [],
-    templatesDir,
-    logger: { warn() {}, info() {}, error() {}, debug() {} },
-    attachmentImages: [],
-  });
-  return [values.coverImage, values.insideImage, values.insideImage2, values.detailImage];
+/**
+ * Neutral sample plates for the preview engine only. The product never prints
+ * stock photography: customer brochures require uploaded photographs. These
+ * generated plates let the preview engine exercise layout, tokens and checks
+ * without depicting anybody's room.
+ */
+// Flat colour plates as tiny raster data URIs. Raster embeds print
+// everywhere raster printing runs (WeasyPrint and Chromium alike); inline SVG
+// backgrounds do not survive every print engine.
+const PLATE_PNGS = [
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFUlEQVR4nGN8/+QSAzbAhFV00EoAABLhArW7x5F9AAAAAElFTkSuQmCC',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFUlEQVR4nGN8fusIAzbAhFV00EoAAPoYApW52hX1AAAAAElFTkSuQmCC',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFUlEQVR4nGP89PIGAzbAhFV00EoAAB2yAsNUcZoGAAAAAElFTkSuQmCC',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFUlEQVR4nGN8cm0fAzbAhFV00EoAAPANAojqm4THAAAAAElFTkSuQmCC',
+];
+
+export function samplePhotoPlates() {
+  return PLATE_PNGS.map((png) => `data:image/png;base64,${png}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -317,6 +325,7 @@ function imageSize(buffer) {
 
 function localPathFor(url, templatesDir) {
   if (typeof url !== 'string' || url === '') return null;
+  if (url.startsWith('data:')) return null;
   if (url.startsWith('file://')) {
     try {
       return fileURLToPath(url);
@@ -903,6 +912,7 @@ export function compileGenerativeBrochure({
   order,
   materials,
   templatesDir,
+  dataDir,
   attachmentImages = [],
   copy,
   pages,
@@ -912,12 +922,11 @@ export function compileGenerativeBrochure({
     order,
     materials,
     templatesDir,
+    dataDir,
     logger: { warn() {}, info() {}, error() {}, debug() {} },
     attachmentImages,
   });
-  const photoTokens = attachmentImages.length > 0
-    ? attachmentImages
-    : [values.coverImage, values.insideImage, values.insideImage2, values.detailImage];
+  const photoTokens = Array.isArray(attachmentImages) ? attachmentImages.filter(Boolean) : [];
   const tokens = buildTokenValues({ values, photos: photoTokens, copy });
 
   const filledPages = pages.map((page) => fillTokens(page, tokens));

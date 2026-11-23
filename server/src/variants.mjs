@@ -292,6 +292,7 @@ export function buildVoucherDocumentValues({
   order,
   materials = [],
   templatesDir,
+  dataDir,
   variants,
   templateId,
   logger,
@@ -301,7 +302,7 @@ export function buildVoucherDocumentValues({
   if (!selection) {
     throw new Error(`Unknown template "${templateId}".`);
   }
-  const values = buildVoucherValues({ order, materials, templatesDir, logger, attachmentImages });
+  const values = buildVoucherValues({ order, materials, templatesDir, dataDir, logger, attachmentImages });
 
   return {
     ...values,
@@ -337,11 +338,16 @@ export const SAMPLE_ORDER = {
   handleNote: 'Vertical · three sets',
   finishExt: 'Matte outside, white inside',
   finishInt: 'No painting',
+  attachments: [
+    { url: '/media/fixture-room-1.png', name: 'Fixture room 1', contentType: 'image/png', bytes: 69 },
+    { url: '/media/fixture-room-2.png', name: 'Fixture room 2', contentType: 'image/png', bytes: 69 },
+    { url: '/media/fixture-room-3.png', name: 'Fixture room 3', contentType: 'image/png', bytes: 69 },
+  ],
 };
 
 export const SAMPLE_MATERIALS = [
-  { name: 'Dark Walnut', kind: 'laminate', hex: '#3F2A1D', imageUrl: '/media/tex-walnut.jpg' },
-  { name: 'Cream', kind: 'laminate', hex: '#E8DCC8', imageUrl: '/media/tex-cream.jpg' },
-  { name: 'Ash Grey', kind: 'laminate', hex: '#9A9A94', imageUrl: '/media/tex-grey.jpg' },
-  { name: 'Edge band', kind: 'edge band', hex: '#8B5A2B', imageUrl: '/media/tex-band.jpg' },
+  { name: 'Dark Walnut', kind: 'laminate', hex: '#3F2A1D', imageUrl: '/media/fixture-swatch.png' },
+  { name: 'Cream', kind: 'laminate', hex: '#E8DCC8', imageUrl: '/media/fixture-swatch.png' },
+  { name: 'Ash Grey', kind: 'laminate', hex: '#9A9A94', imageUrl: '/media/fixture-swatch.png' },
+  { name: 'Edge band', kind: 'edge band', hex: '#8B5A2B', imageUrl: '/media/fixture-swatch.png' },
 ];
