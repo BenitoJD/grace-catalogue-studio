@@ -15,7 +15,7 @@ if (-not $AppVersion) {
 
 $payloadPath = [System.IO.Path]::GetFullPath((Join-Path $desktopRoot $PayloadDirectory))
 $outputPath = [System.IO.Path]::GetFullPath((Join-Path $desktopRoot $OutputDirectory))
-if (-not (Test-Path (Join-Path $payloadPath 'Grace Studio.exe'))) {
+if (-not (Test-Path (Join-Path $payloadPath 'Jacob Design Studio.exe'))) {
     throw "The Windows payload was not found at $payloadPath. Run 'npm run build:win:payload' first."
 }
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
@@ -43,14 +43,14 @@ $arguments = @(
     "/DPAYLOAD_DIR=$payloadPath",
     "/DOUTPUT_DIR=$outputPath",
     "/DICON_PATH=$iconPath",
-    (Join-Path $PSScriptRoot 'GraceStudio.nsi')
+    (Join-Path $PSScriptRoot 'JacobStudio.nsi')
 )
 & $compilerPath @arguments
 if ($LASTEXITCODE -ne 0) {
     throw "NSIS failed to build the installer (exit code $LASTEXITCODE)."
 }
 
-$setup = Join-Path $outputPath "GraceStudio-Setup-$AppVersion.exe"
+$setup = Join-Path $outputPath "JacobStudio-Setup-$AppVersion.exe"
 if (-not (Test-Path $setup)) {
     throw "NSIS reported success but the installer is missing at $setup."
 }

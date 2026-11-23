@@ -1,6 +1,6 @@
-appId: com.gracewoodindustry.studio
-productName: Grace Studio
-copyright: Copyright © 2026 Grace Wood Industry
+appId: com.jacobdesignstudio.studio
+productName: Jacob Design Studio
+copyright: Copyright © 2026 Jacob Design Studio
 
 directories:
   output: release
@@ -62,7 +62,7 @@ win:
       arch:
         - x64
 
-# The install wizard is built by desktop/installer/GraceStudio.nsi, using the
+# The install wizard is built by desktop/installer/JacobStudio.nsi, using the
 # win-unpacked payload from `electron-builder --win dir`. This mirrors the
 # installer used by the attendance tool: welcome, options, install, finish with
 # a launch checkbox, per-user install, no administrator prompt.

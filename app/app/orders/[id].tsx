@@ -21,7 +21,7 @@ import { ErrorState, LoadingState } from '@/components/StateViews';
 import { openUrl, shareLink } from '@/lib/actions';
 import { copyText } from '@/lib/clipboard';
 import { api, errorMessage, fileUrl, type Order, type OrderNote, type Render } from '@/lib/api';
-import { displayValue, formatDate, formatDateTime, pageCountLabel, statusLabel } from '@/lib/format';
+import { displayValue, formatDateTime, pageCountLabel, statusLabel } from '@/lib/format';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
 const PAGE_ASPECT = 794 / 1123;
@@ -89,11 +89,7 @@ const SPEC_SECTIONS: {
 ];
 
 export default function OrderDetailScreen() {
-  const { id, reference: routeReference, referenceName: routeReferenceName } = useLocalSearchParams<{
-    id?: string;
-    reference?: string;
-    referenceName?: string;
-  }>();
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const orderId = id;
   const insets = useSafeAreaInsets();
 
@@ -102,10 +98,6 @@ export default function OrderDetailScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [render, setRender] = useState<Render | null>(null);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
-  const [reference, setReference] = useState<string>(routeReference ?? '');
-  const [referenceName, setReferenceName] = useState<string>(routeReferenceName ?? '');
-  const [referencePreview, setReferencePreview] = useState<string | null>(null);
-  const [referenceSummary, setReferenceSummary] = useState<string | null>(null);
   const [direction, setDirection] = useState('');
   const [designLoading, setDesignLoading] = useState(false);
   const [designError, setDesignError] = useState<string | null>(null);
@@ -117,41 +109,6 @@ export default function OrderDetailScreen() {
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
-
-  // Returning from the reference gallery replaces the route parameters while
-  // this screen stays mounted, so the choice is copied into state.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (routeReference !== undefined) setReference(routeReference);
-    if (routeReferenceName !== undefined) setReferenceName(routeReferenceName);
-  }, [routeReference, routeReferenceName]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // The preview image arrives from the network; the effect only subscribes.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!reference) {
-      setReferencePreview(null);
-      return;
-    }
-    let active = true;
-    api
-      .listDesigns()
-      .then((library) => {
-        if (!active) return;
-        const match = library.designs.find((design) => design.id === reference);
-        setReferencePreview(match?.previewUrl ?? null);
-        if (match?.name) setReferenceName(match.name);
-        setReferenceSummary(match?.summary ?? null);
-      })
-      .catch(() => {
-        if (active) setReferencePreview(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [reference]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -181,19 +138,11 @@ export default function OrderDetailScreen() {
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
       if (mine.length > 0) {
         setRender(mine[0]);
-        const design = mine[0].design as
-          | { reference?: string | null; referenceName?: string | null }
-          | null
-          | undefined;
-        if (!routeReference && design?.reference) {
-          setReference(design.reference);
-          setReferenceName(design.referenceName ?? '');
-        }
       }
     } catch {
       // No previous brochure is not an error.
     }
-  }, [orderId, routeReference]);
+  }, [orderId]);
 
   // The loading state is the initial state, so the first paint is already
   // correct; the effect only fills it.
@@ -219,28 +168,20 @@ export default function OrderDetailScreen() {
     setDesignStatus(null);
     setShareStatus(null);
     try {
-      const result = await api.aiBrochure(orderId, {
-        direction,
-        ...(reference ? { reference } : {}),
-      });
+      const result = await api.aiBrochure(orderId, { direction });
       setRender(result.render);
       setOrder((current) =>
         current
           ? { ...current, copy: result.copy, designDirection: result.direction ?? direction }
           : current
       );
-      const design = result.design as
-        | { reference?: string | null; referenceName?: string | null }
-        | null
-        | undefined;
-      if (design?.referenceName) setReferenceName(design.referenceName);
       setDesignStatus('The brochure was designed and printed.');
     } catch (error) {
       setDesignError(errorMessage(error, 'The model could not design this brochure. Check the settings.'));
     } finally {
       setDesignLoading(false);
     }
-  }, [designLoading, direction, orderId, reference]);
+  }, [designLoading, direction, orderId]);
 
   const draftNote = useCallback(async () => {
     if (!orderId || noteLoading) return;
@@ -357,47 +298,6 @@ export default function OrderDetailScreen() {
                   photographs and the finish samples. A reference only sets the feel; the layout is
                   composed for this piece.
                 </Text>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Choose a design reference"
-                  onPress={() => {
-                    if (!orderId) return;
-                    router.push({
-                      pathname: '/templates',
-                      params: { orderId, reference: reference || undefined },
-                    });
-                  }}
-                  style={({ pressed }) => [styles.referenceCard, pressed && styles.referencePressed]}>
-                  {referencePreview ? (
-                    <Image
-                      source={{ uri: fileUrl(referencePreview) }}
-                      style={styles.referenceThumb}
-                      resizeMode="cover"
-                      accessibilityLabel={`Printed preview of ${referenceName || reference}`}
-                    />
-                  ) : (
-                    <View style={styles.referenceMark}>
-                      <Text style={styles.referenceMarkLabel}>◈</Text>
-                    </View>
-                  )}
-                  <View style={styles.referenceText}>
-                    <Text style={styles.referenceTitle}>
-                      {referenceName || reference ? referenceName || 'Selected reference' : 'No reference'}
-                    </Text>
-                    {referenceSummary ? (
-                      <Text style={[text.caption, styles.referenceCaption]} numberOfLines={2}>
-                        {referenceSummary}
-                      </Text>
-                    ) : null}
-                    <Text style={[text.caption, styles.referenceCaption]}>
-                      {reference || referenceName
-                        ? 'Reference feel. Change it whenever you like.'
-                        : 'Let the model read the room. Pick a look only if you want to guide the mood.'}
-                    </Text>
-                  </View>
-                  <Text style={styles.referenceAction}>{reference || referenceName ? 'Change' : 'Choose'}</Text>
-                </Pressable>
 
                 <View style={styles.briefField}>
                   <Field
@@ -538,7 +438,7 @@ export default function OrderDetailScreen() {
               </View>
 
               <View style={[shared.hairline, styles.footerRule]} />
-              <Text style={[text.caption, styles.footerNote]}>Grace Wood Industry · Catalogue Studio</Text>
+              <Text style={[text.caption, styles.footerNote]}>Jacob Design Studio · Catalogue Studio</Text>
             </>
           ) : null}
         </View>

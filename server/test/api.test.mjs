@@ -32,23 +32,19 @@ import {
   getOrder,
   getSetting,
   llmCacheStats,
-  putDesignCatalog,
   putLlmCache,
-  getDesignCatalog,
-  listMaterials,
   listRenders,
   listSettings,
   openDb,
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { CATALOG_VERSION } from '../src/design-catalog.mjs';
 import { parseDesignerReply } from '../src/ai-brochure.mjs';
-import { buildPendingPreviews, countReadyPreviews, revalidatePreviews } from '../src/design-previews.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
 import {
+  buildIntakeMessages,
   cleanReadyReply,
   ensureMissingMentioned,
   humanList,
@@ -327,7 +323,7 @@ const DEMO_MATERIALS = [
 // preview needs customer photography or finish swatches.
 const FIXTURE_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-const FIXTURE_ROOM_FILES = [1, 2, 3].map((index) => ({
+const FIXTURE_ROOM_FILES = [1, 2].map((index) => ({
   url: `/media/fixture-room-${index}.png`,
   name: `fixture-room-${index}.png`,
   contentType: 'image/png',
@@ -525,7 +521,7 @@ test('creates an order with a generated order number', async () => {
   });
   assert.equal(response.status, 201);
   const order = await response.json();
-  assert.match(order.orderNo, /^GWI-\d{4}-001$/);
+  assert.match(order.orderNo, /^JDS-\d{4}-001$/);
   assert.equal(order.customerId, customerId);
   assert.equal(order.customerName, 'Test Customer');
   assert.equal(order.title, DEMO_ORDER.title);
@@ -3504,42 +3500,6 @@ function setOrderCopyForTest(copy = BROCHURE_COPY) {
   );
 }
 
-test('the design reference library is written by the model and served', { timeout: 120_000 }, async () => {
-  resetLlmState();
-  await configureLlm();
-  db.prepare('DELETE FROM design_catalog').run();
-  resetMockProvider({
-    replies: [catalogBatch(0), catalogBatch(25), catalogBatch(50), catalogBatch(75)],
-  });
-
-  const first = await fetch(`${baseUrl}/api/designs`);
-  assert.equal(first.status, 200);
-  const opening = await first.json();
-  assert.equal(opening.expected, 100);
-  assert.ok(opening.building, 'the first request starts the background build');
-
-  let library = opening;
-  for (let attempt = 0; attempt < 200 && !library.ready; attempt += 1) {
-    await sleep(100);
-    library = await (await fetch(`${baseUrl}/api/designs`)).json();
-  }
-  assert.equal(library.ready, true, `the library stopped at ${library.designs.length} designs`);
-  assert.equal(library.designs.length, 100);
-  assert.equal(new Set(library.designs.map((design) => design.id)).size, 100, 'every id is unique');
-  assert.equal(new Set(library.designs.map((design) => design.name)).size, 100, 'every name is unique');
-  assert.ok(new Set(library.designs.map((design) => design.family)).size > 1, 'families vary');
-  for (const design of library.designs) {
-    assert.match(design.palette.paper, /^#[0-9A-F]{6}$/);
-    assert.match(design.palette.ink, /^#[0-9A-F]{6}$/);
-    assert.ok(['Instrument Serif', 'Barlow'].includes(design.displayFont));
-    assert.ok(['jaali', 'paisley', 'lotus', 'rangoli', 'arch', 'none'].includes(design.ornament));
-  }
-  const requestsAfterBuild = mockProviderState.requests.length;
-  const again = await (await fetch(`${baseUrl}/api/designs`)).json();
-  assert.equal(again.ready, true);
-  assert.equal(mockProviderState.requests.length, requestsAfterBuild, 'a built library is not asked again');
-});
-
 test('the model designs and typesets a printable brochure from scratch', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();
@@ -3556,7 +3516,6 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
   assert.equal(body.render.design.designed, true);
   assert.match(body.render.design.label, /Designed by the model/i);
   assert.deepEqual(body.copy, BROCHURE_COPY);
-  assert.equal(body.design.reference, null);
 
   const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
   const flat = normaliseText(text);
@@ -3632,6 +3591,47 @@ test('a brochure outside four to eight pages is rejected before print', () => {
   assert.throws(() => parseDesignerReply(`<html><body>${pages(9)}</body></html>`, 2), /four to eight/);
 });
 
+test('the designer is told the pictures are the source and must all be used', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  resetMockProvider({ reply: DESIGNER_HTML });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 201, await response.text());
+  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
+  assert.match(prompt, /every photograph token/i);
+  assert.match(prompt, /magnifier/i);
+  assert.match(prompt, /colour palette/i);
+  assert.match(prompt, /mirror/i);
+  assert.match(prompt, /photo1 palette:/i);
+  assert.match(prompt, /#[0-9A-F]{6}/i);
+});
+
+test('a document that ignores an uploaded picture is rejected', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  // The order carries two photographs; this reply only prints the first.
+  const singlePhoto = DESIGNER_HTML.replaceAll('{{photo2}}', '{{photo1}}');
+  resetMockProvider({ reply: singlePhoto });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /photo2/i);
+  assert.match(body.error.message, /never used|every photograph/i);
+});
+
+test('the intake asks which detail to magnify when pictures arrive unnamed', () => {
+  const messages = buildIntakeMessages(
+    [{ role: 'user', content: 'Here are the project photos.' }],
+    {},
+    'The customer attached 2 photographs.',
+  );
+  const prompt = messages.map((message) => message.content).join('\n').toLowerCase();
+  assert.match(prompt, /magnif/);
+  assert.match(prompt, /detail/);
+});
+
 test('an unusable design is retried once and then fails cleanly', { timeout: 120_000 }, async () => {
   resetLlmState();
   await configureLlm();
@@ -3642,122 +3642,6 @@ test('an unusable design is retried once and then fails cleanly', { timeout: 120
   const body = await response.json();
   assert.equal(body.error.type, 'invalid_reply');
   assert.equal(mockProviderState.requests.length, 2, 'one retry, then the failure is surfaced');
-});
-
-test('a studio reference guides the design but is never printed itself', { timeout: 240_000 }, async () => {
-  resetLlmState();
-  await configureLlm();
-  setOrderCopyForTest();
-  const library = await (await fetch(`${baseUrl}/api/designs`)).json();
-  assert.ok(library.designs.length > 0, 'the library exists from the earlier test');
-  const reference = library.designs[0];
-  resetMockProvider({ reply: DESIGNER_HTML });
-
-  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {
-    reference: reference.id,
-  });
-  const raw = await response.text();
-  assert.equal(response.status, 201, raw);
-  const body = JSON.parse(raw);
-  assert.equal(body.design.reference, reference.id);
-  assert.equal(body.design.referenceName, reference.name);
-  assert.match(body.render.design.label, new RegExp(reference.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-
-  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
-  assert.match(prompt, /STUDIO REFERENCE/);
-  assert.match(prompt, /never substitute the template assets/i);
-  assert.ok(prompt.includes(reference.name));
-  assert.ok(prompt.includes(reference.palette.paper));
-  assert.ok(prompt.toLowerCase().includes('never copy a reference layout'));
-});
-
-test('each reference earns its preview from a real printed brochure', { timeout: 240_000 }, async () => {
-  resetLlmState();
-  await configureLlm();
-  const previewDesigns = [0, 1].map((number) => ({
-    id: `preview-proof-${number + 1}`,
-    name: `Preview Proof ${number + 1}`,
-    family: 'Ledger',
-    mood: 'quiet, warm, measured',
-    summary: 'A calm printed look with warm paper and one precise accent',
-    palette: {
-      paper: '#FBF3E4',
-      ink: '#2A1512',
-      deep: '#4A1116',
-      accent: '#7C2A22',
-      gold: '#C79A3A',
-      hair: '#E3D2B8',
-      muted: '#6B4A3E',
-      onDark: '#FBF3E4',
-    },
-    displayFont: 'Instrument Serif',
-    bodyFont: 'Barlow',
-    coverIdea: 'A tall photograph with the title low and the brand at the head',
-    ornament: 'lotus',
-  }));
-  putDesignCatalog(db, { version: CATALOG_VERSION, expected: 2, designs: previewDesigns });
-  const previewRenderer = createRenderer({ templatesDir, dataDir, weasyprintBin, pdftoppmBin });
-  const config = resolveLlmConfig(db, {});
-  const logger = createLogger({ level: 'error' });
-  const deps = {
-    db,
-    renderer: previewRenderer,
-    templatesDir,
-    dataDir,
-    materials: listMaterials(db),
-    config,
-    requestChat,
-    newRenderId,
-    logger,
-  };
-  // One shared copy call, then one designer call per reference.
-  resetMockProvider({ replies: [JSON.stringify(BROCHURE_COPY), DESIGNER_HTML, DESIGNER_HTML] });
-  const finished = await buildPendingPreviews(deps);
-  assert.equal(finished, 2);
-  assert.equal(mockProviderState.requests.length, 3, 'one shared copy plus one design per reference');
-  assert.equal(countReadyPreviews(db, dataDir), 2);
-  for (const design of previewDesigns) {
-    const png = path.join(dataDir, 'design-previews', `${design.id}.png`);
-    assert.ok(existsSync(png), `${design.id} cover exists`);
-    // Flat sample plates compress well: the cover proves itself by existing
-    // as a full page raster, not by byte bulk.
-    assert.ok(
-      statSync(png).size > 4000 && readFileSync(png).subarray(0, 8).equals(PNG_SIGNATURE),
-      'the cover is a real page image',
-    );
-    const flat = normaliseText(pdfText(path.join(dataDir, 'design-previews', `${design.id}.pdf`)));
-    assert.ok(
-      flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()),
-      'the preview sets the shared words',
-    );
-    assert.equal(flat.includes('{{'), false, 'no token leaks into a preview');
-  }
-  const stored = getDesignCatalog(db);
-  assert.ok(stored.designs.every((design) => design.previewReady === true));
-  assert.ok(typeof stored.sampleCopy === 'string' && stored.sampleCopy.includes(BROCHURE_COPY.headline));
-  // A second run finds nothing pending and makes no calls.
-  resetMockProvider({ reply: 'unused' });
-  assert.equal(await buildPendingPreviews(deps), 0);
-  assert.equal(mockProviderState.requests.length, 0);
-
-  // A glimpse printed under an older rule set is re-judged: a saved document
-  // that still passes is reprinted locally, one that fails loses its flag and
-  // keeps showing its old image until the model reprint lands.
-  const previewCatalog = getDesignCatalog(db);
-  putDesignCatalog(db, {
-    ...previewCatalog,
-    designs: previewCatalog.designs.map((design) =>
-      design.id === 'preview-proof-1' ? { ...design, previewVersion: 1 } : design,
-    ),
-  });
-  const shrunk = DESIGNER_HTML.replace('width:216mm;height:303mm', 'width:20mm;height:20mm');
-  writeFileSync(path.join(dataDir, 'design-previews', 'preview-proof-1.html'), shrunk);
-  const revalidated = await revalidatePreviews(deps);
-  assert.equal(revalidated.cleared, 1);
-  assert.equal(countReadyPreviews(db, dataDir), 2);
-  resetMockProvider({ reply: DESIGNER_HTML });
-  assert.equal(await buildPendingPreviews(deps), 1);
-  assert.ok(getDesignCatalog(db).designs.every((design) => design.previewReady === true));
 });
 
 test('a chat sentence edits the order and the page it already has', { timeout: 300_000 }, async () => {
@@ -4007,10 +3891,10 @@ test('attaching files to a live order saves them and re-renders with them', { ti
   const body = JSON.parse(raw);
   assert.equal(body.attachmentsAdded, 2);
   assert.equal(body.rerender, true);
-  assert.equal(body.order.attachments.length, 3 + 2);
+  assert.equal(body.order.attachments.length, 2 + 2);
   assert.ok(body.order.attachments.some((file) => file.url === '/media/edit-proof.png'));
   const stored = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
-  assert.equal(stored.attachments.length, 3 + 2);
+  assert.equal(stored.attachments.length, 2 + 2);
 
   // Attaching the same file again adds nothing but still succeeds.
   const repeat = await postJson(`${baseUrl}/api/orders/${orderId}/edit`, {
@@ -4027,16 +3911,6 @@ test('attaching files to a live order saves them and re-renders with them', { ti
   });
   assert.equal(rejected.status, 400);
 
-  // The brochure then prints with the new photograph in the set.
-  resetMockProvider({ reply: DESIGNER_HTML });
-  const revised = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {
-    edit: 'Use the new photograph on the cover.',
-    copy: body.copy,
-  });
-  const revisedRaw = await revised.text();
-  assert.equal(revised.status, 201, revisedRaw);
-  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
-  assert.ok(prompt.includes('1 by 1 px'), 'the attached photo reaches the designer');
 });
 
 test('network egress only allows the configured model provider and loopback', async () => {

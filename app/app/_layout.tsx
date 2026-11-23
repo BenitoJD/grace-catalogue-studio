@@ -10,7 +10,7 @@ import { colors, layout, space, text } from '@/lib/theme';
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   return (
     <View style={styles.errorPage}>
-      <Text style={text.eyebrow}>Grace Studio</Text>
+      <Text style={text.eyebrow}>Jacob Design Studio</Text>
       <Text style={[text.display, styles.errorTitle]}>Something broke on this screen</Text>
       <Text style={[text.muted, styles.errorBody]}>
         The rest of the app is fine. Try again, and if it happens twice, close the app and reopen it.
@@ -36,7 +36,6 @@ export default function RootLayout() {
         }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="orders/[id]" />
-        <Stack.Screen name="templates" />
       </Stack>
     </BootstrapProvider>
   );

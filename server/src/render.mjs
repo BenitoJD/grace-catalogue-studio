@@ -25,13 +25,13 @@ const execFileAsync = promisify(execFile);
 const COMMAND_TIMEOUT_MS = 120_000;
 const COMMAND_BUFFER = 16 * 1024 * 1024;
 
-// Grace Wood Industry details used by the kit template and the voucher footer.
+// Jacob Design Studio details used by the kit template and the voucher footer.
 const COMPANY = {
   addressLine1: '26J, Rajjakamangalam Road',
   addressLine2: 'Chettikulam, Nagercoil',
   cityLine: 'Nagercoil',
   phone: '+91 63740 43346',
-  email: 'info.gracewoodindustry@gmail.com',
+  email: 'info.jacobdesignstudio@gmail.com',
   shopLine: 'Chettikulam · Nagercoil · +91 63740 43346',
 };
 

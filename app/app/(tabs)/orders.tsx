@@ -62,12 +62,12 @@ export default function OrdersScreen() {
             source={require('@/assets/images/logo.png')}
             style={styles.brandMark}
             resizeMode="contain"
-            accessibilityLabel="Grace Wood Industry"
+            accessibilityLabel="Jacob Design Studio"
           />
           <View style={styles.brandText}>
             <Text style={text.eyebrow}>Catalogue studio</Text>
             <TamilLine />
-            <Text style={[text.display, styles.title]}>Grace Wood</Text>
+            <Text style={[text.display, styles.title]}>Jacob Design Studio</Text>
           </View>
         </View>
         <Text style={[text.muted, styles.subtitle]}>

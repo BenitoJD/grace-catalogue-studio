@@ -484,7 +484,7 @@ export function deleteCustomer(db, id) {
 
 function nextOrderNo(db) {
   const year = new Date().getFullYear();
-  const prefix = `GWI-${year}-`;
+  const prefix = `JDS-${year}-`;
   const row = db
     .prepare('SELECT orderNo FROM orders WHERE orderNo LIKE ? ORDER BY orderNo DESC LIMIT 1')
     .get(`${prefix}%`);

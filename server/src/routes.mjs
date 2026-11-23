@@ -17,7 +17,6 @@ import {
   deleteOrder,
   deleteSetting,
   getCustomer,
-  getDesignCatalog,
   getLlmCache,
   getMaterial,
   getOrder,
@@ -29,7 +28,6 @@ import {
   listCustomers,
   listMaterials,
   listOrders,
-  putDesignCatalog,
   listRenders,
   listRendersForOrder,
   setOrderAttachments,
@@ -61,20 +59,6 @@ import {
   photoProfiles,
   readCopyOverride,
 } from './ai-brochure.mjs';
-import {
-  CATALOG_BATCH,
-  CATALOG_SIZE,
-  CATALOG_VERSION,
-  buildCatalogMessages,
-  parseCatalogReply,
-  referenceForDesigner,
-} from './design-catalog.mjs';
-import {
-  PREVIEW_VERSION,
-  buildPendingPreviews,
-  countReadyPreviews,
-  revalidatePreviews,
-} from './design-previews.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
   INTAKE_MAX_MESSAGE_CHARS,
@@ -122,6 +106,7 @@ import {
   validateProvider,
 } from './llm.mjs';
 import { createLogger, parseLogLevel } from './logger.mjs';
+import { photoPalettesFor } from './image-palette.mjs';
 import { buildKitValues, createRenderer, newRenderId } from './render.mjs';
 import {
   RATE_CARD_TEMPLATE,
@@ -464,24 +449,10 @@ export function createApp(options) {
     parseCacheTtlHours(process.env.LLM_CACHE_TTL_HOURS);
   const cacheEnabled = Number.isFinite(cacheTtlHours) && cacheTtlHours > 0;
   const cacheCutoff = () => cacheExpiryCutoff(cacheTtlHours);
-  // The suite builds previews through the engine directly, so the shared test
-  // app leaves the background engine off. Production, desktop and the browser
-  // suite keep the default: on.
-  const previewsEnabled = options.previewsEnabled ?? true;
 
   const variants = loadVariants(templatesDir);
   const renderer =
     options.renderer ??
-    createRenderer({
-      templatesDir,
-      dataDir,
-      weasyprintBin,
-      pdftoppmBin,
-    });
-  // Previews print on their own queue so a hundred background brochures can
-  // never stand in front of the one the studio just asked for.
-  const previewRenderer =
-    options.previewRenderer ??
     createRenderer({
       templatesDir,
       dataDir,
@@ -546,103 +517,6 @@ export function createApp(options) {
     noteLimitPerMin,
     isShuttingDown: () => lifecycle.shuttingDown,
   });
-
-  // The design reference library is built in the background, one volume at a
-  // time, and saved after every volume so the gallery fills up while the person
-  // is already browsing. Only one build runs at a time.
-  const designBuildState = { active: false };
-  // Rendered previews follow the same rule: one reference at a time, every
-  // finished preview saved at once, resumable across restarts.
-  const previewBuildState = { active: false };
-
-  function previewDeps(config) {
-    return {
-      db,
-      renderer: previewRenderer,
-      templatesDir,
-      dataDir,
-      materials: listMaterials(db),
-      config,
-      requestChat,
-      newRenderId,
-      logger,
-    };
-  }
-
-  function startPreviewBuild(config) {
-    if (previewBuildState.active) return;
-    previewBuildState.active = true;
-    void (async () => {
-      try {
-        await revalidatePreviews(previewDeps(config));
-        const finished = await buildPendingPreviews(previewDeps(config));
-        logger.info('Design preview run finished.', { finished });
-      } catch (error) {
-        logger.warn('Design preview run stopped.', {
-          reason: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        previewBuildState.active = false;
-      }
-    })();
-  }
-
-  async function requestCatalogVolume(config, existing) {
-    const count = Math.min(CATALOG_BATCH, CATALOG_SIZE - existing.length);
-    const messages = buildCatalogMessages({
-      volumeIndex: Math.floor(existing.length / CATALOG_BATCH),
-      count,
-      existingNames: existing.map((design) => design.name),
-    });
-    const result = await requestChat({
-      provider: config.provider,
-      endpoint: config.endpoint,
-      model: config.model,
-      apiKey: config.apiKey,
-      messages,
-      maxTokens: 6000,
-      temperature: 0.8,
-      timeoutMs: 300_000,
-    });
-    return parseCatalogReply(result.content, {
-      count,
-      existingIds: existing.map((design) => design.id),
-      existingNames: existing.map((design) => design.name),
-    });
-  }
-
-  function startDesignBuild(config) {
-    if (designBuildState.active) return;
-    designBuildState.active = true;
-    void (async () => {
-      let catalog = getDesignCatalog(db);
-      let designs = catalog.version === CATALOG_VERSION ? [...catalog.designs] : [];
-      try {
-        if (catalog.version !== CATALOG_VERSION) {
-          designs = [];
-          putDesignCatalog(db, { version: CATALOG_VERSION, expected: CATALOG_SIZE, designs });
-        }
-        let attempts = 0;
-        while (designs.length < CATALOG_SIZE && attempts < 12) {
-          attempts += 1;
-          try {
-            const volume = await requestCatalogVolume(config, designs);
-            designs = [...designs, ...volume].slice(0, CATALOG_SIZE);
-            putDesignCatalog(db, { version: CATALOG_VERSION, expected: CATALOG_SIZE, designs });
-            logger.info('Design reference volume added.', { count: designs.length });
-          } catch (error) {
-            logger.warn('Design reference volume failed.', {
-              reason: error instanceof Error ? error.message : String(error),
-              count: designs.length,
-            });
-          }
-        }
-      } finally {
-        designBuildState.active = false;
-        logger.info('Design reference library ready.', { count: designs.length });
-      }
-    })();
-  }
 
   // Concurrent requests for the same document share one build instead of
   // queueing a second identical render behind the first.
@@ -718,22 +592,6 @@ export function createApp(options) {
     }
     const filePath = await previewStore.ensure(match[1]);
     return sendFile(c, filePath, 'image/png');
-  });
-
-  // Rendered cover and full PDF for one design reference. Only files the
-  // preview engine wrote are served; anything else is a 404.
-  app.get('/design-previews/:file', async (c) => {
-    const match = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.(png|pdf)$/.exec(c.req.param('file'));
-    if (!match) return fail(c, 404, 'Preview not found.');
-    const designs = getDesignCatalog(db).designs ?? [];
-    if (!designs.some((design) => design.id === match[1])) {
-      return fail(c, 404, 'Preview not found.');
-    }
-    return sendFile(
-      c,
-      path.join(dataDir, 'design-previews', match[0]),
-      match[2] === 'pdf' ? 'application/pdf' : 'image/png',
-    );
   });
 
   // -------------------------------------------------------------------------
@@ -1429,49 +1287,6 @@ export function createApp(options) {
     }
   });
 
-  // The design reference library the gallery and the chat picker read. The
-  // first request starts the background build and returns whatever is ready,
-  // so the client can fill the gallery volume by volume. Once the library is
-  // complete the same request starts the preview engine, which prints a real
-  // four page brochure for each reference and serves its cover here.
-  app.get('/api/designs', (c) => {
-    const config = resolveLlmConfig(db, llmEnv);
-    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
-    let catalog = getDesignCatalog(db);
-    if (catalog.version !== CATALOG_VERSION) {
-      catalog = putDesignCatalog(db, {
-        version: CATALOG_VERSION,
-        expected: CATALOG_SIZE,
-        designs: [],
-      });
-    }
-    if (catalog.designs.length < CATALOG_SIZE && !designBuildState.active) {
-      startDesignBuild(config);
-    }
-    const libraryReady = catalog.designs.length >= CATALOG_SIZE;
-    if (libraryReady && previewsEnabled && !previewBuildState.active) {
-      const pending = catalog.designs.filter(
-        (design) => !design.previewReady || design.previewVersion !== PREVIEW_VERSION,
-      ).length;
-      if (pending > 0) startPreviewBuild(config);
-    }
-    const designs = catalog.designs ?? [];
-    const previewsReady = countReadyPreviews(db, dataDir);
-    return c.json({
-      designs: designs.map((design) => ({
-        ...design,
-        previewUrl: design.previewReady ? `/design-previews/${design.id}.png` : null,
-        previewPdfUrl: design.previewReady ? `/design-previews/${design.id}.pdf` : null,
-      })),
-      expected: CATALOG_SIZE,
-      building: designBuildState.active || designs.length < CATALOG_SIZE,
-      ready: libraryReady,
-      previewsReady,
-      previewsTotal: CATALOG_SIZE,
-      previewsBuilding: previewBuildState.active || previewsReady < CATALOG_SIZE,
-    });
-  });
-
   // The model designs and typesets the brochure. No template is chosen: the
   // order, the photographs, the approved copy and the studio direction go to
   // the model, which authors the four pages itself. A chat edit carries the
@@ -1499,21 +1314,6 @@ export function createApp(options) {
       direction = body.direction.trim().slice(0, 1200);
       if (direction !== (order.design_direction ?? '')) {
         order = updateOrder(db, order.id, { design_direction: direction });
-      }
-    }
-
-    // An optional design reference from the gallery. It only reaches the model
-    // as words and mood; the reference itself is never rendered.
-    let reference = null;
-    if (body.reference !== undefined && body.reference !== null) {
-      if (typeof body.reference !== 'string') {
-        return fail(c, 400, 'Field "reference" must be a design id.');
-      }
-      const requestedReference = body.reference.trim();
-      if (requestedReference !== '') {
-        const chosen = getDesignCatalog(db).designs.find((design) => design.id === requestedReference);
-        if (!chosen) return fail(c, 400, `Unknown design reference "${requestedReference}".`);
-        reference = referenceForDesigner(chosen);
       }
     }
 
@@ -1546,6 +1346,7 @@ export function createApp(options) {
       );
     }
     const photoShapes = photoProfiles(attached, templatesDir);
+    const photoPalettes = photoPalettesFor(order, path.join(dataDir, 'media'));
 
     try {
       // 1. Words. Studio edited copy wins, then the stored copy, then a fresh
@@ -1578,7 +1379,7 @@ export function createApp(options) {
         copy,
         photos: attached,
         photoShapes,
-        reference,
+        photoPalettes,
         previousHtml,
         editNote,
       });
@@ -1632,11 +1433,9 @@ export function createApp(options) {
       const renderId = newRenderId();
       const rendered = await renderer.renderHtml({ html, renderId });
       const design = {
-        label: designLabel({ direction, referenceName: reference?.name ?? '' }),
+        label: designLabel({ direction }),
         designed: true,
         direction,
-        reference: reference?.id ?? null,
-        referenceName: reference?.name ?? null,
       };
       const render = createRender(db, {
         id: renderId,
@@ -1696,7 +1495,7 @@ export function createApp(options) {
     const config = resolveLlmConfig(db, llmEnv);
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
     const prompt = [
-      'You edit one existing furniture order and its brochure for Grace Wood Industry, Nagercoil.',
+      'You edit one existing furniture order and its brochure for Jacob Design Studio, Nagercoil.',
       'The studio will speak naturally about a change. Reply with strict JSON only:',
       '{"reply":"one or two natural sentences saying what you changed","order":{...only changed order fields...},"copy":{...only changed copy fields, headline body closing...},"rerender":true}',
       'Order fields: title room width height depth shutters carcass backPanel shuttersMat drawers exterior interior hinges channels edgeShutter edgeCarcass edgeNote handle handleNote finishExt finishInt brief.',

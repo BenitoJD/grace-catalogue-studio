@@ -315,7 +315,7 @@ export function buildVoucherDocumentValues({
 // between variants and do not depend on customer data.
 export const SAMPLE_ORDER = {
   id: 'preview',
-  orderNo: 'GWI-2026-001',
+  orderNo: 'JDS-2026-001',
   customerName: 'Arun Kumar',
   title: 'Master Bedroom Wardrobe',
   room: 'Master bedroom',

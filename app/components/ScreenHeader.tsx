@@ -37,7 +37,7 @@ export function ScreenHeader({ eyebrow, title, subtitle, back, onBack, children 
           source={require('@/assets/images/logo.png')}
           style={styles.mark}
           resizeMode="contain"
-          accessibilityLabel="Grace Wood Industry"
+          accessibilityLabel="Jacob Design Studio"
         />
         <Text style={[text.screenTitle, styles.titleText]}>{title}</Text>
       </View>

@@ -24,7 +24,6 @@ import {
   fileUrl,
   type IntakeMessage,
   type OrderAttachment,
-  type DesignReference,
   type Render,
 } from '@/lib/api';
 import { openUrl } from '@/lib/actions';
@@ -54,7 +53,7 @@ type Bubble =
     };
 
 const WELCOME =
-  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order and ask only for what is missing, then design the brochure.\n\nIf a detail is not known yet, say so and I will mark it to be confirmed.\n\nA look below is only a reference for the feel. The pages are composed for this order from the photographs, the finish samples and the facts.';
+  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order, ask only for what is missing, then design the brochure from the pictures you upload and the model designs every page for this project.\n\nIf a detail is not known yet, say so and I will mark it to be confirmed.\n\nName the detail you want magnified, such as a handle, an edge, a grain or the colour palette, and I will print it as a loupe callout. If you do not say, I will ask.';
 
 
 let counter = 0;
@@ -87,117 +86,14 @@ const SHORT_LABELS: Record<string, string> = {
   'number of shutters': 'Shutters',
 };
 
-function shortLabel(label: string): string {
-  return SHORT_LABELS[label] ?? label.replace(/^the /, '').slice(0, 18);
-}
-
-function matchDesigns(
-  designs: DesignReference[],
-  query: string
-): DesignReference[] {
-  const needle = query.trim().toLowerCase();
-  if (needle === '') return designs;
-  return designs.filter((design) =>
-    [design.name, design.family, design.mood, design.summary]
-      .join(' ')
-      .toLowerCase()
-      .includes(needle)
-  );
-}
-
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '';
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function DesignTile({
-  design,
-  selected,
-  noDesign = false,
-  onPress,
-}: {
-  design?: DesignReference;
-  selected: boolean;
-  noDesign?: boolean;
-  onPress: () => void;
-}) {
-  const [glimpseFailed, setGlimpseFailed] = useState(false);
-  if (noDesign || !design) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Let the model decide the look"
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.designCard,
-          selected && styles.designCardSelected,
-          pressed && styles.sendPressed,
-        ]}>
-        <View style={[styles.designThumb, styles.designThumbNo]}>
-          <Text style={styles.designThumbNoLabel}>AI</Text>
-          <Text style={styles.designThumbNoSub}>From the room</Text>
-        </View>
-        <Text
-          style={[styles.designName, selected && styles.designNameSelected]}
-          numberOfLines={2}>
-          Model decides
-        </Text>
-        <Text style={styles.designSub} numberOfLines={1}>
-          No reference
-        </Text>
-      </Pressable>
-    );
-  }
-  const palette = design.palette;
-  const showGlimpse = Boolean(design.previewUrl) && !glimpseFailed;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Use the reference ${design.name}`}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.designCard,
-        selected && styles.designCardSelected,
-        pressed && styles.sendPressed,
-      ]}>
-      {showGlimpse ? (
-        <Image
-          source={{ uri: fileUrl(design.previewUrl ?? '') }}
-          style={[styles.designThumb, styles.designThumbImage]}
-          resizeMode="cover"
-          accessibilityLabel={`Printed preview of ${design.name}`}
-          onError={() => setGlimpseFailed(true)}
-        />
-      ) : (
-        <View
-          style={[
-            styles.designThumb,
-            { backgroundColor: palette.paper, borderColor: palette.hair },
-          ]}>
-          <View style={[styles.referenceBand, { backgroundColor: palette.accent }]} />
-          <Text
-            style={[styles.referenceTitle, { color: palette.deep }]}
-            numberOfLines={2}>
-            {design.name}
-          </Text>
-          <View style={styles.referenceDots}>
-            {[palette.accent, palette.deep, palette.gold, palette.ink].map((colour) => (
-              <View key={colour} style={[styles.referenceDot, { backgroundColor: colour }]} />
-            ))}
-          </View>
-        </View>
-      )}
-      <Text
-        style={[styles.designName, selected && styles.designNameSelected]}
-        numberOfLines={1}>
-        {design.name}
-      </Text>
-      <Text style={styles.designSub} numberOfLines={1}>
-        {design.family}
-      </Text>
-    </Pressable>
-  );
+function shortLabel(label: string): string {
+  return SHORT_LABELS[label] ?? label.replace(/^the /, '').slice(0, 18);
 }
 
 function SuggestionCard({
@@ -264,69 +160,6 @@ export default function ChatScreen() {
   const { width } = useWindowDimensions();
   const compact = width < 560;
   const scroll = useRef<ComponentRef<typeof ScrollView> | null>(null);
-  const designScroll = useRef<ComponentRef<typeof ScrollView> | null>(null);
-  const designOffset = useRef(0);
-  // Set while a cursor drag is panning the strip, so the click that ends the
-  // drag never lands on a tile as a choice.
-  const designDragging = useRef(false);
-
-  // The web strip pans with the cursor, not just the arrows: press and drag
-  // left or right like a trackpad. Touch keeps its native swipe.
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const scroller = designScroll.current as unknown as {
-      getScrollableNode?: () => HTMLElement | null;
-    } | null;
-    const node =
-      scroller && typeof scroller.getScrollableNode === 'function'
-        ? scroller.getScrollableNode()
-        : null;
-    if (!node) return;
-    let down = false;
-    let startX = 0;
-    let startLeft = 0;
-    const downAt = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse' || event.button !== 0) return;
-      down = true;
-      startX = event.clientX;
-      startLeft = node.scrollLeft;
-    };
-    const moveAt = (event: PointerEvent) => {
-      if (!down) return;
-      const moved = event.clientX - startX;
-      if (Math.abs(moved) > 6 && !designDragging.current) {
-        designDragging.current = true;
-        node.style.cursor = 'grabbing';
-        node.style.userSelect = 'none';
-      }
-      if (designDragging.current) {
-        node.scrollLeft = startLeft - moved;
-        designOffset.current = node.scrollLeft;
-        event.preventDefault();
-      }
-    };
-    const upAt = () => {
-      if (!down) return;
-      down = false;
-      node.style.cursor = 'grab';
-      node.style.userSelect = '';
-      if (designDragging.current) {
-        setTimeout(() => {
-          designDragging.current = false;
-        }, 80);
-      }
-    };
-    node.style.cursor = 'grab';
-    node.addEventListener('pointerdown', downAt);
-    window.addEventListener('pointermove', moveAt);
-    window.addEventListener('pointerup', upAt);
-    return () => {
-      node.style.cursor = '';
-      node.removeEventListener('pointerdown', downAt);
-      window.removeEventListener('pointermove', moveAt);
-      window.removeEventListener('pointerup', upAt);
-    };
-  }, []);
   const frameRef = useRef<any>(null);
   const inputRef = useRef<any>(null);
   const anim = useRef(new Animated.Value(0)).current;
@@ -350,13 +183,7 @@ export default function ChatScreen() {
   const [orderFiles, setOrderFiles] = useState<OrderAttachment[]>([]);
   const [pendingFiles, setPendingFiles] = useState<OrderAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [designs, setDesigns] = useState<DesignReference[]>([]);
-  const [designsBuilding, setDesignsBuilding] = useState(false);
-  // 'ai' means no template: let the model design the brochure for this order.
-  const [chosenDesign, setChosenDesign] = useState<string>('ai');
   const [modelReady, setModelReady] = useState<boolean | null>(null);
-  const [showDesignPicker, setShowDesignPicker] = useState(true);
-  const [designQuery, setDesignQuery] = useState('');
   const [skipping, setSkipping] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -400,33 +227,6 @@ export default function ChatScreen() {
     return () => anim.stopAnimation();
   }, [anim]);
 
-  useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const load = async () => {
-      try {
-        const library = await api.listDesigns();
-        if (!active) return;
-        setDesigns(library.designs);
-        // Keep polling while the library or its printed previews are still
-        // being written: every poll restarts a stalled background run, and
-        // every finished preview flips its tile from a palette card to the
-        // printed glimpse. A failed poll retries instead of going quiet.
-        const working = library.building || library.previewsBuilding;
-        setDesignsBuilding(working);
-        if (working) timer = setTimeout(load, 4000);
-      } catch {
-        if (!active) return;
-        timer = setTimeout(load, 8000);
-      }
-    };
-    void load();
-    return () => {
-      active = false;
-      if (timer) clearTimeout(timer);
-    };
-  }, []);
-
   const history = useCallback((): IntakeMessage[] => {
     return bubbles
       .filter((bubble) => bubble.kind === 'text')
@@ -464,13 +264,11 @@ export default function ChatScreen() {
     setMissing([]);
     setReady(false);
     setOrderCreated(false);
-    setShowDesignPicker(true);
     setCopiedId(null);
     setCreateFailed(false);
     setOrderFiles([]);
     setPendingFiles([]);
     setInput('');
-    setChosenDesign('ai');
     previousBubbleCount.current = 1;
     atBottomRef.current = true;
     setAtBottom(true);
@@ -685,16 +483,13 @@ export default function ChatScreen() {
             .map((message) => message.content)
             .join(' ')
             .slice(0, 2000);
-        // The chosen look is a reference for the model, never a page that gets
-        // printed. The model composes the four pages for this order.
-        const reference = chosenDesign !== 'ai' && chosenDesign !== '' ? chosenDesign : undefined;
+
+        // The model designs and typesets the brochure from the order and the
+        // uploaded photographs. There is no template and no silent fallback.
         let render: Render | null = null;
         let designError: string | null = null;
         try {
-          const designed = await api.aiBrochure(order.id, {
-            ...(brief ? { brief } : {}),
-            ...(reference ? { reference } : {}),
-          });
+          const designed = await api.aiBrochure(order.id, brief ? { brief } : {});
           render = designed.render;
         } catch (error) {
           designError = errorMessage(error, 'The brochure could not be designed.');
@@ -727,7 +522,6 @@ export default function ChatScreen() {
         setOrderCreated(true);
         setActiveOrderId(order.id);
         setActiveOrderNo(order.orderNo);
-        setShowDesignPicker(false);
         setDraft({});
         setMissing([]);
         setReady(false);
@@ -751,7 +545,7 @@ export default function ChatScreen() {
         setCooking(false);
       }
     },
-    [chosenDesign, history, orderFiles],
+    [history, orderFiles],
   );
 
   const send = useCallback(async () => {
@@ -851,7 +645,6 @@ export default function ChatScreen() {
     setInputHeight(38);
     setPendingFiles([]);
     setOrderFiles(allFiles);
-    setShowDesignPicker(false);
     atBottomRef.current = true;
     setAtBottom(true);
     setSending(true);
@@ -957,10 +750,10 @@ export default function ChatScreen() {
               source={require('@/assets/images/logo.png')}
               style={styles.brandMark}
               resizeMode="contain"
-              accessibilityLabel="Grace Wood Industry"
+              accessibilityLabel="Jacob Design Studio"
             />
             <View style={styles.headerText}>
-              <Text style={text.eyebrow}>Grace Wood</Text>
+              <Text style={text.eyebrow}>Jacob Design Studio</Text>
               <TamilLine />
               <Text style={[text.screenTitle, styles.title]}>Studio chat</Text>
             </View>
@@ -1012,7 +805,7 @@ export default function ChatScreen() {
           {busy ? (
             <View style={styles.rowLeft}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarLabel}>GW</Text>
+                <Text style={styles.avatarLabel}>JD</Text>
               </View>
               <View style={[styles.bubble, styles.bubbleAssistant]}>
                 <TypingDots label={cooking ? 'Creating the order' : skipping ? 'Marking it to be confirmed' : 'Reading'} />
@@ -1040,137 +833,15 @@ export default function ChatScreen() {
                   onPress={() => void pickFiles()}
                 />
                 <SuggestionCard
-                  glyph="◫"
-                  title="Pick a look"
-                  body="A printed reference for the feel. The model designs your own pages."
-                  onPress={() => {
-                    setShowDesignPicker(true);
-                    setTimeout(scrollToBottom, 60);
-                  }}
+                  glyph="✦"
+                  title="Say what to magnify"
+                  body="Name a detail to zoom: a handle, a grain, the colour palette."
+                  onPress={() => inputRef.current?.focus()}
                 />
               </ScrollView>
             </View>
           ) : null}
 
-          {!orderCreated && showDesignPicker ? (
-            <View style={styles.designPicker}>
-              <View style={styles.designPickerHead}>
-                <View style={styles.designPickerTitles}>
-                  <Text style={styles.designPickerHeading}>A look to guide the model</Text>
-                  <Text style={[text.caption, styles.designPickerTitle]}>
-                    {designsBuilding && designs.length < 100
-                      ? `The model is writing the reference library. ${designs.length} of 100 ready.`
-                      : 'One reference sets the feel. Every page is still designed for this order.'}
-                  </Text>
-                </View>
-                <View style={styles.designArrows}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Hide covers"
-                    onPress={() => setShowDesignPicker(false)}
-                    style={styles.designArrow}>
-                    <Text style={styles.designArrowLabel}>×</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Scroll covers left"
-                    onPress={() =>
-                      designScroll.current?.scrollTo({
-                        x: Math.max(0, designOffset.current - 420),
-                        animated: true,
-                      })
-                    }
-                    style={styles.designArrow}>
-                    <Text style={styles.designArrowLabel}>‹</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Scroll covers right"
-                    onPress={() =>
-                      designScroll.current?.scrollTo({
-                        x: designOffset.current + 420,
-                        animated: true,
-                      })
-                    }
-                    style={styles.designArrow}>
-                    <Text style={styles.designArrowLabel}>›</Text>
-                  </Pressable>
-                </View>
-              </View>
-              <View style={styles.designSearchRow}>
-                <TextInput
-                  value={designQuery}
-                  onChangeText={setDesignQuery}
-                  placeholder="Search the looks"
-                  placeholderTextColor={colors.faint}
-                  style={styles.designSearch}
-                  accessibilityLabel="Search the looks"
-                  maxLength={60}
-                />
-                {designQuery !== '' ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Clear search"
-                    onPress={() => setDesignQuery('')}
-                    style={({ pressed }) => [styles.designArrow, pressed && styles.sendPressed]}>
-                    <Text style={styles.designArrowLabel}>×</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              <ScrollView
-                ref={designScroll}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                onScroll={(event) => {
-                  designOffset.current = event.nativeEvent.contentOffset.x;
-                }}
-                scrollEventThrottle={48}
-                contentContainerStyle={styles.designRow}>
-                <DesignTile
-                  selected={chosenDesign === 'ai'}
-                  noDesign
-                  onPress={() => {
-                    if (designDragging.current) return;
-                    setChosenDesign('ai');
-                  }}
-                />
-                {(() => {
-                  const visible = matchDesigns(designs, designQuery);
-                  if (visible.length === 0 && designQuery.trim() !== '') {
-                    return (
-                      <Text style={[text.caption, styles.designPickerHint]}>
-                        {designQuery.trim() === ''
-                          ? ''
-                          : `No looks match "${designQuery.trim()}". Try a mood, a family or a name.`}
-                      </Text>
-                    );
-                  }
-                  return (
-                    <>
-                      {visible.map((design) => (
-                        <DesignTile
-                          key={design.id}
-                          design={design}
-                          selected={chosenDesign === design.id}
-                          onPress={() => {
-                            if (designDragging.current) return;
-                            setChosenDesign(design.id);
-                          }}
-                        />
-                      ))}
-                    </>
-                  );
-                })()}
-              </ScrollView>
-              <Text style={[text.caption, styles.designPickerHint]}>
-                {designQuery.trim() !== ''
-                  ? `${matchDesigns(designs, designQuery).length} of ${designs.length} looks match.`
-                  : chosenDesign === 'ai'
-                    ? 'No reference: the model chooses the mood from the room and the photographs.'
-                    : `Reference: ${designs.find((design) => design.id === chosenDesign)?.name ?? 'a design'}. The model designs new pages in this spirit.`}
-              </Text>
-            </View>
-          ) : null}
         </ScrollView>
 
         {!atBottom ? (
@@ -1184,23 +855,6 @@ export default function ChatScreen() {
         ) : null}
 
         <View style={[styles.draftBar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
-          {!orderCreated && !showDesignPicker ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Change cover"
-              onPress={() => setShowDesignPicker(true)}
-              style={({ pressed }) => [styles.coverSummary, pressed && styles.sendPressed]}>
-              <Text style={styles.coverSummaryLabel} numberOfLines={1}>
-                {compact ? 'Look: ' : 'Reference for this brochure: '}
-                {chosenDesign === 'ai'
-                  ? compact
-                    ? 'Model decides'
-                    : 'Model decides, no reference'
-                  : designs.find((design) => design.id === chosenDesign)?.name ?? 'selected reference'}
-              </Text>
-              <Text style={styles.coverSummaryAction}>Change</Text>
-            </Pressable>
-          ) : null}
           {modelReady === false ? (
             <Pressable
               accessibilityRole="button"
@@ -1459,7 +1113,7 @@ function BubbleView({
     return (
       <View style={styles.rowLeft}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarLabel}>GW</Text>
+          <Text style={styles.avatarLabel}>JD</Text>
         </View>
         <View style={styles.bubbleColumn}>
           <View style={[styles.bubble, styles.bubbleAssistant, styles.brochure]}>
@@ -1497,7 +1151,7 @@ function BubbleView({
     <View style={isUser ? styles.rowRight : styles.rowLeft}>
       {isUser ? null : (
         <View style={styles.avatar}>
-          <Text style={styles.avatarLabel}>GW</Text>
+          <Text style={styles.avatarLabel}>JD</Text>
         </View>
       )}
       <View style={[styles.bubbleColumn, isUser && styles.bubbleColumnUser]}>

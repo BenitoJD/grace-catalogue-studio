@@ -42,14 +42,11 @@ export interface AiDesign {
   label?: string | null;
   designed?: boolean;
   direction?: string;
-  reference?: string | null;
-  referenceName?: string | null;
 }
 
 export interface AiBrochureBody {
   brief?: string;
   direction?: string;
-  reference?: string;
   copy?: BrochureCopy;
   /** A studio sentence to apply to the brochure that already exists. */
   edit?: string;
@@ -132,54 +129,6 @@ export interface Render {
   pdfUrl: string;
   pageUrls: string[];
   createdAt: string;
-}
-
-/** One design direction the model wrote for the reference library. */
-export interface DesignReference {
-  id: string;
-  name: string;
-  family: string;
-  mood: string;
-  summary: string;
-  palette: {
-    paper: string;
-    ink: string;
-    deep: string;
-    accent: string;
-    gold: string;
-    hair: string;
-    muted: string;
-    onDark: string;
-  };
-  displayFont: string;
-  bodyFont: string;
-  coverIdea: string;
-  ornament: string;
-  previewUrl?: string | null;
-  previewPdfUrl?: string | null;
-}
-
-export interface DesignLibrary {
-  designs: DesignReference[];
-  expected: number;
-  building: boolean;
-  ready: boolean;
-  previewsReady: number;
-  previewsTotal: number;
-  previewsBuilding: boolean;
-}
-
-export interface Template {
-  id: string;
-  name: string;
-  palette: string;
-  paletteName?: string;
-  cover: string;
-  family?: string;
-  familyName?: string;
-  accent?: string;
-  previewUrl: string;
-  pageCount: number;
 }
 
 export interface LlmSettings {
@@ -517,12 +466,6 @@ export const api = {
       body: templateId ? { templateId } : {},
       timeoutMs: RENDER_TIMEOUT_MS,
     });
-  },
-  listTemplates(): Promise<Template[]> {
-    return request<Template[]>('/api/templates');
-  },
-  listDesigns(): Promise<DesignLibrary> {
-    return request<DesignLibrary>('/api/designs', { timeoutMs: 90000 });
   },
   listRenders(): Promise<Render[]> {
     return request<Render[]>('/api/renders');

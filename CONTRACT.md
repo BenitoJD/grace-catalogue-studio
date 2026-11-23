@@ -1,4 +1,4 @@
-# Grace Catalogue Studio, build contract
+# Jacob Design Studio, build contract
 
 Single source of truth for the API and the data the app may rely on.
 
@@ -41,7 +41,7 @@ Customer { id: string; name: string; phone: string; address: string; createdAt: 
 
 Order {
   id: string;
-  orderNo: string;          // GWI-2026-001
+  orderNo: string;          // JDS-2026-001
   customerId: string;
   customerName: string;     // joined for convenience
   title: string;            // Master Bedroom Wardrobe
@@ -131,10 +131,8 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | GET | `/api/orders/:id` | | `Order` |
 | PATCH | `/api/orders/:id` | partial order fields | `Order` |
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
-| POST | `/api/orders/:id/ai-brochure` | `{ brief?, direction?, reference?, edit?, copy? }` | `{ render, design, copy, direction, model, latencyMs }` (kind `ai`) |
+| POST | `/api/orders/:id/ai-brochure` | `{ brief?, direction?, edit?, copy? }` | `{ render, design, copy, direction, model, latencyMs }` (kind `ai`; requires uploaded photos) |
 | POST | `/api/orders/:id/edit` | `{ message?, attachments? }` | `{ reply, order, copy, attachmentsAdded, rerender, changedOrder }` |
-| GET | `/api/designs` | | `{ designs, expected, building, ready, previewsReady, previewsTotal, previewsBuilding }` (100 model written references, each with `previewUrl` and `previewPdfUrl` when printed) |
-| GET | `/design-previews/:id.(png|pdf)` | | `image/png` or `application/pdf` (printed proof of one reference) |
 | POST | `/api/orders/:id/render` | `{ kind: "voucher" \| "kit", templateId? }` | `Render` (201) |
 | POST | `/api/intake` | `{ messages: [{ role, content }], draft? }` | `{ reply, draft, missing, ready, model, latencyMs }` |
 | POST | `/api/orders/:id/copy` | `{ brief?, regenerate? }` | `{ copy: { headline, body, closing }, model, latencyMs, cached }` |
@@ -158,7 +156,7 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | GET | `/api/catalogue/templates` | | `{ id, name, palette, description }[]` (3 rate card variants) |
 | POST | `/api/catalogue/render` | `{ templateId? }` | `Render` (201), kind `catalogue` |
 
-`orderNo` is generated server side as `GWI-<year>-<sequence>`, zero padded to three digits.
+`orderNo` is generated server side as `JDS-<year>-<sequence>`, zero padded to three digits.
 
 Material trade fields are validated on write: `priceAmount` must be a finite number
 greater than or equal to zero, `priceUnit` is at most 20 characters and `sku` is
@@ -198,35 +196,27 @@ Kit keys: `addressLine1, addressLine2, cityLine, phone, email`.
 
 Image paths are relative to the template directory, i.e. `../assets/company/tex-walnut.jpg`. The built HTML must sit in that same directory for these to resolve.
 
-## Brochure templates
+## Image-led brochure design
 
-The brochure has no fixed template. The template system is a library of one
-hundred design references, and the model writes every one of them: each
-reference is an id, a name, a family, a mood, a summary, a full eight colour
-palette, a display face, a cover idea and a house ornament. The gallery and the
-chat strip read them from `GET /api/designs`; the brochure designer takes the
-chosen reference as words and mood and composes fresh pages for the order, so a
-reference is never printed itself.
+There is no template library. A brochure is designed from the client's own
+photographs:
 
-The library is generated in four volumes of twenty five and stored in the
-`design_catalog` table (schema v10) after every volume, so the first request
-starts a background build and returns whatever is ready with
-`{ designs, expected: 100, building, ready }`. A later request with a complete
-library never calls the provider again.
-
-Once the library is complete the same request starts the preview engine, which
-prints a real brochure per reference from one fixed sample order and
-serves its cover at `/design-previews/<id>.png` with the full proof at
-`/design-previews/<id>.pdf`. One shared sample copy is written once and kept in
-the catalog row (schema v11); each preview runs the designer prompt with its
-reference, must pass the same print checks as a customer brochure, and is
-recorded with `previewReady` on success. Only finished previews are served.
-
-The classic house layouts remain underneath for the voucher and kit paths: ten
-complete document families with their own cover, specification, finishes and
-inside pages live in `templates/voucher/families/`, catalogued in
-`templates/variants.json` with three palettes each. They are not shown in the
-studio brochure flow.
+- At least one uploaded photograph is required; the route answers 400 without
+  one and suggests attaching pictures in the chat.
+- The designer prompt receives every photograph, each one's shape, and four
+  dominant colours decoded from the file (`server/src/image-palette.mjs`,
+  PNG and JPEG, pure JavaScript). The model is told those colours are the
+  design source and that it must mirror the project.
+- Every supplied `{{photoN}}` token must appear at least once. A document that
+  ignores an uploaded photograph is rejected with a message naming it.
+- Magnifier callouts: when the studio names a detail, the model draws a
+  circular loupe from the same photograph (background-size 300 to 420%,
+  background-position on the detail), a thin ring, a leader line and a label.
+  A colour palette callout adds four chips from that photograph's decoded
+  palette. When photographs arrive without a named detail the intake assistant
+  asks which detail to magnify.
+- `POST /api/orders/:id/edit` carries the sentence and the previous document
+  back to the designer, so an edit changes the existing pages.
 
 ## Language model
 
@@ -295,13 +285,13 @@ Entries expire after `LLM_CACHE_TTL_HOURS` (default 168, 0 disables). Expiry is 
 `POST /api/orders/:id/ai-brochure` accepts:
 
 ```json
-{"brief":"...", "direction":"warmer and more festive", "reference":"temple-quiet", "edit":"make the cover calmer", "copy":{"headline":"...","body":"...","closing":"..."}}
+{"brief":"...", "direction":"warmer and more festive", "edit":"magnify the brass handle", "copy":{"headline":"...","body":"...","closing":"..."}}
 ```
 
 All fields are optional. `brief` replaces the stored brief, `direction` is kept
-on the order as `designDirection` (schema v8), `reference` must be an id from
-`GET /api/designs`, `edit` carries a studio sentence to the designer with the
-previous document attached, and a hand edited `copy` wins over generated words.
+on the order as `designDirection` (schema v8), `edit` carries a studio sentence
+to the designer with the previous document attached, and a hand edited `copy`
+wins over generated words.
 When the order has no stored copy the server writes one first through the usual
 copy route with its repair pass.
 
@@ -320,7 +310,7 @@ escaped except raw asset and image paths; em dashes and en dashes are
 normalised to hyphens before print. The document is stored on the render as
 `html` (schema v9) so the next edit keeps the design. The resulting render has
 `kind: "ai"`, `templateId: null` and a `design` object with
-`{ label, designed, direction, reference, referenceName }`.
+`{ label, designed, direction }`.
 
 `POST /api/orders/:id/edit` maps a plain sentence to changed order fields and
 copy with `rerender` and `changedOrder` flags. It also accepts an `attachments`

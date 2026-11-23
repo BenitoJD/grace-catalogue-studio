@@ -23,29 +23,29 @@ export const DESIGNER_TRIES = 2;
 export const DESIGNER_MAX_CHARS = 90_000;
 
 const BRAND = {
-  name: 'Grace Wood Industry',
-  tamil: 'கிரேஸ் வூட் இண்டஸ்ட்ரி',
+  name: 'Jacob Design Studio',
+  tamil: 'ஜேக்கப் டிசைன் ஸ்டுடியோ',
   placeTamil: 'நாகர்கோவில்',
   phone: '+91 63740 43346',
-  email: 'info.gracewoodindustry@gmail.com',
+  email: 'info.jacobdesignstudio@gmail.com',
   address: '26J Rajjakamangalam Road, Chettikulam, Nagercoil 629001',
 };
 
 const PALETTE = {
-  paper: '#FBF3E4',
-  ink: '#2A1512',
-  deep: '#4A1116',
-  accent: '#7C2A22',
-  gold: '#C79A3A',
-  hair: '#E3D2B8',
-  muted: '#6B4A3E',
-  onDark: '#FBF3E4',
+  paper: '#F8F2E7',
+  ink: '#1E2528',
+  deep: '#173B44',
+  accent: '#1AA3C8',
+  gold: '#B98A55',
+  hair: '#DED3C1',
+  muted: '#5E6A6C',
+  onDark: '#F8F2E7',
 };
 
 // Assets live beside the built HTML in templates/voucher, so relative paths are
 // the safe form for both Chromium and WeasyPrint.
 const ASSETS = {
-  logo: '../assets/grace-logo.png',
+  logo: '../assets/jacob-mark.png',
   jaali: '../assets/indian/jaali.svg',
   paisley: '../assets/indian/paisley.svg',
   lotus: '../assets/indian/lotus.svg',
@@ -113,7 +113,7 @@ const RAW_TOKENS = new Set([
 ]);
 
 const DESIGNER_SYSTEM = [
-  'You are the art director, typographer and print designer for Grace Wood Industry, a wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
+  'You are the art director, typographer and print designer for Jacob Design Studio, a wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
   'You design and typeset one printed brochure for one order. Reply with one complete HTML document and nothing else.',
   '',
   'THE DOCUMENT',
@@ -152,7 +152,10 @@ const DESIGNER_SYSTEM = [
   '- The middle pages together: {{headline}}, {{body}} and {{closing}} each exactly once, all four material images and all four material names, and photographs throughout. Every middle page shows at least one photograph or material sample.',
   '- The last page, the specification: every specification token and {{drawing}}. No specification token may appear anywhere else.',
   '- Somewhere in the document: {{orderNo}}, {{phone}}, and at least one house motif token.',
-  '- Photographs are not optional. A document with no {{photo1}} is rejected outright and the work is wasted, so put {{photo1}} on the cover and {{photo2}} or {{photo3}} inside, every single time.',
+  '- Photographs are not optional and none may be wasted: every photograph token from {{photo1}} to the last available must appear at least once, or the document is rejected. Put the strongest on the cover and let the others carry the story.',
+  '- The photographs are the design source. Read their colours, wood tones, light and geometry from the palette notes supplied, and mirror them: cream walls, warm timber, teal or muted accents. The pages must look like they belong to the same project as the pictures.',
+  '- Magnifier callouts: when the studio asks to magnify a detail (a handle, a grain, a colour palette, an edge), draw a circular loupe on the page. Use the same photograph enlarged: background-size 300% to 420%, background-position set to the detail, a thin ring, a short leader line and a small label naming the detail. Show one loupe per named detail and never a loupe without a label.',
+  '- When the studio asks for a colour palette callout, print a row of four small colour chips beside the loupe, using the palette notes of that photograph, with the finish names underneath.',
   '',
   'DESIGN RULES',
   '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',
@@ -166,7 +169,6 @@ const DESIGNER_SYSTEM = [
   '- The cover is the loudest page, the story is the warmest, the materials page is a quiet colour study, and the specification page is a calm technical colophon.',
   '- Use the whole safe area. Every page must feel complete: fill it with photograph, type and ornament at full size rather than leaving a quarter of it empty. If the content does not fill the pages, use fewer pages; if it overflows, add a page up to the limit of eight. Only a page that one photograph deliberately holds may stay airy. Keep the last line of a page at least 18 mm above the trim.',
   '- This brochure is one of many. Do not repeat a stock arrangement from other orders; the photographs, the room and the mood decide the composition.',
-  '- If a studio reference is supplied, it is the template: one prompt plus its asset manifest. Its palette, display type and ornament are mandatory, not suggestions. Set the CSS variables to exactly its palette, set --display to exactly its face, and use exactly its ornament. Compose original pages for this order, but never substitute the template assets and never copy a reference arrangement.',
   '- Tamil lines are set in Noto Sans Tamil, never forced into an English serif.',
   '',
   'AVAILABLE TYPE',
@@ -370,7 +372,7 @@ function copySummary(copy) {
   return `Headline ${headline.length} characters. Body ${words} words. Closing ${closing.length} characters.`;
 }
 
-function designContext({ order, brief, direction, copy, photos, photoShapes, reference, previousHtml, editNote }) {
+function designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, previousHtml, editNote }) {
   const photoLines = photos.map((_, index) => {
     const shape = photoShapes[index] ? ` (${photoShapes[index]})` : '';
     return `photo${index + 1}${shape}`;
@@ -384,7 +386,14 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, ref
     `Date: {{date}}`,
     '',
     'PHOTOGRAPHS AVAILABLE',
-    photoLines.length > 0 ? photoLines.join('\n') : 'No photographs. The house photography is supplied as photo1 to photo4.',
+    photoLines.length > 0 ? photoLines.join('\n') : 'No photographs supplied.',
+    '',
+    'COLOURS FROM THE PICTURES',
+    Object.entries(photoPalettes ?? {}).length > 0
+      ? Object.entries(photoPalettes)
+          .map(([token, palette]) => `${token} palette: ${palette.join(', ')}`)
+          .join('\n')
+      : 'No palette could be read; derive tones from the pictures and keep them warm.',
     '',
     'COPY TO SET',
     copySummary(copy),
@@ -406,33 +415,6 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, ref
     `Customer brief, use only for mood: ${clean(brief) || '(none supplied)'}`,
     `Studio direction for this brochure: ${clean(direction) || '(none given; choose what suits the piece)'}`,
   ];
-  if (reference) {
-    const palette = reference.palette ?? {};
-    const paletteLine = [
-      palette.paper ? `paper ${palette.paper}` : '',
-      palette.ink ? `ink ${palette.ink}` : '',
-      palette.deep ? `deep ${palette.deep}` : '',
-      palette.accent ? `accent ${palette.accent}` : '',
-      palette.gold ? `gold ${palette.gold}` : '',
-      palette.hair ? `hair ${palette.hair}` : '',
-      palette.muted ? `muted ${palette.muted}` : '',
-      palette.onDark ? `on dark ${palette.onDark}` : '',
-    ]
-      .filter(Boolean)
-      .join(', ');
-    parts.push(
-      '',
-      'STUDIO REFERENCE',
-      `Reference look: ${reference.name}${reference.family ? ` (${reference.family} family)` : ''}.`,
-      reference.mood ? `Mood: ${reference.mood}.` : '',
-      reference.summary ? `Feel: ${reference.summary}.` : '',
-      paletteLine ? `Palette: ${paletteLine}.` : '',
-      `Display type: ${reference.displayFont || 'Instrument Serif'}. Body type: Barlow.`,
-      reference.coverIdea ? `Cover idea: ${reference.coverIdea}.` : '',
-      `Ornament: ${reference.ornament || 'none'}.`,
-      'This reference is the template for this brochure: its palette, display type and ornament above are the asset manifest and are mandatory. Set the CSS variables to exactly this palette, set --display to exactly this face, and use exactly this ornament. Compose original pages for this order around them. Never substitute the template assets and never copy a reference layout.',
-    );
-  }
   if (editNote) {
     parts.push('', 'THE STUDIO IS CHANGING AN EXISTING BROCHURE', `Instruction: ${clean(editNote)}`);
     parts.push('Apply only this change. Keep the design, type, palette and every other page as they are unless the instruction asks for a new look. The current document is the assistant message above.');
@@ -442,8 +424,8 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, ref
   return parts.join('\n');
 }
 
-export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], reference = null, previousHtml = '', editNote = '' }) {
-  const user = designContext({ order, brief, direction, copy, photos, photoShapes, reference, previousHtml, editNote });
+export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], photoPalettes = {}, previousHtml = '', editNote = '' }) {
+  const user = designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, previousHtml, editNote });
   const messages = [
     { role: 'system', content: DESIGNER_SYSTEM },
     { role: 'user', content: user },
@@ -705,6 +687,12 @@ export function parseDesignerReply(content, photoCount = 4) {
     const index = Number.parseInt(token.slice(5), 10);
     if (index < 1 || index > photoCount) issues.push(`{{${token}}} points at a photograph that does not exist`);
   }
+  // No uploaded picture may be ignored: the client's project is the pictures.
+  for (let index = 1; index <= photoCount; index += 1) {
+    if (!tokens.has(`photo${index}`)) {
+      issues.push(`{{photo${index}}} is supplied but never used; every photograph must appear`);
+    }
+  }
 
   const middleHtml = middle.join('\n');
   if (pages.length > 0) {
@@ -963,14 +951,10 @@ ${docPages.map((page) => `<div class="page">${page}</div>`).join('\n')}
 }
 
 /** Human label for a generated brochure, stored with the render. */
-export function designLabel({ direction = '', referenceName = '', designed = true } = {}) {
+export function designLabel({ direction = '', designed = true } = {}) {
   if (!designed) return 'Brochure';
-  const parts = [];
-  const reference = clean(referenceName);
-  if (reference !== '') parts.push(reference);
   const note = clean(direction);
-  if (note !== '') parts.push(note.slice(0, 60));
-  return parts.length === 0 ? 'Designed by the model' : `Designed by the model · ${parts.join(' · ')}`;
+  return note === '' ? 'Designed by the model' : `Designed by the model · ${note.slice(0, 60)}`;
 }
 
 /** Validate a copy object the studio edited by hand. */

@@ -71,7 +71,7 @@ try {
     })
   ).json();
   check("order created", Boolean(order.id), order.orderNo ?? JSON.stringify(order));
-  check("order number generated", /^GWI-\d{4}-\d{3}$/.test(order.orderNo ?? ""), order.orderNo);
+  check("order number generated", /^JDS-\d{4}-\d{3}$/.test(order.orderNo ?? ""), order.orderNo);
 
   const render = await (
     await fetch(`${BASE}/api/orders/${order.id}/render`, {

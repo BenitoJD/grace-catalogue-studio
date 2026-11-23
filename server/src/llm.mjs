@@ -63,7 +63,7 @@ export const CONNECTION_TEST_MESSAGES = Object.freeze([
 ]);
 
 const NOTE_SYSTEM_PROMPT = [
-  'You are a salesperson at Grace Wood Industry, a custom wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
+  'You are a salesperson at Jacob Design Studio, a custom wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
   'Write a short WhatsApp message to the customer about their order.',
   'Rules:',
   '- Warm, clear and concrete, in British Indian English.',
@@ -74,7 +74,7 @@ const NOTE_SYSTEM_PROMPT = [
 ].join(' ');
 
 const COPY_SYSTEM_PROMPT = [
-  'You write the brochure copy for a single custom wardrobe or furniture order at Grace Wood Industry, a workshop in Nagercoil, Tamil Nadu.',
+  'You write the brochure copy for a single custom wardrobe or furniture order at Jacob Design Studio, a workshop in Nagercoil, Tamil Nadu.',
   'The reader is a discerning customer holding a printed document. The specification page already lists every dimension and material, so your job is to make the piece feel considered, not to repeat the list.',
   'Voice: the quiet confidence of a design house catalogue, never a sales page. Precise nouns and verbs, restrained adjectives, a measured rhythm of short declarative sentences and one longer line. Say what a person would notice in the room. Never flatter, never hurry, never sell.',
   'Reply with strict JSON only, in exactly this shape:',

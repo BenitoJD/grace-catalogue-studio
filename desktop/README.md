@@ -1,4 +1,4 @@
-# Grace Studio desktop (Electron)
+# Jacob Design Studio desktop (Electron)
 
 A standalone desktop application for Windows and macOS. It contains the Expo web
 studio, the catalogue server and the print engine, so the person who installs it
@@ -13,7 +13,7 @@ a portable `exe`, plus macOS `dmg`/`zip`, attached to the GitHub release.
 `desktop/package.json` uses the npm-safe package name `grace-studio-desktop`
 (npm and electron-builder reject spaces and capitals in `name`); the app name
 Electron and the installers show comes from `productName`, which is
-`Grace Studio`.
+`Jacob Design Studio`.
 
 ```
 ┌──────────────────────────── Electron main process ────────────────────────────┐
@@ -125,9 +125,9 @@ or edit the config file (this is what **Open server settings** reveals):
 
 | OS      | Path                                                                  |
 | ------- | --------------------------------------------------------------------- |
-| macOS   | `~/Library/Application Support/Grace Studio/desktop-config.json`       |
-| Windows | `%APPDATA%\Grace Studio\desktop-config.json`                           |
-| Linux   | `~/.config/Grace Studio/desktop-config.json`                           |
+| macOS   | `~/Library/Application Support/Jacob Design Studio/desktop-config.json`       |
+| Windows | `%APPDATA%\Jacob Design Studio\desktop-config.json`                           |
+| Linux   | `~/.config/Jacob Design Studio/desktop-config.json`                           |
 
 ```json
 {
@@ -142,10 +142,10 @@ needed because the proxy calls it server-side.
 
 ## Windows installer wizard
 
-`installer/GraceStudio.nsi` is a custom NSIS installer, modelled on the
+`installer/JacobStudio.nsi` is a custom NSIS installer, modelled on the
 Attendance Report Studio installer. It is a normal four step wizard: Welcome,
 options, install, Finish with a Launch checkbox. It installs per-user into
-`%LOCALAPPDATA%\Programs\Grace Studio`, so Windows never asks for an
+`%LOCALAPPDATA%\Programs\Jacob Design Studio`, so Windows never asks for an
 administrator password, writes a Start Menu shortcut, offers an optional desktop
 shortcut, registers the app in Apps and Features and uninstall removes it
 cleanly. The app data folder is left alone, so reinstalling or upgrading keeps
@@ -174,12 +174,12 @@ npm run build       # whatever the current platform is
 
 Artifacts land in `desktop/release/`:
 
-- macOS arm64/x64: `Grace Studio-1.0.0-arm64.dmg`,
-  `Grace Studio-1.0.0-x64.dmg`, `Grace Studio-1.0.0-arm64-mac.zip`,
-  `Grace Studio-1.0.0-mac.zip` and the unpacked
-  `release/mac-arm64/Grace Studio.app` / `release/mac/Grace Studio.app`.
-- Windows x64: `Grace Studio-1.0.0-setup-x64.exe` and
-  `Grace Studio-1.0.0-portable-x64.exe`.
+- macOS arm64/x64: `Jacob Design Studio-1.0.0-arm64.dmg`,
+  `Jacob Design Studio-1.0.0-x64.dmg`, `Jacob Design Studio-1.0.0-arm64-mac.zip`,
+  `Jacob Design Studio-1.0.0-mac.zip` and the unpacked
+  `release/mac-arm64/Jacob Design Studio.app` / `release/mac/Jacob Design Studio.app`.
+- Windows x64: `Jacob Design Studio-1.0.0-setup-x64.exe` and
+  `Jacob Design Studio-1.0.0-portable-x64.exe`.
 
 `electron-builder` downloads the matching Electron binaries on the first build,
 so the build machine needs network access to the npm registry and GitHub
@@ -244,7 +244,7 @@ python3 -c "from PIL import Image; Image.open('app/assets/images/icon.png').conv
   `CSC_IDENTITY_AUTO_DISCOVERY=false`), so the installers are unsigned and not
   notarized. macOS Gatekeeper will refuse a downloaded build until the user
   right-clicks → Open (or runs
-  `xattr -dr com.apple.quarantine "/Applications/Grace Studio.app"`); Windows
+  `xattr -dr com.apple.quarantine "/Applications/Jacob Design Studio.app"`); Windows
   SmartScreen will show "Unknown publisher". Add signing identities and
   notarization (for example `electron-builder`'s `notarize` option plus a
   Developer ID certificate) before distributing widely.

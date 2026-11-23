@@ -1,6 +1,6 @@
 Unicode true
 
-; Grace Studio installer, modelled on the Attendance Report Studio installer:
+; Jacob Design Studio installer, modelled on the Attendance Report Studio installer:
 ; a plain welcome -> options -> install -> finish wizard, per-user install in
 ; LOCALAPPDATA so Windows never shows an administrator prompt, Start Menu
 ; shortcut, optional desktop shortcut and a proper uninstall entry.
@@ -19,16 +19,16 @@ Unicode true
   !error "Pass OUTPUT_DIR as the directory for the generated setup file"
 !endif
 
-!define APP_NAME "Grace Studio"
-!define APP_PUBLISHER "Grace Wood Industry"
-!define APP_EXE "Grace Studio.exe"
-!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\GraceStudio"
-!define INSTALL_DIR "$LOCALAPPDATA\Programs\Grace Studio"
+!define APP_NAME "Jacob Design Studio"
+!define APP_PUBLISHER "Jacob Design Studio"
+!define APP_EXE "Jacob Design Studio.exe"
+!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\JacobStudio"
+!define INSTALL_DIR "$LOCALAPPDATA\Programs\Jacob Design Studio"
 
 Name "${APP_NAME}"
 Caption "${APP_NAME} Setup"
 BrandingText "${APP_PUBLISHER}"
-OutFile "${OUTPUT_DIR}\GraceStudio-Setup-${APP_VERSION}.exe"
+OutFile "${OUTPUT_DIR}\JacobStudio-Setup-${APP_VERSION}.exe"
 InstallDir "${INSTALL_DIR}"
 RequestExecutionLevel user
 SetCompressor /SOLID zlib
@@ -77,7 +77,7 @@ Function un.onInit
   StrCpy $INSTDIR "${INSTALL_DIR}"
 FunctionEnd
 
-Section "Grace Studio (required)" SecApp
+Section "Jacob Design Studio (required)" SecApp
   SectionIn RO
   SetShellVarContext current
   SetOutPath "$TEMP"

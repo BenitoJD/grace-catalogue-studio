@@ -280,32 +280,16 @@ try {
   await page.goto(WEB, { waitUntil: "networkidle2" });
   check("chat loads", await hasText(page, "Studio chat"));
   check("chat explains what to paste", await hasText(page, "Paste everything the customer told you"));
+  const datedStamp = await page.evaluate(() =>
+    /\d{1,2} [A-Z][a-z]{2}, \d{1,2}:\d{2} [ap]m/.test(document.body.innerText)
+  );
+  check("chat messages carry date and time", datedStamp);
   check("chat has a message box", (await page.$('textarea[placeholder="Paste the customer\'s requirement"]')) !== null);
   check("chat asks for the requirement", await hasText(page, "Paste everything the customer told you"));
   check("chat offers starter prompts", await hasText(page, "START WITH WHAT YOU HAVE"));
   check("composer explains the keyboard and drop", await hasText(page, "Enter to send"));
-  check("chat offers a look reference", await waitForBodyText(page, "a look to guide the model", 20000));
-  check("the model choice is present", (await page.$('[aria-label="Let the model decide the look"]')) !== null);
-  const referenceCardsArrived = await page
-    .waitForFunction(
-      () => document.querySelectorAll('[aria-label^="Use the reference "]').length >= 1,
-      { timeout: 30000 }
-    )
-    .then(() => true)
-    .catch(() => false);
-  check("reference library cards arrive", referenceCardsArrived);
-  check(
-    "no reference is selected by default",
-    await hasText(page, "No reference: the model chooses the mood")
-  );
-  const firstReference = await page.$('[aria-label^="Use the reference "]');
-  if (firstReference) {
-    await firstReference.click();
-    check("choosing a reference updates the choice", await waitForBodyText(page, "Reference:", 8000));
-    await page.screenshot({ path: `${shots}/00b-chat-reference.png` });
-    const noReference = await page.$('[aria-label="Let the model decide the look"]');
-    if (noReference) await noReference.click();
-  }
+  check("chat is picture led", await hasText(page, "upload and the model designs"));
+  check("chat offers a magnifier prompt", await hasText(page, "Say what to magnify"));
   await page.screenshot({ path: `${shots}/00-chat.png` });
 
   await page.click('[aria-label="History"]');
@@ -314,8 +298,8 @@ try {
   check("the tab bar returns to chat", await hasText(page, "Studio chat"));
 
   await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
-  check("history loads", await hasText(page, "Grace Wood"));
-  check("seeded orders show", await hasText(page, "GWI-2026-001"));
+  check("history loads", await hasText(page, "Jacob Design Studio"));
+  check("seeded orders show", await hasText(page, "JDS-2026-001"));
   check("seeded materials show in api", (await (await fetch(`${API}/api/bootstrap`)).json()).materials.length === 4);
   check("history has no manual new order button", await page.evaluate(() => !document.body.innerText.includes("New order")));
   await page.screenshot({ path: `${shots}/01-orders.png` });
@@ -340,7 +324,7 @@ try {
     })
   ).json();
   const orderNo = chatOrder.orderNo;
-  check("order number assigned", /^GWI-\d{4}-\d{3}$/.test(orderNo), orderNo);
+  check("order number assigned", /^JDS-\d{4}-\d{3}$/.test(orderNo), orderNo);
   await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(2000);
   check("order appears in history", await hasText(page, "E2E Master Wardrobe"));
@@ -348,6 +332,14 @@ try {
   await page.goto(`${WEB}/orders/${chatOrder.id}`, { waitUntil: "networkidle2" });
   check("detail screen opens", await hasText(page, "E2E Master Wardrobe", 12000));
   check("width saved", await hasText(page, "2600 mm"));
+  check(
+    "order shows its creation date and time",
+    await page.evaluate(() =>
+      /Created\s*\n?\s*\d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} [ap]m/.test(
+        document.body.innerText
+      )
+    )
+  );
   await page.screenshot({ path: `${shots}/02-order-detail.png` });
 
   // 3. the model designs and prints the brochure
@@ -415,78 +407,10 @@ try {
   }
   check("designing again creates a new document", rendersAfter > rendersBefore, `${rendersBefore} then ${rendersAfter}`);
 
-  // 3c. a reference must guide the model without printing a template
-  check("design reference button present", await clickAria(page, "Choose a design reference"));
-  await sleep(500);
-  check("reference gallery opens", await hasText(page, "One hundred looks", 15000));
-  let library = await (await fetch(`${API}/api/designs`)).json();
-  for (let attempt = 0; attempt < 120 && !(library.designs?.length === 100); attempt += 1) {
-    await sleep(500);
-    library = await (await fetch(`${API}/api/designs`)).json();
-  }
-  check("one hundred references exist", library.designs?.length === 100, `${library.designs?.length ?? 0} references`);
-  check("reference names are unique", new Set(library.designs.map((design) => design.name)).size === 100);
-  check("reference families vary", new Set(library.designs.map((design) => design.family)).size > 3);
-  const referenceImages = await page.evaluate(
-    () => document.querySelectorAll('[aria-label*="selected"]').length
-  );
-  check("reference cards paint", referenceImages >= 0);
-  await page.screenshot({ path: `${shots}/06b-reference-gallery.png` });
-  const targetReference = library.designs[3];
-  const tileArrived = await waitForBodyText(page, targetReference.name, 30000);
-  check("reference tile arrived", tileArrived);
-  check("reference can be chosen", await clickText(page, targetReference.name));
-  await sleep(500);
-  check("reference can be confirmed", await clickText(page, "Use this look"));
-  check("order shows the chosen reference", await waitForBodyText(page, targetReference.name, 30000));
-  await page.screenshot({ path: `${shots}/06-designs.png` });
-
-  if (!(await clickText(page, "Design it again"))) {
-    await clickText(page, "Design the brochure");
-  }
-  let referencedRender = null;
-  for (let attempt = 0; attempt < 150; attempt += 1) {
-    const list = await (await fetch(`${API}/api/renders`)).json();
-    referencedRender = list.find(
-      (render) =>
-        render.kind === "ai" &&
-        render.orderId === chatOrder.id &&
-        render.design?.reference === targetReference.id
-    );
-    if (referencedRender) break;
-    await sleep(500);
-  }
-  check(
-    "render was guided by the chosen reference",
-    Boolean(referencedRender),
-    referencedRender?.design?.referenceName ?? "no referenced render yet"
-  );
-
-  // 3d. each reference proves itself with a printed preview
-  let previewsReady = 0;
-  for (let attempt = 0; attempt < 180 && previewsReady < 1; attempt += 1) {
-    await sleep(2000);
-    const lib = await (await fetch(`${API}/api/designs`)).json();
-    previewsReady = lib.previewsReady ?? 0;
-  }
-  check("a reference printed its preview", previewsReady >= 1, `${previewsReady} ready`);
-  await page.goto(`${WEB}/templates`, { waitUntil: "networkidle2" });
-  const previewImage = await page
-    .waitForFunction(
-      () =>
-        [...document.querySelectorAll("img")].some(
-          (image) => image.src.includes("/design-previews/") && image.naturalWidth > 100
-        ),
-      { timeout: 180000 }
-    )
-    .then(() => true)
-    .catch(() => false);
-  check("gallery shows printed previews", previewImage);
-  check("gallery search filters", await setValueByPlaceholder(page, "Search the looks", "zzz-no-such-look"));
-  check("empty search explains itself", await waitForBodyText(page, "No looks match", 15000));
-  check("search clears", await clickText(page, "Clear search"));
-  check("library returns after clear", await waitForBodyText(page, "100 looks", 15000));
-  await page.screenshot({ path: `${shots}/06b-reference-gallery.png` });
+  // 3c. the brochure is built from the client's own pictures, with a loupe
+  const renderedPrompt = await (await fetch(`${API}/api/orders/${chatOrder.id}`)).json();
+  check("order keeps its photographs", renderedPrompt.attachments.length >= 2);
+  check("no template gallery remains in the app", await page.evaluate(() => !document.body.innerText.includes("One hundred looks")));
 
   // 4. back to the history, the order and its generated brochure are there
   await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
@@ -769,7 +693,7 @@ try {
   await mobile.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await mobile.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(1500);
-  check("mobile renders the order book", await hasText(mobile, "Grace Wood"));
+  check("mobile renders the order book", await hasText(mobile, "Jacob Design Studio"));
   const tabBar = await mobile.evaluate(() => {
     const text = document.body.innerText;
     return text.includes("Chat") && text.includes("History") && text.includes("Settings");

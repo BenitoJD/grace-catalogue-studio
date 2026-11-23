@@ -23,14 +23,14 @@ jobs:
           - name: macOS
             runner: macos-latest
             build-script: "build:mac"
-            artifact-name: grace-studio-macos
+            artifact-name: jacob-studio-macos
             artifact-paths: |
               desktop/release/*.dmg
               desktop/release/*.zip
           - name: Windows
             runner: windows-latest
             build-script: "build:win:all"
-            artifact-name: grace-studio-windows
+            artifact-name: jacob-studio-windows
             artifact-paths: |
               desktop/release/*.exe
 
@@ -89,11 +89,11 @@ jobs:
         working-directory: desktop
         shell: pwsh
         run: |
-          $setup = Get-ChildItem "release\GraceStudio-Setup-*.exe" | Select-Object -First 1
+          $setup = Get-ChildItem "release\JacobStudio-Setup-*.exe" | Select-Object -First 1
           if (-not $setup) { throw "No setup exe was produced." }
           Write-Host "Installing $($setup.FullName)"
           Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
-          $exe = Join-Path $env:LOCALAPPDATA "Programs\Grace Studio\Grace Studio.exe"
+          $exe = Join-Path $env:LOCALAPPDATA "Programs\Jacob Design Studio\Jacob Design Studio.exe"
           if (-not (Test-Path $exe)) { throw "The installer did not place the app at $exe" }
           Write-Host "Installed at $exe"
           $uninstaller = Join-Path (Split-Path $exe) "Uninstall.exe"

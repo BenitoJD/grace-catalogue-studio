@@ -146,10 +146,10 @@ export default function SettingsScreen() {
                 source={require('@/assets/images/logo.png')}
                 style={styles.brandMark}
                 resizeMode="contain"
-                accessibilityLabel="Grace Wood Industry"
+                accessibilityLabel="Jacob Design Studio"
               />
               <View style={styles.brandText}>
-                <Text style={text.eyebrow}>Grace Wood</Text>
+                <Text style={text.eyebrow}>Jacob Design Studio</Text>
             <TamilLine />
             <Text style={[text.screenTitle, styles.title]}>Settings</Text>
               </View>
@@ -312,13 +312,13 @@ export default function SettingsScreen() {
 
           <View style={styles.section}>
             <Text style={text.sectionLabel}>About</Text>
-            <Text style={[text.body, styles.aboutTitle]}>Grace Wood Industry, Nagercoil</Text>
+            <Text style={[text.body, styles.aboutTitle]}>Jacob Design Studio, Nagercoil</Text>
             <Text style={[text.muted, styles.about]}>
-              Grace Wood Industry builds custom wardrobes and furniture in Nagercoil, Tamil Nadu.
+              Jacob Design Studio builds custom wardrobes and furniture in Nagercoil, Tamil Nadu.
               Catalogue Studio is the internal tool for drafting orders and printing vouchers and
               material kits for the workshop.
             </Text>
-            <Text style={[text.caption, styles.footer]}>Internal use · Grace Wood Industry</Text>
+            <Text style={[text.caption, styles.footer]}>Internal use · Jacob Design Studio</Text>
           </View>
         </View>
       </ScrollView>

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Grace Studio desktop wrapper.
+ * Jacob Design Studio desktop wrapper.
  *
  * The Expo web build in app/dist is a static SPA that talks to the catalogue
  * API. It has no knowledge of Electron: it is loaded over HTTP, so fetch(),
@@ -18,11 +18,11 @@
  * looks same-origin to the renderer: no CORS setup and no rebuild with
  * EXPO_PUBLIC_API_URL are needed.
  *
- * The window is loaded through grace-studio.localhost so the SPA uses
+ * The window is loaded through jacob-studio.localhost so the SPA uses
  * window.location.origin. app/lib/api.ts treats "localhost", "127.0.0.1" and
  * "0.0.0.0" as the development setup and would otherwise hardcode
  * http://localhost:8787. The window is therefore loaded from the loopback alias
- * "grace-studio.localhost" (localhost.* always resolves to loopback). That is
+ * "jacob-studio.localhost" (localhost.* always resolves to loopback). That is
  * not one of the development hostnames, so the app uses window.location.origin
  * and goes through the proxy below. If the alias cannot be resolved the
  * wrapper falls back to 127.0.0.1, where the window still loads but the app's
@@ -36,8 +36,8 @@ const https = require('node:https');
 const path = require('node:path');
 const { URL, pathToFileURL } = require('node:url');
 
-const APP_NAME = 'Grace Studio';
-const WINDOW_HOSTNAME = 'grace-studio.localhost';
+const APP_NAME = 'Jacob Design Studio';
+const WINDOW_HOSTNAME = 'jacob-studio.localhost';
 const LOCAL_HOST = '127.0.0.1';
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 860;
@@ -125,7 +125,7 @@ let embeddedDataDir = null;
 const printPort = process.argv.includes('--print-port');
 
 function log(message) {
-  console.log(`[grace-studio] ${message}`);
+  console.log(`[jacob-studio] ${message}`);
 }
 
 function apiPaths() {

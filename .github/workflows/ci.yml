@@ -87,6 +87,6 @@ jobs:
       - name: Build the production image
         # Proves the Dockerfile, the system packages and the pip install all
         # work on a clean machine. Nothing is pushed from CI.
-        run: docker build -t grace-catalogue-studio .
+        run: docker build -t jacob-design-studio .
       - name: Show the resulting image
-        run: docker image ls grace-catalogue-studio
+        run: docker image ls jacob-design-studio

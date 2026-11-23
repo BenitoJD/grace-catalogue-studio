@@ -10,7 +10,7 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <meta name="theme-color" content="#FFFFFF" />
-        <title>Grace Wood, Catalogue Studio</title>
+        <title>Jacob Design Studio, Catalogue Studio</title>
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: globalStyles }} />
       </head>

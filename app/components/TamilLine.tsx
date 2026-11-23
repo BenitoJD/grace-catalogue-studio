@@ -6,7 +6,7 @@ import { colors } from '@/lib/theme';
 export function TamilLine() {
   return (
     <Text style={styles.line} accessibilityLanguage="ta">
-      கிரேஸ் வூட் இண்டஸ்ட்ரி
+      ஜேக்கப் டிசைன் ஸ்டுடியோ
     </Text>
   );
 }

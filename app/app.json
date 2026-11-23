@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "Grace Studio",
-    "slug": "grace-catalogue-studio",
+    "name": "Jacob Design Studio",
+    "slug": "jacob-design-studio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "gracewood",
+    "scheme": "jacobstudio",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gracewoodindustry.studio",
+      "bundleIdentifier": "com.jacobdesignstudio.studio",
       "buildNumber": "1"
     },
     "android": {
@@ -18,7 +18,7 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.gracewoodindustry.studio",
+      "package": "com.jacobdesignstudio.studio",
       "versionCode": 1
     },
     "web": {
@@ -27,8 +27,8 @@
       "favicon": "./assets/images/favicon.png",
       "themeColor": "#A65E22",
       "backgroundColor": "#FFFFFF",
-      "name": "Grace Studio",
-      "shortName": "Grace Studio"
+      "name": "Jacob Design Studio",
+      "shortName": "Jacob Design Studio"
     },
     "plugins": [
       "expo-router",
@@ -44,7 +44,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "description": "Catalogue studio for Grace Wood Industry. Capture a wardrobe order and render a print ready voucher.",
+    "description": "Catalogue studio for Jacob Design Studio. Capture a wardrobe order and render a print ready voucher.",
     "primaryColor": "#A65E22",
     "backgroundColor": "#FFFFFF"
   }
