@@ -14,7 +14,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#123B44",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -26,7 +26,7 @@
       "output": "single",
       "favicon": "./assets/images/favicon.png",
       "themeColor": "#A65E22",
-      "backgroundColor": "#FFFFFF",
+      "backgroundColor": "#123B44",
       "name": "Jacob Design Studio",
       "shortName": "Jacob Design Studio"
     },
@@ -37,7 +37,7 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#FFFFFF"
+          "backgroundColor": "#123B44"
         }
       ]
     ],
@@ -46,6 +46,6 @@
     },
     "description": "Catalogue studio for Jacob Design Studio. Capture a wardrobe order and render a print ready voucher.",
     "primaryColor": "#A65E22",
-    "backgroundColor": "#FFFFFF"
+    "backgroundColor": "#123B44"
   }
 }

@@ -58,6 +58,7 @@ import {
   parseDesignerReply,
   photoProfiles,
   readCopyOverride,
+  themeFromPalettes,
 } from './ai-brochure.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
@@ -1566,7 +1567,13 @@ export function createApp(options) {
           const palettePhotos = Object.keys(photoPalettes)
             .map((key) => Number.parseInt(key.replace('photo', ''), 10))
             .filter((index) => Number.isInteger(index));
-          const document = parseDesignerReply(result.content, attached.length, palettePhotos);
+          const designTheme = themeFromPalettes(photoPalettes);
+          const document = parseDesignerReply(
+            result.content,
+            attached.length,
+            palettePhotos,
+            designTheme,
+          );
           html = compileGenerativeBrochure({
             order,
             materials: listMaterials(db),

@@ -610,6 +610,7 @@ function createWindow() {
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     title: APP_NAME,
+    icon: path.join(__dirname, 'build', 'icon.png'),
     backgroundColor: '#FFFFFF',
     show: false,
     webPreferences: {
@@ -857,6 +858,16 @@ if (!gotSingleInstanceLock) {
       .catch((error) => log(`Embedded server shutdown failed: ${error.message}`))
       .finally(() => app.quit());
   });
+
+  // The dock shows the real brand tile in development too, not Electron's
+  // default icon.
+  if (process.platform === 'darwin' && app.dock) {
+    try {
+      app.dock.setIcon(path.join(__dirname, 'build', 'icon.png'));
+    } catch (error) {
+      log(`Dock icon could not be set: ${error.message}`);
+    }
+  }
 
   app
     .whenReady()

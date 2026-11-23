@@ -3671,6 +3671,23 @@ test('a brochure without a real magnifier is rejected', { timeout: 240_000 }, as
   assert.match(body.error.message, /magnifier plate/i);
 });
 
+test('light text on a light page is rejected for contrast', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  // The story headline is normally dark ink on cream; make it cream on cream.
+  const pale = DESIGNER_HTML.replace(
+    'font-family:var(--display);font-size:24pt;color:var(--deep);',
+    'font-family:var(--display);font-size:24pt;color:#F8F2E7;',
+  );
+  resetMockProvider({ reply: pale });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /contrast/i);
+  assert.match(body.error.message, /dark text on a light ground|light text on a dark ground/i);
+});
+
 test('a brochure without the brand mark is rejected', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();

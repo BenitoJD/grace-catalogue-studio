@@ -18,6 +18,7 @@ import { LlmError, clean } from './llm.mjs';
 import { buildVoucherValues, escapeHtml, paletteStripPng } from './render.mjs';
 import { colourName } from './image-palette.mjs';
 import { brandPlateTokens } from './brand-lockup.mjs';
+import { contrastIssues as pageContrastIssues } from './contrast.mjs';
 
 export const DESIGNER_MAX_TOKENS = 12000;
 export const DESIGNER_TEMPERATURE = 0.85;
@@ -172,6 +173,9 @@ const DESIGNER_SYSTEM = [
   'DESIGN RULES',
   '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',
   '- One dominant ground, one ink, one accent. Gold is a line, a number or a motif, never a large fill. A deep colour may carry a band or a whole page. Never set body text in gold on cream.',
+  '- Contrast is absolute: dark text on a light ground, light text on a dark ground. A pale page never gets pale text and a dark band never gets dark text.',
+  '- Any text over a photograph or a dark picture must sit inside a band, panel or scrim that carries its own near-opaque background colour inline, with the opposite text colour on it. Never set light words straight on a photo.',
+  '- Put the background colour inline on the element or on an ancestor element, not only in a class, so the contrast check can verify it. It is checked before printing and low contrast is rejected.',
   '- Build a real typographic hierarchy: one display line, small caps labels with wide tracking, hairline rules, captions, folio numbers. Use white space as a material.',
   '- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
   '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
@@ -586,7 +590,7 @@ const SPEC_WORD_LIMIT = 300;
  * printing. The page wrappers are removed and rebuilt by the server, so the
  * body can never end up with content beside the pages.
  */
-export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) {
+export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], theme = PALETTE) {
   const raw = typeof content === 'string' ? content : '';
   if (raw.trim() === '') {
     throw new LlmError('The model returned an empty brochure design.', { type: 'invalid_reply' });
@@ -806,6 +810,14 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = []) 
     }
   }
 
+  // Light ground takes dark text and dark ground takes light text. This is
+  // checked per text run against the background that actually sits behind it.
+  pages.forEach((page, index) => {
+    for (const issue of pageContrastIssues(page, theme)) {
+      issues.push(`page ${index + 1}: ${issue}`);
+    }
+  });
+
   if (issues.length > 0) {
     throw new LlmError(`The brochure design failed the print checks: ${[...new Set(issues)].join('; ')}.`, {
       type: 'invalid_reply',
@@ -980,14 +992,24 @@ export function themeFromPalettes(photoPalettes = {}) {
     const [br, bg, bb] = hexRgb(b);
     return br - bg - (ar - ag) + (bb - ab) * 0.2;
   })[0];
+  // A deep tone is used for small labels, so it must reach readable contrast on
+  // the paper. Darken the picture tone until it does, then fall back if needed.
+  let deep = deepCandidate;
+  for (let step = 0; step < 6 && contrastOf(deep, paper) < 4.5; step += 1) {
+    deep = mix(deep, '#000000', 0.18);
+  }
+  if (contrastOf(deep, paper) < 4.5) deep = PALETTE.deep;
+  const mutedCandidate = mix(paper, ink, 0.55);
   const theme = {
     paper,
     ink,
-    deep: contrastOf(deepCandidate, paper) > 3 ? deepCandidate : PALETTE.deep,
+    deep,
     accent: contrastOf(accent, paper) > 2.4 ? accent : PALETTE.accent,
     gold: contrastOf(warm, paper) > 1.8 ? warm : PALETTE.gold,
     hair: mix(paper, ink, 0.16),
-    muted: mix(paper, ink, 0.55),
+    // Muted text must stay readable on the paper; a picture palette can mix
+    // into something too pale, in which case the house muted tone is used.
+    muted: contrastOf(mutedCandidate, paper) >= 4.5 ? mutedCandidate : PALETTE.muted,
     onDark: paper,
   };
   if (contrastOf(theme.ink, theme.paper) < 4.5) {

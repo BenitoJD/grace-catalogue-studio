@@ -209,6 +209,26 @@ const web = startProcess("node", ["scripts/serve-web.mjs", "8081"]);
 const mock = startProcess("node", ["scripts/mock-llm.mjs", "8793"]);
 let browser;
 
+// SPA route changes can leave a navigation in flight; Chrome then aborts the
+// next goto. Retrying that exact case keeps the suite honest and stable.
+async function safeGoto(target, url, options = { waitUntil: "networkidle2" }) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await target.goto(url, options);
+    } catch (error) {
+      lastError = error;
+      if (!/ERR_ABORTED|ERR_CONNECTION_RESET|frame was detached/i.test(String(error?.message))) {
+        throw error;
+      }
+      await sleep(500);
+    }
+  }
+  throw lastError;
+}
+
+
+
 try {
   const apiUp = await waitFor(`${API}/health`);
   const webUp = await waitFor(WEB);
@@ -277,7 +297,7 @@ try {
   });
 
   // 1. the studio opens on the chat, history lives one tab over
-  await page.goto(WEB, { waitUntil: "networkidle2" });
+  await safeGoto(page, WEB, { waitUntil: "networkidle2" });
   check("chat loads", await hasText(page, "Studio chat"));
   check("chat explains what to paste", await hasText(page, "Paste everything the customer told you"));
   const datedStamp = await page.evaluate(() =>
@@ -297,7 +317,7 @@ try {
   await page.click('[aria-label="Chat"]');
   check("the tab bar returns to chat", await hasText(page, "Studio chat"));
 
-  await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/orders`, { waitUntil: "networkidle2" });
   check("history loads", await hasText(page, "Jacob Design Studio"));
   check("seeded orders show", await hasText(page, "JDS-2026-001"));
   check("seeded materials show in api", (await (await fetch(`${API}/api/bootstrap`)).json()).materials.length === 4);
@@ -325,11 +345,11 @@ try {
   ).json();
   const orderNo = chatOrder.orderNo;
   check("order number assigned", /^JDS-\d{4}-\d{3}$/.test(orderNo), orderNo);
-  await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(2000);
   check("order appears in history", await hasText(page, "E2E Master Wardrobe"));
   check("history card offers the order", await hasText(page, "Open order"));
-  await page.goto(`${WEB}/orders/${chatOrder.id}`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/orders/${chatOrder.id}`, { waitUntil: "networkidle2" });
   check("detail screen opens", await hasText(page, "E2E Master Wardrobe", 12000));
   check("order shows the colour read from its pictures", await hasText(page, "Colour from the pictures"));
   check(
@@ -417,7 +437,7 @@ try {
   check("no template gallery remains in the app", await page.evaluate(() => !document.body.innerText.includes("One hundred looks")));
 
   // 4. back to the history, the order and its generated brochure are there
-  await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(2500);
   check("order appears in history", await hasText(page, "E2E Master Wardrobe"));
   check("order count updated", await hasText(page, "3 orders"));
@@ -440,7 +460,7 @@ try {
   check("model settings save", saved.hasKey === true && saved.endpoint.includes("8793"));
   check("api never returns the key", !JSON.stringify(saved).includes("test-key"));
 
-  await page.goto(`${WEB}/settings`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/settings`, { waitUntil: "networkidle2" });
   await sleep(2000);
   const endpointValue = await page.evaluate(
     () => document.querySelector('input[placeholder="https://provider.example.com/v1"]')?.value ?? ""
@@ -463,7 +483,7 @@ try {
     "a provider suggests its models",
     (await page.$('[aria-label="Use model deepseek-v4-flash"]')) !== null
   );
-  await page.goto(`${WEB}/settings`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/settings`, { waitUntil: "networkidle2" });
   await sleep(1500);
   check("test connection button present", await clickText(page, "Test connection"));
   const connected = await page
@@ -474,7 +494,7 @@ try {
   await page.screenshot({ path: `${shots}/06b-model-settings.png` });
 
   // 4c. the chat interface: dump the requirement, answer the gap, cook
-  await page.goto(WEB, { waitUntil: "networkidle2" });
+  await safeGoto(page, WEB, { waitUntil: "networkidle2" });
   await sleep(2500);
   const chatInput = "Paste the customer's requirement";
   const attachButton = await page.$('[aria-label="Attach files"]');
@@ -689,7 +709,7 @@ try {
   // the order this run created, so pick it by title rather than by newest.
   const noteOrder = noteOrders.find((order) => order.title === "E2E Master Wardrobe") ?? noteOrders[0];
   const noteOrderId = noteOrder.id;
-  await page.goto(`${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
   await sleep(2500);
   check("draft note button present", await clickText(page, "Draft customer note"));
   const noteShown = await waitForBodyText(page, "three shutters in warm oak", 45000);
@@ -703,7 +723,7 @@ try {
   await page.screenshot({ path: `${shots}/06c-customer-note.png` });
 
   // 4d. the info kit renders from the same order
-  await page.goto(`${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
   await sleep(2500);
   check("info kit button present", await clickText(page, "Render info kit"));
   const kitReady = await waitForBodyText(page, "5 pages", 60000);
@@ -715,7 +735,7 @@ try {
   await page.screenshot({ path: `${shots}/06e-info-kit.png` });
 
   // 6. settings tab
-  await page.goto(`${WEB}/settings`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/settings`, { waitUntil: "networkidle2" });
   check("settings screen opens", await hasText(page, "Settings"));
   check("settings says the app runs locally", await hasText(page, "This computer, entirely"));
   check("settings never mentions an api server", !(await hasText(page, "API base", 1000)));
@@ -723,13 +743,13 @@ try {
   // 7. deep link straight into an order
   const orders = await (await fetch(`${API}/api/orders`)).json();
   const orderId = orders[0].id;
-  await page.goto(`${WEB}/orders/${orderId}`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/orders/${orderId}`, { waitUntil: "networkidle2" });
   check("deep link to order works", await hasText(page, orders[0].orderNo, 12000));
 
   // 8. mobile viewport
   const mobile = await browser.newPage();
   await mobile.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-  await mobile.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
+  await safeGoto(mobile, `${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(1500);
   check("mobile renders the order book", await hasText(mobile, "Jacob Design Studio"));
   const tabBar = await mobile.evaluate(() => {
@@ -738,7 +758,7 @@ try {
   });
   check("mobile tab bar present", tabBar);
   await mobile.screenshot({ path: `${shots}/07-mobile-orders.png` });
-  await mobile.goto(`${WEB}/orders/${orderId}`, { waitUntil: "networkidle2" });
+  await safeGoto(mobile, `${WEB}/orders/${orderId}`, { waitUntil: "networkidle2" });
   await sleep(2000);
   check("mobile deep link renders", await hasText(mobile, orders[0].orderNo, 12000));
   await mobile.screenshot({ path: `${shots}/08-mobile-detail.png` });
@@ -749,7 +769,7 @@ try {
   // 10. error state when the api is down
   api.child.kill("SIGTERM");
   await sleep(700);
-  await page.goto(`${WEB}/orders`, { waitUntil: "networkidle2" });
+  await safeGoto(page, `${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(2000);
   const errorShown = await hasText(page, "Cannot load", 12000);
   check("api down shows a readable error", errorShown);

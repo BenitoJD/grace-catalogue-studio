@@ -25,6 +25,7 @@ There is no template library and no pre-made layout. The model authors every pag
 The photographs are the source, not decoration. The brochure is a colour study, not a specification sheet: there are no dimensions, sizes or shapes anywhere in the product.
 
 - **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again. PDF sheets count as pictures too, through their first page.
+- **Contrast is enforced.** Dark text on a light ground, light text on a dark ground. Every explicit text colour is checked against the colour actually behind it, including bands and photograph scrims, before the brochure prints. A pale-on-pale or dark-on-dark page is rejected and asked for again.
 - **The theme comes from the pictures.** The paper, ink, deep tone and accent of every brochure are computed from the colours read out of the client's photographs and handed to the designer as the page palette. Two projects never share a house palette.
 - **The brand is always legible.** The mark, the brand name and the company details are printed on ready made brand and contact plates. Each plate carries its own solid ground, light or dark, with a keyline, so a pale photograph or a dark page can never fade them out. The cover takes a brand plate and the closing page takes a brand plate plus a contact plate with the phone, email and address.
 
@@ -143,7 +144,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 121 server tests
+npm test          # 122 server tests
 npm run verify    # black box smoke test
 npm run e2e       # 97 browser checks
 npm run typecheck
