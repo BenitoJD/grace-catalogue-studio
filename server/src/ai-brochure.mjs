@@ -1,260 +1,181 @@
-// The AI art director.
+// The brochure designer.
 //
-// Instead of picking one of the fixed brochure templates, the model designs a
-// document for this order: a tone, a type pairing and a composition for each of
-// the four pages. It also writes the headline, body and closing in the same
-// call. This module turns that design into print safe HTML and validates it
-// before anything is rendered.
-import { LlmError, capText, clean, parseJsonObject } from './llm.mjs';
+// There is no fixed template in this path. The model receives the order, the
+// photographs, the finish samples, the approved copy and the brand kit, and it
+// authors the four printed pages itself as HTML and CSS. The server only
+// supplies the print box, the fonts, the assets and the data through tokens,
+// then checks the document before anything is rendered.
+//
+// Why the strict checks: the brochure is printed by Chromium and WeasyPrint, so
+// the document must stay local, printable and complete. A model reply that
+// misses a fact, points at the internet, overflows the page or forgets the copy
+// is rejected and asked for again with the exact problems listed.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+import { LlmError, clean } from './llm.mjs';
 import { buildVoucherValues, escapeHtml } from './render.mjs';
 
-export const TONES = ['maroon', 'teal', 'copper', 'sandal', 'peacock'];
-const TONE_ALIASES = { ink: 'maroon', olive: 'teal', indigo: 'peacock', sand: 'sandal', gold: 'sandal' };
-const INDIAN_PALETTES = {
-  maroon: { id: 'maroon', accent: '#7C2A22', accentOnDark: '#E8C27A', accentSoft: '#F0D9C4', paper: '#FBF3E4', coverPaper: '#F8EDD8', ink: '#2A1512', muted: '#6B4A3E', faint: '#9C7A62', hair: '#E3D2B8', onDark: '#FBF3E4', dark: '#4A1116' },
-  teal: { id: 'teal', accent: '#1E5C5A', accentOnDark: '#D9B76A', accentSoft: '#DDE9E2', paper: '#F8F3E6', coverPaper: '#F2EAD6', ink: '#142A28', muted: '#4C615C', faint: '#8A9C93', hair: '#D9D2BC', onDark: '#F8F3E6', dark: '#123B3A' },
-  copper: { id: 'copper', accent: '#A65E22', accentOnDark: '#E8C27A', accentSoft: '#F0DCC4', paper: '#FBF4E7', coverPaper: '#F7EAD4', ink: '#2B1A0F', muted: '#6B4E36', faint: '#9E7E60', hair: '#E4D3B8', onDark: '#FBF4E7', dark: '#5A2A1E' },
-  sandal: { id: 'sandal', accent: '#B4863F', accentOnDark: '#F0D9A8', accentSoft: '#F3E5C8', paper: '#FCF6E9', coverPaper: '#F8EDD5', ink: '#2E2113', muted: '#6E5738', faint: '#A08862', hair: '#E7D8BA', onDark: '#FCF6E9', dark: '#5B3A1B' },
-  peacock: { id: 'peacock', accent: '#16537E', accentOnDark: '#E8C27A', accentSoft: '#DCE5EC', paper: '#F8F2E3', coverPaper: '#F2E8D2', ink: '#12222E', muted: '#4A5B66', faint: '#87949C', hair: '#D8D0BC', onDark: '#F8F2E3', dark: '#0D3350' },
-};
-export const TYPES = ['editorial', 'modern', 'classic'];
-export const COVERS = ['fullBleed', 'splitLeft', 'splitRight', 'bandTop', 'framed', 'masthead'];
-export const SPECS = ['twoColumn', 'threeColumn', 'ledger', 'cards', 'stacked'];
-export const FINISHES = ['grid4', 'filmstrip', 'stacked', 'band', 'museum'];
-export const INSIDES = ['photoEssay', 'diptych', 'heroStatement', 'splitStory'];
+export const DESIGNER_MAX_TOKENS = 8000;
+export const DESIGNER_TEMPERATURE = 0.85;
+export const DESIGNER_TRIES = 2;
+export const DESIGNER_MAX_CHARS = 90_000;
 
-const TYPE_STACKS = {
-  editorial: { display: "'Instrument Serif', Georgia, serif", body: "'Barlow', Helvetica, Arial, sans-serif" },
-  modern: { display: "'Barlow', Helvetica, Arial, sans-serif", body: "'Barlow', Helvetica, Arial, sans-serif" },
-  classic: { display: "'Instrument Serif', Georgia, serif", body: "'Barlow', Helvetica, Arial, sans-serif" },
+const BRAND = {
+  name: 'Grace Wood Industry',
+  tamil: 'கிரேஸ் வூட் இண்டஸ்ட்ரி',
+  placeTamil: 'நாகர்கோவில்',
+  phone: '+91 63740 43346',
+  email: 'info.gracewoodindustry@gmail.com',
+  address: '26J Rajjakamangalam Road, Chettikulam, Nagercoil 629001',
 };
 
-const STORY_LAYOUTS = ['hero', 'editorial', 'diptych', 'collage'];
-const MATERIALS_LAYOUTS = ['grid4', 'filmstrip', 'band', 'museum', 'stacked'];
-const STORY_ALIASES = {
-  photoEssay: 'hero',
-  heroStatement: 'hero',
-  splitStory: 'editorial',
-  storyLeft: 'editorial',
-  storyRight: 'editorial',
+const PALETTE = {
+  paper: '#FBF3E4',
+  ink: '#2A1512',
+  deep: '#4A1116',
+  accent: '#7C2A22',
+  gold: '#C79A3A',
+  hair: '#E3D2B8',
+  muted: '#6B4A3E',
+  onDark: '#FBF3E4',
 };
 
-const DESIGN_KIT = [
-  'You are the art director and copywriter for one printed brochure at Grace Wood Industry, a wardrobe and furniture workshop in Nagercoil.',
-  'This is a brochure, not a report: it is picture led, quiet and premium, the kind of book a client keeps. The customer photographs and the material textures carry it; words are few and well set.',
-  'Design four A4 portrait pages and write their words in one reply.',
-  'Reply with strict JSON only, exactly this shape:',
-  '{"design":{"tone":"maroon|teal|copper|sandal|peacock","type":"editorial|modern|classic","cover":"fullBleed|splitLeft|splitRight|bandTop|framed|masthead","story":"hero|editorial|diptych|collage","materials":"grid4|filmstrip|band|museum|stacked","spec":"twoColumn|threeColumn|ledger|cards|stacked","coverPhoto":0,"storyPhoto":1,"detailPhoto":2,"statement":"one calm line, at most 80 characters"},"copy":{"headline":"...","body":"...","closing":"..."}}',
-  'The four pages:',
-  '1. Cover. A strong photograph, the brand, the piece and the customer. Almost nothing else.',
-  '2. Story. One or two photographs and the statement as a large line. The body sits small in a column, like a caption in a magazine.',
-  '3. Materials. The four finish textures at size, names in small caps. This is a colour page, not a table.',
-  '4. Specification. The technical details, set quietly at the back for the workshop and the client file, not the reason to open the brochure.',
-  'Design rules:',
-  '- Choose the tone and type that suit the room and the piece: maroon for classic warmth, teal for calm, copper for wood, sandal for gold, peacock for depth. Vary them from order to order.',
-  '- Avoid the obvious default. A split cover with editorial type is the safe answer, so use it for at most one order in three. Prefer masthead, bandTop or framed covers, and mix modern and classic type.',
-  '- If the user message includes a studio direction, let it decide the mood, palette and composition. Follow it where it fits the allowed values; where it conflicts, keep the design printable and choose the closest allowed option.',
-  '- Choose the cover that suits the photographs: fullBleed for one strong photo, split for two, framed for a quieter document, masthead or bandTop for a graphic one.',
-  '- coverPhoto, storyPhoto and detailPhoto are indexes into the available photographs, starting at 0. They may repeat if there is only one photo.',
-  '- statement is the large line on the story page: a phrase, not a sentence of sales copy.',
-  'Copy rules:',
-  '- Headline at most 56 characters, understated and specific. Body 95 to 145 words. Closing at most 80 characters.',
-  '- Voice: quiet confidence of a design house catalogue. Precise nouns, restrained adjectives, short rhythmic sentences with one longer line.',
-  '- No second person: never "you", "your", "we" or "our". The piece is described, not sold.',
-  '- Use only facts in the order and the brief. Never invent claims, certifications, prices or dates.',
-  '- No em dashes, en dashes, exclamation marks, questions or emojis.',
-  '- Banned words: premium, luxurious, luxury, bespoke, crafted, stunning, gorgeous, beautiful, perfect, amazing, elegant, timeless, elevate, seamless, transform, dream, oasis.',
-  '- Never mention the order, brief or document. Never name the carcass, back panel or a material thickness.',
-  '- Do not address the customer by name at the start of a sentence.',
-  'No prose, markdown or code fences around the JSON.',
-].join(' ');
+// Assets live beside the built HTML in templates/voucher, so relative paths are
+// the safe form for both Chromium and WeasyPrint.
+const ASSETS = {
+  logo: '../assets/grace-logo.png',
+  jaali: '../assets/indian/jaali.svg',
+  paisley: '../assets/indian/paisley.svg',
+  lotus: '../assets/indian/lotus.svg',
+  rangoli: '../assets/indian/rangoli.svg',
+  arch: '../assets/indian/temple-arch.svg',
+};
 
+const MOTIF_TOKENS = ['jaali', 'paisley', 'lotus', 'rangoli', 'arch'];
 
-export function buildAiBrochureMessages(order, brief, photoCount, direction = '') {
-  const facts = [
-    `Order: ${order.title}`,
-    `Room: ${order.room}`,
-    `Customer: ${order.customerName}`,
-    `Width: ${order.width}`,
-    `Height: ${order.height}`,
-    `Depth: ${order.depth}`,
-    `Shutters: ${order.shutters}`,
-    `Exterior: ${order.exterior}`,
-    `Interior: ${order.interior}`,
-    `Handle: ${order.handle}`,
-    `Drawers: ${order.drawers}`,
-    `Edge band: ${order.edgeShutter}`,
-    `Finish: ${order.finishExt}`,
-  ].join('\n');
-  return [
-    { role: 'system', content: DESIGN_KIT },
-    {
-      role: 'user',
-      content: [
-        facts,
-        `Photographs available: ${photoCount}.`,
-        `Customer brief, use only what is useful:\n${clean(brief) || '(none supplied)'}`,
-        clean(direction)
-          ? `Studio direction for this brochure, follow it:\n${clean(direction)}`
-          : 'Studio direction: none given. Choose the composition that suits the piece.',
-      ].join('\n\n'),
-    },
-  ];
-}
+// Every spec value the specification page must carry. Missing ones are marked
+// "To be confirmed" instead of being guessed.
+const FACT_TOKENS = [
+  'width',
+  'height',
+  'depth',
+  'shutters',
+  'exterior',
+  'interior',
+  'carcass',
+  'backPanel',
+  'shuttersMat',
+  'drawers',
+  'edgeShutter',
+  'edgeCarcass',
+  'edgeNote',
+  'finishExt',
+  'finishInt',
+  'handle',
+  'handleNote',
+  'hinges',
+  'channels',
+];
 
-function pickEnum(value, allowed, field, fallback) {
-  const text = clean(value);
-  const match = allowed.find((entry) => entry.toLowerCase() === text.toLowerCase());
-  if (match) return match;
-  if (fallback) return fallback;
-  throw new LlmError(`The design chose an unknown ${field} ("${text}").`, { type: 'invalid_reply' });
-}
+const COPY_TOKENS = ['headline', 'body', 'closing'];
+const MATERIAL_TOKENS = [1, 2, 3, 4].flatMap((index) => [
+  `material${index}Name`,
+  `material${index}Image`,
+]);
 
-function pickPhoto(value, count, fallback = 0) {
-  const index = Number.parseInt(String(value ?? ''), 10);
-  if (!Number.isInteger(index) || index < 0 || index >= Math.max(1, count)) return fallback;
-  return index;
-}
+const IDENTITY_TOKENS = [
+  'brand',
+  'brandTamil',
+  'placeTamil',
+  'phone',
+  'email',
+  'address',
+  'orderNo',
+  'date',
+  'title',
+  'room',
+  'roomTamil',
+  'customer',
+];
 
-/** Parse and validate the model's design. Anything unclear is rejected. */
-export function parseAiDesign(content, photoCount = 1) {
-  const parsed = parseJsonObject(content);
-  if (!parsed || typeof parsed !== 'object' || !parsed.design || !parsed.copy) {
-    throw new LlmError('The brochure design could not be read. Generate it again.', {
-      type: 'invalid_reply',
-    });
-  }
-  const copy = {
-    headline: capText(parsed.copy.headline, 120),
-    body: capText(parsed.copy.body, 2400),
-    closing: capText(parsed.copy.closing, 160),
-  };
-  if (copy.body.split(/\s+/).filter(Boolean).length < 60) {
-    throw new LlmError('The brochure copy came back too thin. Generate it again.', {
-      type: 'invalid_reply',
-    });
-  }
-  const rawStory = clean(parsed.design.story ?? parsed.design.inside);
-  const story = STORY_ALIASES[rawStory] ?? pickEnum(rawStory, STORY_LAYOUTS, 'story', 'editorial');
-  const rawMaterials = clean(parsed.design.materials ?? parsed.design.finishes);
-  const design = {
-    tone: pickEnum(TONE_ALIASES[clean(parsed.design.tone).toLowerCase()] ?? parsed.design.tone, TONES, 'tone', 'maroon'),
-    type: pickEnum(parsed.design.type, TYPES, 'type', 'editorial'),
-    cover: pickEnum(parsed.design.cover, COVERS, 'cover', 'fullBleed'),
-    story,
-    materials: pickEnum(rawMaterials, MATERIALS_LAYOUTS, 'materials', 'grid4'),
-    spec: pickEnum(parsed.design.spec, SPECS, 'spec', 'twoColumn'),
-    coverPhoto: pickPhoto(parsed.design.coverPhoto, photoCount, 0),
-    storyPhoto: pickPhoto(parsed.design.storyPhoto ?? parsed.design.insidePhoto, photoCount, 1),
-    detailPhoto: pickPhoto(parsed.design.detailPhoto, photoCount, 0),
-    statement: capText(parsed.design.statement, 100) || 'Made for the room it stands in.',
-  };
-  return { design, copy };
-}
+const RAW_TOKENS = new Set([
+  'logo',
+  'jaali',
+  'paisley',
+  'lotus',
+  'rangoli',
+  'arch',
+  'drawing',
+  ...MATERIAL_TOKENS.filter((token) => token.endsWith('Image')),
+  ...FACT_TOKENS.filter((token) => token.endsWith('Image')),
+]);
 
-function paletteCss(palette) {
-  return [
-    ['accent', palette.accent],
-    ['accent-on-dark', palette.accentOnDark],
-    ['accent-soft', palette.accentSoft],
-    ['paper', palette.paper],
-    ['cover-paper', palette.coverPaper],
-    ['ink', palette.ink],
-    ['muted', palette.muted],
-    ['faint', palette.faint],
-    ['hair', palette.hair],
-    ['on-dark', palette.onDark],
-    ['dark', palette.dark],
-  ]
-    .map(([key, value]) => `--${key}: ${value};`)
-    .join('\n');
-}
-
-const BASE_CSS = `
-  @page { size: 216mm 303mm; margin: 0; }
-  html, body { margin:0; padding:0; background:#fff; }
-  * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .page { position:relative; width:216mm; height:303mm; overflow:hidden; page-break-after:always; background:var(--cream); }
-  .page:last-child { page-break-after:auto; }
-  .sheet { position:absolute; left:3mm; top:3mm; width:210mm; height:297mm; }
-  .abs { position:absolute; }
-  .ph { background-size:cover; background-position:center; background-repeat:no-repeat; }
-  .micro { font-family:var(--body); font-size:6.4pt; letter-spacing:.22em; text-transform:uppercase; color:var(--deep); }
-  .label { font-family:var(--body); font-size:7pt; letter-spacing:.2em; text-transform:uppercase; color:var(--deep); }
-  .value { font-family:var(--body); font-size:8.4pt; line-height:1.4; color:var(--ink); }
-  .head { font-family:var(--display); font-weight:400; color:var(--deep); line-height:1.0; letter-spacing:-.015em; }
-  .serif { font-family:var(--display); font-weight:400; color:var(--deep); line-height:1.02; letter-spacing:-.01em; }
-  .body { font-family:var(--body); font-size:8.2pt; line-height:1.58; color:var(--ink); }
-  .caption { font-family:var(--body); font-size:7pt; line-height:1.5; color:var(--deep); }
-  .rule { height:0.16mm; background:var(--hair); }
-  .acc { background:var(--accent); }
-  .folio { position:absolute; left:18mm; right:18mm; bottom:7.5mm; display:flex; justify-content:space-between; font-family:var(--body); font-size:6pt; letter-spacing:.16em; text-transform:uppercase; color:var(--deep); }
-  .folioDark { color:rgba(255,255,255,0.72); }
-  .row { display:flex; justify-content:space-between; align-items:baseline; gap:6mm; border-bottom:0.14mm solid var(--hair); padding:1.9mm 0; }
-  .row .k { font-family:var(--body); font-size:7pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep); }
-  .row .v { font-family:var(--body); font-size:8.2pt; color:var(--ink); text-align:right; }
-  .body2col { display:flex; gap:7mm; }
-  .body2col > div { flex:1; font-family:var(--body); font-size:8pt; line-height:1.56; color:var(--ink); }
-  .band { background:var(--deep); color:var(--cream); }
-  .goldLine { height:0.4mm; background:linear-gradient(90deg,#9A6A22 0%,#D9AE62 45%,#A8792E 100%); }
-  .diamond { width:1.7mm; height:1.7mm; background:var(--gold); transform:rotate(45deg); }
-  .swatchName { font-family:var(--display); font-size:10.5pt; line-height:1.2; color:var(--deep); margin-top:3mm; }
-  .swatchIndex { font-family:var(--body); font-size:6.5pt; letter-spacing:.18em; color:var(--gold); margin-right:2.4mm; }
-  .dropcap { font-family:var(--display); font-size:20pt; line-height:.8; float:left; padding:0 1.8mm 0 0; color:var(--accent); }
-  .tamil { font-family:'Noto Sans Tamil', var(--body); letter-spacing:0; text-transform:none; }
-  .jaali { background-image:url(../assets/indian/jaali.svg); background-repeat:repeat-x; background-size:auto 6mm; }
-  .paisley { background-image:url(../assets/indian/paisley.svg); background-repeat:no-repeat; background-size:contain; }
-  .lotus { background-image:url(../assets/indian/lotus.svg); background-repeat:no-repeat; background-size:contain; }
-  .rangoli { background-image:url(../assets/indian/rangoli.svg); background-repeat:no-repeat; background-size:contain; }
-  .arch { background-image:url(../assets/indian/temple-arch.svg); background-repeat:no-repeat; background-size:100% 100%; }
-  .ornament { border:0.4mm solid var(--gold); }
-  .ornamentInner { border:0.14mm solid var(--gold); }
-  .white { color:var(--on-dark); }
-`;
-
-function rowsHtml(facts) {
-  return facts
-    .map(
-      ([label, value]) =>
-        `<div class="row"><div class="k">${escapeHtml(label)}</div><div class="v">${escapeHtml(value || 'Not set')}</div></div>`,
-    )
-    .join('');
-}
-
-function specGroups(values) {
-  return [
-    {
-      title: 'Dimensions',
-      facts: [
-        ['Width', values.width],
-        ['Height', values.height],
-        ['Depth', values.depth],
-        ['Shutters', values.shutters],
-        ['Room', values.room],
-      ],
-    },
-    {
-      title: 'Materials',
-      facts: [
-        ['Shutter face', values.exterior],
-        ['Interior', values.interior],
-        ['Drawers', values.drawers],
-        ['Edge band', values.edgeShutter],
-        ['Finish', values.finishExt],
-      ],
-    },
-    {
-      title: 'Hardware',
-      facts: [
-        ['Handle', values.handle],
-        ['Handle note', values.handleNote],
-        ['Hinges', values.hinges],
-        ['Channels', values.channels],
-        ['Layout', `${values.layoutLeft}, ${values.layoutMiddle}, ${values.layoutRight}`],
-      ],
-    },
-  ];
-}
+const DESIGNER_SYSTEM = [
+  'You are the art director, typographer and print designer for Grace Wood Industry, a wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
+  'You design and typeset one printed brochure for one order. Reply with one complete HTML document and nothing else.',
+  '',
+  'THE DOCUMENT',
+  'A four page A4 brochure printed on warm cream uncoated paper. The page box is 216 mm wide by 303 mm tall and includes a 3 mm bleed on every side, so the trim is 210 by 297 mm.',
+  'It is picture led, quiet, warm and confident, the kind of book a customer keeps on the table. Indian taste: generous margins, large type, deep maroon and muted gold against cream, Tamil and English together, ornament used like jewellery, never a poster and never a website.',
+  '',
+  'THE FOUR PAGES',
+  '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
+  '2. Story. One or two photographs and the written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet.',
+  '3. Materials. The four finish samples shown at size with their names. A colour page, not a table.',
+  '4. Specification. The order facts set quietly at the back: dimensions, materials and hardware, with the measured drawing. It is for the workshop and the client file, not the reason to open the brochure.',
+  '',
+  'HOW TO REPLY',
+  '- Reply with the HTML document only: no prose, no markdown, no code fences, no explanation.',
+  '- The <head> may hold one <style> block. Inline style attributes are welcome.',
+  '- The <body> must hold exactly four page elements in order: <div class="page"> ... </div>. Nothing else beside them.',
+  '- The renderer supplies the page box, the bleed, the fonts and the colour tokens. Do not define @page, @import or @font-face, do not write html or body rules, and do not set width, height, position, margin or page-break on .page.',
+  '- Position inside a page with absolute mm offsets, or with flex or grid. Keep type and decoration at least 18 mm from the left and right edges and 18 mm from the top, and keep the bottom 18 mm clear for the folio unless a photograph bleeds.',
+  '- Use mm for print sizes. Never use vh or vw for type or position.',
+  '- No external URLs, scripts, forms, videos, iframes, links, remote fonts or remote images. Use only the supplied tokens and assets.',
+  '- One page must be exactly one printed page. Nothing may be clipped off the edge of the paper.',
+  '',
+  'THE TOKENS',
+  'Write these tokens exactly. The renderer replaces them with the real words, numbers and files before printing. Never print a token twice, never retype its content in your own words, and never leave a token unused where the list says it is required.',
+  'Copy: {{headline}}, {{body}} and {{closing}}. Set each exactly once, as given. They are the only long words in the document.',
+  'The body is one piece of prose: set it in a comfortable measure, two or three columns at 8 to 9.5 pt, and let the paragraph flow. Do not cut it.',
+  'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{orderNo}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}.',
+  'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover; the list below gives each one its shape.',
+  'Materials: {{material1Name}} and {{material1Image}} through {{material4Name}} and {{material4Image}}. Show all four samples on page 3, each image and each name.',
+  'Specification: {{width}}, {{height}}, {{depth}}, {{shutters}}, {{exterior}}, {{interior}}, {{carcass}}, {{backPanel}}, {{shuttersMat}}, {{drawers}}, {{edgeShutter}}, {{edgeCarcass}}, {{edgeNote}}, {{finishExt}}, {{finishInt}}, {{handle}}, {{handleNote}}, {{hinges}}, {{channels}}.',
+  'Print every specification token on page 4, each once, as the value next to a label you set in small caps. Set them in two or three aligned columns with hairline rules, like a colophon, never like a spreadsheet. Never invent, round or reword a value; if a value is empty it prints as a confirmation note.',
+  'Assets: {{logo}} is the brand mark. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image. {{drawing}} is the measured front elevation drawing, a wide technical plate; it must appear on page 4.',
+  '',
+  'REQUIRED',
+  '- Page 1: at least one photograph, {{title}}, {{customer}}, {{brand}} or {{logo}}, and {{brandTamil}} or {{roomTamil}}.',
+  '- Page 2: {{headline}}, {{body}}, {{closing}}, and at least one photograph.',
+  '- Page 3: all four material images and all four material names.',
+  '- Page 4: every specification token and {{drawing}}.',
+  '- Somewhere in the document: {{orderNo}}, {{phone}}, and at least one house motif token.',
+  '',
+  'DESIGN RULES',
+  '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',
+  '- One dominant ground, one ink, one accent. Gold is a line, a number or a motif, never a large fill. Deep maroon may carry a band or a whole page. Never set body text in gold on cream.',
+  '- Build a real typographic hierarchy: one display line, small caps labels with wide tracking, hairline rules, captions, folio numbers. Use white space as a material.',
+  '- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
+  '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
+  '- Finish samples are often cream or white. Frame every sample with a hairline rule, a thin gold keyline or a darker plate behind it, so a pale sample never disappears into the cream paper.',
+  '- Tamil is set tight and whole: never letter-space, uppercase or small-cap a Tamil line, and never set it below 7.5 pt. Keep Tamil in a line of its own.',
+  '- Ornament once or twice in the whole document, at a corner or a rule: a jaali strip along one edge, a lotus under a title, an arch around a photograph. Never all motifs on one page.',
+  '- The cover is the loudest page, the story is the warmest, the materials page is a quiet colour study, and the specification page is a calm technical colophon.',
+  '- Use the whole safe area. No page should feel more than half empty, except where one photograph deliberately holds the page. Keep the last line of a page at least 18 mm above the trim.',
+  '- This brochure is one of many. Do not repeat a stock arrangement from other orders; the photographs, the room and the mood decide the composition.',
+  '- If a studio reference is supplied, it is a feeling, not a layout. Take its warmth, palette and level of ornament, then compose original pages for this order. Never copy the reference arrangement.',
+  '- Tamil lines are set in Noto Sans Tamil, never forced into an English serif.',
+  '',
+  'AVAILABLE TYPE',
+  "'Instrument Serif' for display and headline, 'Barlow' for labels, captions and the specification, 'Noto Sans Tamil' for Tamil.",
+  'Colours come as CSS variables that you may refine at the top of your style block: --paper, --ink, --deep, --accent, --gold, --hair, --muted, --on-dark. Keep the paper light and the ink dark.',
+  '',
+  'VOICE OF THE PAGES',
+  'Words are very few. The cover says almost nothing. The story carries the copy. The materials page names the samples. The specification states the facts. A reader should feel the room before reading a sentence.',
+].join('\n');
 
 const TAMIL_ROOMS = [
   ['guest', 'விருந்தினர் அறை'],
@@ -283,9 +204,22 @@ function priceNumber(text) {
 
 /** A measured front elevation and plan for the specification page. */
 function elevationSvg(values) {
-  const width = priceNumber(values.width) || 2400;
-  const height = priceNumber(values.height) || 2100;
-  const depth = priceNumber(values.depth) || 600;
+  const known = ['width', 'height', 'depth'].every((key) => priceNumber(values[key]) !== null);
+  if (!known) {
+    const width = 700;
+    const height = 240;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" fill="none">
+      <rect x="8" y="8" width="${width - 16}" height="${height - 16}" stroke="#C9A26A" stroke-width="2" stroke-dasharray="8 6"/>
+      <text x="${width / 2}" y="${height / 2 - 12}" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#4A1116">Measured drawing</text>
+      <text x="${width / 2}" y="${height / 2 + 22}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="15" letter-spacing="2" fill="#7C2A22">Issued after the site measurement</text>
+      <text x="${width / 2}" y="${height / 2 + 50}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="12" letter-spacing="1" fill="#6B4A3E">No dimension is guessed</text>
+    </svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  }
+
+  const width = priceNumber(values.width);
+  const height = priceNumber(values.height);
+  const depth = priceNumber(values.depth);
   const shutters = Math.min(6, Math.max(1, Math.round(priceNumber(values.shutters) || 2)));
   const boxW = 118;
   const boxH = 96;
@@ -303,17 +237,14 @@ function elevationSvg(values) {
     lines.push(`<line x1="${x.toFixed(1)}" y1="${y0}" x2="${x.toFixed(1)}" y2="${(y0 + h).toFixed(1)}" stroke="${ink}" stroke-width="0.8"/>`);
     lines.push(`<line x1="${(x - 4).toFixed(1)}" y1="${(y0 + h * 0.42).toFixed(1)}" x2="${(x - 4).toFixed(1)}" y2="${(y0 + h * 0.58).toFixed(1)}" stroke="${gold}" stroke-width="1.6"/>`);
   }
-  // bottom dimension
   lines.push(`<line x1="${x0}" y1="${(y0 + h + 10).toFixed(1)}" x2="${(x0 + w).toFixed(1)}" y2="${(y0 + h + 10).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
   lines.push(`<line x1="${x0}" y1="${(y0 + h + 7).toFixed(1)}" x2="${x0}" y2="${(y0 + h + 13).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
   lines.push(`<line x1="${(x0 + w).toFixed(1)}" y1="${(y0 + h + 7).toFixed(1)}" x2="${(x0 + w).toFixed(1)}" y2="${(y0 + h + 13).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
   lines.push(`<text x="${(x0 + w / 2).toFixed(1)}" y="${(y0 + h + 19).toFixed(1)}" text-anchor="middle" font-family="Barlow" font-size="7" letter-spacing="1" fill="${ink}">${Math.round(width)}</text>`);
-  // left dimension
   lines.push(`<line x1="${x0 - 10}" y1="${y0}" x2="${x0 - 10}" y2="${(y0 + h).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
   lines.push(`<line x1="${x0 - 13}" y1="${y0}" x2="${x0 - 7}" y2="${y0}" stroke="${gold}" stroke-width="0.7"/>`);
   lines.push(`<line x1="${x0 - 13}" y1="${(y0 + h).toFixed(1)}" x2="${x0 - 7}" y2="${(y0 + h).toFixed(1)}" stroke="${gold}" stroke-width="0.7"/>`);
   lines.push(`<text x="${x0 - 15}" y="${(y0 + h / 2).toFixed(1)}" text-anchor="middle" font-family="Barlow" font-size="7" letter-spacing="1" fill="${ink}" transform="rotate(-90 ${x0 - 15} ${(y0 + h / 2).toFixed(1)})">${Math.round(height)}</text>`);
-  // plan view
   const planW = 118;
   const planD = Math.max(12, depth * scale);
   const px = x0 + w + 26;
@@ -328,445 +259,570 @@ function elevationSvg(values) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-function drawingBlock(values, top = 158) {
-  const known = ['width', 'height', 'depth'].every((key) => priceNumber(values[key]) !== null);
-  if (!known) {
-    return `<div class="abs" style="left:18mm; top:${top}mm; width:174mm;"><div class="goldLine" style="width:174mm;"></div>
-      <div class="abs" style="left:0; top:3mm; width:174mm; display:flex; justify-content:space-between;"><span class="micro">Measured drawing</span><span class="micro">Issued after site measurement</span></div>
-      <div class="abs" style="left:0; top:14mm; width:118mm; height:44mm; border:0.25mm solid var(--gold);"></div>
-      <div class="abs" style="left:0; top:14mm; width:118mm; height:44mm; text-align:center; font-family:var(--body); font-size:7pt; line-height:1.7; color:var(--deep); padding-top:15mm;">Dimensions to be confirmed<br>at the site measurement.</div>
-      <div class="abs" style="left:128mm; top:14mm; width:46mm; font-family:var(--body); font-size:7pt; line-height:1.6; color:var(--deep);">The factory drawing is issued once the wall is measured. No dimension is guessed.</div>
-      <div class="abs lotus" style="left:144mm; top:40mm; width:22mm; height:13mm;"></div>
-    </div>`;
-  }
-  return `<div class="abs" style="left:18mm; top:${top}mm; width:174mm;"><div class="goldLine" style="width:174mm;"></div>
-    <div class="abs" style="left:0; top:3mm; width:174mm; display:flex; justify-content:space-between;"><span class="micro">Measured drawing</span><span class="micro">All dimensions in mm</span></div>
-    <img src="${elevationSvg(values)}" style="position:absolute; left:0; top:9mm; width:136mm; height:82mm;">
-    <div class="abs" style="left:142mm; top:12mm; width:32mm; font-family:var(--body); font-size:7pt; line-height:1.6; color:var(--deep);">Drawn from the confirmed order, for the workshop and the site. Checked against the wall before cutting.</div>
-    <div class="abs lotus" style="left:144mm; top:42mm; width:22mm; height:13mm;"></div>
-  </div>`;
+/** The four house photographs used when the customer sent none. */
+export function defaultPhotoUrls(templatesDir) {
+  const values = buildVoucherValues({
+    order: {},
+    materials: [],
+    templatesDir,
+    logger: { warn() {}, info() {}, error() {}, debug() {} },
+    attachmentImages: [],
+  });
+  return [values.coverImage, values.insideImage, values.insideImage2, values.detailImage];
 }
 
-function columnsHtml(text, columns = 2) {
-  const sentences = String(text)
-    .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
-  const total = sentences.join(' ').length;
-  const target = total / columns;
-  const chunks = [];
-  let current = '';
-  for (const sentence of sentences) {
-    const next = current === '' ? sentence : `${current} ${sentence}`;
-    if (chunks.length < columns - 1 && next.length > target && current !== '') {
-      chunks.push(current);
-      current = sentence;
-    } else {
-      current = next;
+// ---------------------------------------------------------------------------
+// Photograph profiles
+// ---------------------------------------------------------------------------
+
+function imageSize(buffer) {
+  if (buffer.length > 24 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  }
+  if (buffer.length > 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset < buffer.length - 9) {
+      if (buffer[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      const marker = buffer[offset + 1];
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+        offset += 2;
+        continue;
+      }
+      const length = buffer.readUInt16BE(offset + 2);
+      if (length < 2) break;
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { width: buffer.readUInt16BE(offset + 7), height: buffer.readUInt16BE(offset + 5) };
+      }
+      offset += 2 + length;
     }
   }
-  if (current !== '') chunks.push(current);
-  while (chunks.length < columns) chunks.push('');
-  return `<div class="body2col">${chunks.slice(0, columns).map((chunk, index) => {
-    const escaped = escapeHtml(chunk);
-    const withCap = index === 0 ? escaped.replace(/^(\S)/, '<span class="dropcap">$1</span>') : escaped;
-    return `<div>${withCap}</div>`;
-  }).join('')}</div>`;
+  if (buffer.length > 30 && buffer.slice(8, 12).toString('ascii') === 'WEBP') {
+    const type = buffer.slice(12, 16).toString('ascii');
+    if (type === 'VP8 ') {
+      return { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff };
+    }
+    if (type === 'VP8L') {
+      const bits = buffer.readUInt32LE(21);
+      return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+    if (type === 'VP8X') {
+      return { width: buffer.readUIntLE(24, 3) + 1, height: buffer.readUIntLE(27, 3) + 1 };
+    }
+  }
+  return null;
 }
 
-function folio(page, dark = false) {
-  return `<div class="folio ${dark ? 'folioDark' : ''}"><span>Grace Wood Industry · Nagercoil · <span class="tamil">நாகர்கோவில்</span></span><span>0${page} / 04</span></div>`;
+function localPathFor(url, templatesDir) {
+  if (typeof url !== 'string' || url === '') return null;
+  if (url.startsWith('file://')) {
+    try {
+      return fileURLToPath(url);
+    } catch {
+      return null;
+    }
+  }
+  return path.join(templatesDir, url);
 }
 
-function ornamentFrame() {
-  return `<div class="abs ornament" style="left:9mm; top:9mm; width:192mm; height:279mm;"></div><div class="abs ornamentInner" style="left:10.5mm; top:10.5mm; width:189mm; height:276mm;"></div>`;
+/**
+ * Read the shape of each photograph so the model can choose a portrait for the
+ * cover and a landscape for a spread. Any bytes are readable: failures are
+ * ignored and the photo is described as unmeasured.
+ */
+export function photoProfiles(photoUrls, templatesDir) {
+  return photoUrls.map((url) => {
+    const filePath = localPathFor(url, templatesDir);
+    if (!filePath) return '';
+    try {
+      const stat = readFileSync(filePath);
+      const size = imageSize(stat.length > 65536 ? stat.subarray(0, 65536) : stat);
+      if (!size || !size.width || !size.height) return 'shape not measured';
+      const ratio = size.width / size.height;
+      const orientation = ratio > 1.08 ? 'landscape' : ratio < 0.92 ? 'portrait' : 'square';
+      return `${size.width} by ${size.height} px, ${orientation}`;
+    } catch {
+      return 'shape not measured';
+    }
+  });
 }
 
-function contactBand() {
-  return `<div class="abs band" style="left:-3mm; bottom:-3mm; width:216mm; height:12mm;"></div><div class="abs" style="left:18mm; bottom:1.5mm; width:180mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.16em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry · Nagercoil · +91 63740 43346</div>`;
+// ---------------------------------------------------------------------------
+// Prompt
+// ---------------------------------------------------------------------------
+
+function copySummary(copy) {
+  const headline = clean(copy?.headline);
+  const body = clean(copy?.body);
+  const closing = clean(copy?.closing);
+  const words = body === '' ? 0 : body.split(/\s+/).filter(Boolean).length;
+  return `Headline ${headline.length} characters. Body ${words} words. Closing ${closing.length} characters.`;
 }
 
-function motif(top) {
-  return `<div class="abs" style="left:0; top:${top}mm; width:210mm; display:flex; justify-content:center; gap:2.4mm;"><div class="diamond"></div><div class="diamond"></div><div class="diamond"></div></div>`;
+function designContext({ order, brief, direction, copy, photos, photoShapes, reference, previousHtml, editNote }) {
+  const photoLines = photos.map((_, index) => {
+    const shape = photoShapes[index] ? ` (${photoShapes[index]})` : '';
+    return `photo${index + 1}${shape}`;
+  });
+  const parts = [
+    'ORDER',
+    `Title: {{title}}`,
+    `Room: {{room}}`,
+    `Customer: {{customer}}`,
+    `Order number: {{orderNo}}`,
+    `Date: {{date}}`,
+    '',
+    'PHOTOGRAPHS AVAILABLE',
+    photoLines.length > 0 ? photoLines.join('\n') : 'No photographs. The house photography is supplied as photo1 to photo4.',
+    '',
+    'COPY TO SET',
+    copySummary(copy),
+    '',
+    'SPECIFICATION VALUES TO PRINT ON PAGE 4',
+    'Width {{width}} | Height {{height}} | Depth {{depth}} | Shutters {{shutters}}',
+    'Shutter face {{exterior}} | Interior {{interior}} | Carcass {{carcass}} | Back panel {{backPanel}}',
+    'Shutter material {{shuttersMat}} | Drawers {{drawers}}',
+    'Edge band shutters {{edgeShutter}} | Edge band carcass {{edgeCarcass}} | Edge note {{edgeNote}}',
+    'Finish exterior {{finishExt}} | Finish interior {{finishInt}}',
+    'Handle {{handle}} | Handle note {{handleNote}} | Hinges {{hinges}} | Channels {{channels}}',
+    '',
+    'MATERIAL SAMPLES',
+    'Sample 1 {{material1Image}} {{material1Name}}',
+    'Sample 2 {{material2Image}} {{material2Name}}',
+    'Sample 3 {{material3Image}} {{material3Name}}',
+    'Sample 4 {{material4Image}} {{material4Name}}',
+    '',
+    `Customer brief, use only for mood: ${clean(brief) || '(none supplied)'}`,
+    `Studio direction for this brochure: ${clean(direction) || '(none given; choose what suits the piece)'}`,
+  ];
+  if (reference) {
+    const palette = reference.palette ?? {};
+    const paletteLine = [
+      palette.paper ? `paper ${palette.paper}` : '',
+      palette.ink ? `ink ${palette.ink}` : '',
+      palette.deep ? `deep ${palette.deep}` : '',
+      palette.accent ? `accent ${palette.accent}` : '',
+      palette.gold ? `gold ${palette.gold}` : '',
+      palette.hair ? `hair ${palette.hair}` : '',
+      palette.muted ? `muted ${palette.muted}` : '',
+      palette.onDark ? `on dark ${palette.onDark}` : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+    parts.push(
+      '',
+      'STUDIO REFERENCE',
+      `Reference look: ${reference.name}${reference.family ? ` (${reference.family} family)` : ''}.`,
+      reference.mood ? `Mood: ${reference.mood}.` : '',
+      reference.summary ? `Feel: ${reference.summary}.` : '',
+      paletteLine ? `Palette: ${paletteLine}.` : '',
+      `Display type: ${reference.displayFont || 'Instrument Serif'}. Body type: Barlow.`,
+      reference.coverIdea ? `Cover idea: ${reference.coverIdea}.` : '',
+      `Ornament: ${reference.ornament || 'none'}.`,
+      'Set the CSS variables at the top of your style block to this palette, and set --display to the reference display type. Take its mood and compose original pages for this order. Never copy a reference layout.',
+    );
+  }
+  if (editNote) {
+    parts.push('', 'THE STUDIO IS CHANGING AN EXISTING BROCHURE', `Instruction: ${clean(editNote)}`);
+    parts.push('Apply only this change. Keep the design, type, palette and every other page as they are unless the instruction asks for a new look. The current document is the assistant message above.');
+  } else {
+    parts.push('', 'Design this brochure now. Reply with the complete HTML document only.');
+  }
+  return parts.join('\n');
 }
 
-function goldRule(left, top, width) {
-  return `<div class="abs goldLine" style="left:${left}mm; top:${top}mm; width:${width}mm;"></div>`;
+export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], reference = null, previousHtml = '', editNote = '' }) {
+  const user = designContext({ order, brief, direction, copy, photos, photoShapes, reference, previousHtml, editNote });
+  const messages = [
+    { role: 'system', content: DESIGNER_SYSTEM },
+    { role: 'user', content: user },
+  ];
+  if (editNote && clean(previousHtml) !== '') {
+    messages.push({ role: 'assistant', content: previousHtml });
+    messages.push({ role: 'user', content: 'Apply the instruction above and reply with the complete corrected HTML document only.' });
+    return messages;
+  }
+  return messages;
 }
 
-function coverHtml(values, design, photos) {
-  const photo = photos[design.coverPhoto] ?? photos[0] ?? values.coverImage;
-  const title = escapeHtml(values.title);
-  const room = escapeHtml(values.room);
-  const customer = escapeHtml(values.customerName);
-  const meta = `${escapeHtml(values.orderNo)} · ${escapeHtml(values.date)}`;
-  const taRoom = tamilRoom(values);
-  const sizes = `${escapeHtml(values.width)} · ${escapeHtml(values.height)} · ${escapeHtml(values.depth)}`;
-  const logo = (width = 26, top = 15) =>
-    `<img class="abs" src="../assets/grace-logo.png" style="left:${(210 - width) / 2}mm; top:${top}mm; width:${width}mm;">`;
-  const wordmark = (top = 46, color = 'var(--gold)') =>
-    `<div class="abs" style="left:0; top:${top}mm; width:210mm; text-align:center; font-family:var(--body); font-size:7.6pt; letter-spacing:.42em; text-transform:uppercase; color:${color};">Grace Wood Industry</div>`;
-
-  if (design.cover === 'fullBleed') {
-    return `<div class="page cover"><div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:303mm; background-image:url(${photo});"></div>
-      <div class="abs" style="left:-3mm; top:140mm; width:216mm; height:166mm; background:linear-gradient(to top, rgba(40,12,8,0.88) 0%, rgba(40,12,8,0.42) 55%, rgba(40,12,8,0) 100%);"></div>
-      ${ornamentFrame()}
-      <div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:15mm;"></div>
-      <div class="abs" style="left:18mm; top:3mm; width:120mm; font-family:var(--body); font-size:6.8pt; letter-spacing:.28em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry</div>
-      <div class="abs tamil" style="left:18mm; top:7.6mm; width:120mm; font-size:6.6pt; color:var(--gold);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
-      <div class="abs" style="right:18mm; top:4mm; width:82mm; text-align:right; font-family:var(--body); font-size:6.2pt; letter-spacing:.14em; color:var(--cream);">${meta}</div>
-      <div class="abs goldLine" style="left:-3mm; top:15.5mm; width:216mm;"></div>
-      <div class="abs paisley" style="left:10mm; top:24mm; width:16mm; height:22mm; opacity:0.9;"></div>
-      <div class="abs paisley" style="right:10mm; bottom:26mm; width:16mm; height:22mm; opacity:0.9; transform:rotate(180deg);"></div>
-      <div class="abs head" style="left:18mm; top:182mm; width:174mm; font-size:44pt; color:var(--cream);">${title}</div>
-      <div class="abs tamil" style="left:18mm; top:228mm; width:174mm; font-size:9pt; color:var(--gold);">${taRoom}</div>
-      ${goldRule(18, 238, 26)}
-      <div class="abs" style="left:18mm; top:246mm; width:174mm; font-family:var(--body); font-size:8pt; letter-spacing:.12em; text-transform:uppercase; color:var(--cream);">${customer} · ${room} · ${sizes}</div>
-      ${contactBand()}
-    </div>`;
-  }
-
-  if (design.cover === 'splitLeft' || design.cover === 'splitRight') {
-    const photoFirst = design.cover === 'splitLeft';
-    const photoStyle = photoFirst
-      ? 'left:-3mm; top:-3mm; width:111mm; height:303mm;'
-      : 'left:105mm; top:-3mm; width:111mm; height:303mm;';
-    const textLeft = photoFirst ? 118 : 18;
-    const textWidth = 74;
-    return `<div class="page cover"><div class="abs ph" style="${photoStyle} background-image:url(${photo});"></div>
-      <div class="abs" style="left:${photoFirst ? 112 : 104}mm; top:0; width:0.6mm; height:297mm; background:var(--gold);"></div>
-      <div class="abs" style="left:${textLeft}mm; top:17mm; width:${textWidth}mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--gold);">Grace Wood Industry</div>
-      <div class="abs tamil" style="left:${textLeft}mm; top:22mm; width:${textWidth}mm; font-size:6.8pt; color:var(--deep);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
-      <div class="abs micro" style="left:${textLeft}mm; top:30mm; width:${textWidth}mm;">${meta}</div>
-      <div class="abs paisley" style="left:${textLeft}mm; top:196mm; width:14mm; height:20mm;"></div>
-      <div class="abs head" style="left:${textLeft}mm; top:78mm; width:${textWidth}mm; font-size:34pt;">${title}</div>
-      <div class="abs tamil" style="left:${textLeft}mm; top:156mm; width:${textWidth}mm; font-size:8pt; color:var(--accent);">${taRoom}</div>
-      ${goldRule(textLeft, 168, 24)}
-      <div class="abs" style="left:${textLeft}mm; top:176mm; width:${textWidth}mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:2mm;">${sizes}</div></div>
-      <div class="abs" style="left:${textLeft}mm; top:232mm; width:${textWidth}mm; font-family:var(--display); font-size:14pt; color:var(--deep);">${customer}</div>
-      <div class="abs" style="left:${textLeft}mm; top:266mm; width:${textWidth}mm; font-family:var(--body); font-size:6.2pt; line-height:1.5; color:var(--deep);">Chettikulam, Nagercoil 629001<br>+91 63740 43346</div>
-      <div class="abs micro" style="right:18mm; bottom:8mm;">01 / 04</div>
-    </div>`;
-  }
-
-  if (design.cover === 'masthead') {
-    return `<div class="page cover"><div class="sheet">
-      <div class="abs jaali" style="left:0; top:8mm; width:210mm; height:6mm; opacity:0.85;"></div>
-      ${logo(28, 16)}
-      ${wordmark(50)}
-      <div class="abs tamil" style="left:0; top:56mm; width:210mm; text-align:center; font-size:8.4pt; color:var(--accent);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
-      <div class="abs head" style="left:18mm; top:66mm; width:174mm; text-align:center; font-size:42pt;">${title}</div>
-      <div class="abs lotus" style="left:88mm; top:99mm; width:30mm; height:16mm;"></div>
-      <div class="abs" style="left:18mm; top:120mm; width:174mm; text-align:center; font-family:var(--body); font-size:8pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${customer} · ${room}</div>
-      <div class="abs tamil" style="left:0; top:128mm; width:210mm; text-align:center; font-size:8.4pt; color:var(--accent);">${taRoom}</div>
-      <div class="abs ornament" style="left:8.5mm; top:142mm; width:193mm; height:110mm;"></div>
-      <div class="abs ph" style="left:10mm; top:144mm; width:190mm; height:106mm; background-image:url(${photo});"></div>
-      <div class="abs micro" style="left:18mm; top:258mm; width:174mm; text-align:center;">${meta}</div>
-      <div class="abs" style="left:18mm; top:278mm; width:174mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent);">Made in Nagercoil · தமிழ்நாடு</div>
-      ${contactBand()}
-    </div></div>`;
-  }
-
-  if (design.cover === 'framed') {
-    return `<div class="page cover"><div class="sheet">
-      ${ornamentFrame()}
-      <div class="abs jaali" style="left:0; top:7mm; width:210mm; height:6mm; opacity:0.85;"></div>
-      ${logo(24, 18)}
-      ${wordmark(50)}
-      <div class="abs tamil" style="left:0; top:56mm; width:210mm; text-align:center; font-size:8pt; color:var(--accent);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
-      <div class="abs head" style="left:18mm; top:64mm; width:174mm; text-align:center; font-size:36pt;">${title}</div>
-      <div class="abs tamil" style="left:0; top:98mm; width:210mm; text-align:center; font-size:8.4pt; color:var(--accent);">${taRoom}</div>
-      <div class="abs" style="left:18mm; top:106mm; width:174mm; text-align:center; font-family:var(--body); font-size:7.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--deep);">${room} · ${sizes}</div>
-      <div class="abs arch" style="left:45mm; top:124mm; width:120mm; height:126mm;"></div>
-      <div class="abs ph" style="left:54mm; top:136mm; width:102mm; height:98mm; background-image:url(${photo});"></div>
-      <div class="abs lotus" style="left:88mm; top:238mm; width:30mm; height:17mm;"></div>
-      <div class="abs" style="left:0; top:254mm; width:210mm; text-align:center; font-family:var(--display); font-size:15pt; color:var(--deep);">${customer}</div>
-      <div class="abs" style="left:18mm; top:278mm; width:174mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent);">Made in Nagercoil · தமிழ்நாடு</div>
-      ${contactBand()}
-    </div></div>`;
-  }
-
-  // bandTop
-  return `<div class="page cover"><div class="sheet">
-    <div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:172mm; background-image:url(${photo});"></div>
-    <div class="abs" style="left:-3mm; top:169mm; width:216mm; height:0.5mm; background:var(--gold);"></div>
-    <div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:15mm;"></div>
-    <div class="abs" style="left:18mm; top:3mm; width:120mm; font-family:var(--body); font-size:6.8pt; letter-spacing:.28em; text-transform:uppercase; color:var(--cream);">Grace Wood Industry</div>
-    <div class="abs tamil" style="left:18mm; top:7.6mm; width:120mm; font-size:6.6pt; color:var(--gold);">கிரேஸ் வூட் இண்டஸ்ட்ரி</div>
-    <div class="abs" style="right:18mm; top:4mm; width:82mm; text-align:right; font-family:var(--body); font-size:6.2pt; letter-spacing:.14em; color:var(--cream);">${meta}</div>
-    <div class="abs goldLine" style="left:-3mm; top:15.5mm; width:216mm;"></div>
-    <div class="abs paisley" style="right:18mm; top:176mm; width:16mm; height:22mm;"></div>
-    <div class="abs head" style="left:18mm; top:182mm; width:174mm; font-size:42pt;">${title}</div>
-    ${goldRule(18, 232, 24)}
-    <div class="abs tamil" style="left:18mm; top:224mm; width:174mm; font-size:8.4pt; color:var(--accent);">${taRoom}</div>
-    <div class="abs" style="left:18mm; top:240mm; width:100mm;"><div class="micro">${room}</div><div class="micro" style="margin-top:2mm;">${sizes}</div></div>
-    <div class="abs" style="right:18mm; top:240mm; width:62mm; text-align:right; font-family:var(--display); font-size:14pt; color:var(--deep);">${customer}</div>
-    <div class="abs" style="left:18mm; top:278mm; width:174mm; font-family:var(--body); font-size:6.4pt; letter-spacing:.2em; text-transform:uppercase; color:var(--accent);">Made in Nagercoil · தமிழ்நாடு</div>
-    ${contactBand()}
-  </div></div>`;
+export function buildDesignerRepairMessages(messages, previous, issues) {
+  const problems = Array.isArray(issues)
+    ? issues
+    : [String(issues ?? 'the document could not be printed').replace(/^The brochure design failed the print checks: /, '')];
+  const repaired = [...messages];
+  if (previous) repaired.push({ role: 'assistant', content: String(previous).slice(0, 40_000) });
+  repaired.push({
+    role: 'user',
+    content: [
+      `That document was rejected by the print checks: ${problems.join('; ')}.`,
+      'Reply with the complete corrected HTML document only. Keep the design and fix exactly these problems.',
+      'The body still needs exactly four <div class="page"> elements, the required tokens, and no external references.',
+    ].join(' '),
+  });
+  return repaired;
 }
 
-function storyHtml(values, design, copy, photos) {
-  const photo = photos[design.storyPhoto] ?? photos[0] ?? values.insideImage;
-  const photoAlt = photos[(design.storyPhoto + 1) % Math.max(1, photos.length)] ?? values.insideImage2;
-  const statement = escapeHtml(design.statement);
-  const headline = escapeHtml(copy.headline);
-  const closing = escapeHtml(copy.closing);
-  const bodyColumns = columnsHtml(copy.body, 2);
+// ---------------------------------------------------------------------------
+// Parsing and validation
+// ---------------------------------------------------------------------------
 
-  if (design.story === 'hero') {
-    return `<div class="page"><div class="sheet">
-      <div class="abs ph" style="left:-3mm; top:-3mm; width:216mm; height:182mm; background-image:url(${photo});"></div>
-      <div class="abs" style="left:18mm; top:190mm; width:174mm;"><div class="headlineLabel">${headline}</div></div>
-      <div class="abs serif" style="left:18mm; top:198mm; width:174mm; font-size:26pt;">${statement}</div>
-      <div class="abs" style="left:18mm; top:236mm; width:174mm;">${bodyColumns}</div>
-      <div class="abs closingLine" style="left:18mm; top:274mm; width:174mm;">${closing}</div>
-      ${folio(2)}
-    </div></div>`;
-  }
-  if (design.story === 'diptych') {
-    return `<div class="page"><div class="sheet">
-      <div class="abs ph" style="left:-3mm; top:-3mm; width:111mm; height:196mm; background-image:url(${photo});"></div>
-      <div class="abs ph" style="left:105mm; top:-3mm; width:111mm; height:196mm; background-image:url(${photoAlt});"></div>
-      <div class="abs" style="left:18mm; top:200mm; width:174mm;"><div class="headlineLabel">${headline}</div></div>
-      <div class="abs serif" style="left:18mm; top:209mm; width:104mm; font-size:26pt;">${statement}</div>
-      <div class="abs" style="left:18mm; top:252mm; width:174mm;">${bodyColumns}</div>
-      <div class="abs micro" style="left:18mm; top:272mm; width:174mm;">${closing}</div>
-      ${folio(2)}
-    </div></div>`;
-  }
-  if (design.story === 'collage') {
-    return `<div class="page"><div class="sheet">
-      <div class="abs serif" style="left:18mm; top:22mm; width:104mm; font-size:28pt;">${statement}</div>
-      <div class="abs" style="left:18mm; top:70mm; width:100mm;"><div class="headlineLabel">${headline}</div></div>
-      <div class="abs ph" style="left:18mm; top:80mm; width:100mm; height:132mm; background-image:url(${photo});"></div>
-      <div class="abs ph" style="left:126mm; top:80mm; width:66mm; height:88mm; background-image:url(${photoAlt});"></div>
-      <div class="abs" style="left:126mm; top:174mm; width:66mm;"><div class="caption">${escapeHtml(values.exterior)}. ${escapeHtml(values.interior)}.</div></div>
-      <div class="abs" style="left:18mm; top:222mm; width:174mm;">${bodyColumns}</div>
-      <div class="abs closingLine" style="left:18mm; top:268mm; width:174mm;">${closing}</div>
-      ${folio(2)}
-    </div></div>`;
-  }
-  // editorial: tall photo on the left, quiet text column on the right
-  return `<div class="page"><div class="sheet">
-    <div class="abs ph" style="left:-3mm; top:-3mm; width:121mm; height:303mm; background-image:url(${photo});"></div>
-    <div class="abs paisley" style="right:18mm; top:18mm; width:12mm; height:16mm;"></div>
-    <div class="abs" style="left:130mm; top:24mm; width:62mm;"><div class="headlineLabel">${headline}</div></div>
-    <div class="abs serif" style="left:130mm; top:32mm; width:64mm; font-size:26pt;">${statement}</div>
-    <div class="abs" style="left:130mm; top:100mm; width:62mm;"><div class="rule" style="width:18mm;"></div></div>
-    <div class="abs" style="left:130mm; top:96mm; width:64mm;"><div class="goldLine" style="width:20mm; margin-bottom:4mm;"></div><div class="body">${escapeHtml(copy.body)}</div></div>
-    <div class="abs closingLine" style="left:130mm; top:246mm; width:62mm; font-size:8.5pt;">${closing}</div>
-    <div class="folio" style="left:130mm; right:18mm;"><span>Grace Wood</span><span>02 / 04</span></div>
-  </div></div>`;
+const FORBIDDEN_MARKUP = [
+  /<script\b/i,
+  /<iframe\b/i,
+  /<object\b/i,
+  /<embed\b/i,
+  /<form\b/i,
+  /<input\b/i,
+  /<video\b/i,
+  /<audio\b/i,
+  /<link\b/i,
+  /<base\b/i,
+  /<a\s/i,
+  /javascript:/i,
+  /https?:\/\//i,
+  /@import/i,
+  /@font-face/i,
+  /@page/i,
+  /position\s*:\s*fixed/i,
+  /expression\s*\(/i,
+];
+
+function countToken(text, token) {
+  const pattern = new RegExp(`\\{\\{\\s*${token}\\s*\\}\\}`, 'g');
+  return (text.match(pattern) ?? []).length;
 }
 
-function finishCards(values) {
-  return [1, 2, 3, 4].map((index) => ({
-    name: values[`mat${index}Name`],
-    image: values[`mat${index}Image`],
-  }));
+function pageSegments(bodyHtml) {
+  const starts = [
+    ...bodyHtml.matchAll(/<(?:div|section)\b[^>]*\bclass\s*=\s*(["'])[^"']*\bpage\b[^"']*\1[^>]*>/gi),
+  ];
+  if (starts.length === 0) return [];
+  const segments = [];
+  for (let index = 0; index < starts.length; index += 1) {
+    const start = starts[index];
+    const from = start.index + start[0].length;
+    const to = index + 1 < starts.length ? starts[index + 1].index : bodyHtml.length;
+    let segment = bodyHtml.slice(from, to).trim();
+    // Drop the closing tag of the page wrapper itself. Inner markup keeps its
+    // own closing tags.
+    segment = segment.replace(/<\/(?:div|section)>\s*$/i, '').trim();
+    segments.push(segment);
+  }
+  return segments;
 }
 
-function materialsHtml(values, design) {
-  const cards = finishCards(values);
-  const nameTag = (entry, index) =>
-    `<div class="swatchName"><span class="swatchIndex">0${index + 1}</span>${escapeHtml(entry.name)}</div>`;
-  const head = `<div class="abs band" style="left:-3mm; top:-3mm; width:216mm; height:40mm;"></div>
-    <div class="abs" style="left:18mm; top:7mm; width:130mm; font-family:var(--display); font-size:26pt; color:var(--cream);">Materials</div>
-    <div class="abs" style="right:18mm; top:11mm; width:80mm; text-align:right; font-family:var(--body); font-size:6.6pt; letter-spacing:.18em; text-transform:uppercase; color:var(--cream);">${escapeHtml(values.orderNo)}</div>
-    <div class="abs paisley" style="left:152mm; top:7mm; width:12mm; height:18mm; opacity:0.95;"></div>
-    <div class="abs goldLine" style="left:0; top:40mm; width:210mm;"></div>
-    <div class="abs jaali" style="left:0; top:41mm; width:210mm; height:6mm; opacity:0.9;"></div>`;
-  const finishLine = `<div class="abs caption" style="left:18mm; top:250mm; width:174mm;">${escapeHtml(values.finishExt)}. ${escapeHtml(values.finishInt)}. ${escapeHtml(values.edgeNote)}.</div><div class="abs micro" style="left:18mm; top:266mm; width:174mm;">Shown as samples, matched in person</div>`;
-
-  if (design.materials === 'filmstrip') {
-    return `<div class="page"><div class="sheet">${head}
-      ${cards
-        .map(
-          (entry, index) =>
-            `<div class="abs" style="left:${18 + index * 43}mm; top:50mm; width:38mm;">
-              <div class="ph" style="border:0.45mm solid var(--gold); padding:1.4mm; background-color:#fff; width:38mm; height:152mm; background-image:url(${entry.image});"></div>
-              ${nameTag(entry, index)}
-            </div>`,
-        )
-        .join('')}
-      ${finishLine}${folio(3)}</div></div>`;
-  }
-  if (design.materials === 'band') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs" style="left:-3mm; top:50mm; width:216mm; height:110mm; display:flex;">
-        ${cards
-          .map(
-            (entry) =>
-              `<div style="border:0.45mm solid var(--gold); border-right:none; background-color:#fff; width:54mm; height:110mm; background-image:url(${entry.image}); background-size:cover; background-position:center;"></div>`,
-          )
-          .join('')}
-      </div>
-      <div class="abs" style="left:18mm; top:168mm; width:174mm; display:flex;">
-        ${cards.map((entry, index) => `<div style="width:43mm;">${nameTag(entry, index)}</div>`).join('')}
-      </div>
-      ${finishLine}${folio(3)}</div></div>`;
-  }
-  if (design.materials === 'museum') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs ph" style="border:0.45mm solid var(--gold); padding:1.8mm; background-color:#fff; left:18mm; top:50mm; width:114mm; height:164mm; background-image:url(${cards[0].image});"></div>
-      <div class="abs swatchName" style="left:18mm; top:217mm; width:114mm;"><span class="swatchIndex">01</span>${escapeHtml(cards[0].name)}</div>
-      ${cards
-        .slice(1)
-        .map(
-          (entry, index) =>
-            `<div class="abs" style="left:142mm; top:${50 + index * 56}mm; width:50mm;">
-              <div class="ph" style="border:0.45mm solid var(--gold); padding:1.4mm; background-color:#fff; width:50mm; height:42mm; background-image:url(${entry.image});"></div>
-              ${nameTag(entry, index)}
-            </div>`,
-        )
-        .join('')}
-      ${finishLine}${folio(3)}</div></div>`;
-  }
-  if (design.materials === 'stacked') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs ph" style="left:18mm; top:50mm; width:174mm; height:96mm; background-image:url(${cards[0].image});"></div>
-      <div class="abs" style="left:18mm; top:154mm; width:174mm; display:flex;">
-        ${cards
-          .slice(1)
-          .map(
-            (entry, index) =>
-              `<div style="width:57mm;"><div class="ph" style="border:0.45mm solid var(--gold); padding:1.4mm; background-color:#fff; width:53mm; height:53mm; background-image:url(${entry.image});"></div>${nameTag(entry, index + 1)}</div>`,
-          )
-          .join('')}
-      </div>
-      ${finishLine}${folio(3)}</div></div>`;
-  }
-  // grid4
-  return `<div class="page"><div class="sheet">${head}
-    ${cards
-      .map(
-        (entry, index) =>
-          `<div class="abs" style="left:${18 + (index % 2) * 88}mm; top:${52 + Math.floor(index / 2) * 92}mm; width:84mm;">
-            <div class="ph" style="border:0.45mm solid var(--gold); padding:1.6mm; background-color:#fff; width:84mm; height:72mm; background-image:url(${entry.image});"></div>
-            ${nameTag(entry, index)}
-          </div>`,
-      )
-      .join('')}
-    ${finishLine}${folio(3)}</div></div>`;
+function visibleText(html) {
+  return String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function specificationHtml(values, design) {
-  const groups = specGroups(values);
-  const allFacts = groups.flatMap((group) => group.facts);
-  const drawingTop = design.spec === 'ledger' ? 172 : design.spec === 'cards' ? 164 : 158;
-  const head = `<div class="abs" style="left:18mm; top:14mm; width:140mm; font-family:var(--body); font-size:8pt; letter-spacing:.26em; text-transform:uppercase; color:var(--deep);">Specification</div>
-    <div class="abs micro" style="right:18mm; top:14mm;">${escapeHtml(values.orderNo)}</div>
-    <div class="abs goldLine" style="left:18mm; top:23mm; width:174mm;"></div>
-    <div class="abs" style="left:18mm; top:25.5mm; width:174mm; height:0.14mm; background:var(--gold);"></div>
-    <div class="abs jaali" style="left:18mm; top:27mm; width:174mm; height:5mm; opacity:0.8;"></div>
-    <div class="abs lotus" style="right:18mm; top:12mm; width:14mm; height:8mm;"></div>`;
-  const contact = `<div class="abs goldLine" style="left:18mm; top:264mm; width:174mm;"></div>
-    <div class="abs" style="left:18mm; top:268mm; width:174mm; font-family:var(--body); font-size:6.6pt; line-height:1.6; letter-spacing:.04em; color:var(--deep);">Grace Wood Industry · 26J Rajjakamangalam Road, Chettikulam, Nagercoil 629001<br>+91 63740 43346 · info.gracewoodindustry@gmail.com</div>`;
-
-  if (design.spec === 'ledger') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
-      <div class="abs" style="left:18mm; top:56mm; width:174mm;">${rowsHtml(allFacts)}</div>
-      ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
-  }
-  if (design.spec === 'cards') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
-      ${groups
-        .map(
-          (group, index) =>
-            `<div class="abs" style="left:${18 + (index % 2) * 89}mm; top:${56 + Math.floor(index / 2) * 54}mm; width:80mm; border-top:0.35mm solid var(--gold); padding-top:4mm;">
-              <div class="label" style="margin-bottom:3mm;">${escapeHtml(group.title)}</div>
-              ${rowsHtml(group.facts)}
-            </div>`,
-        )
-        .join('')}
-      ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
-  }
-  if (design.spec === 'threeColumn') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
-      ${groups
-        .map(
-          (group, index) =>
-            `<div class="abs" style="left:${18 + index * 60}mm; top:58mm; width:54mm;">
-              <div class="label" style="margin-bottom:3mm;">${escapeHtml(group.title)}</div>
-              ${rowsHtml(group.facts)}
-            </div>`,
-        )
-        .join('')}
-      ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
-  }
-  if (design.spec === 'stacked') {
-    return `<div class="page"><div class="sheet">${head}
-      <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
-      <div class="abs" style="left:18mm; top:56mm; width:82mm;">
-        <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(groups[0].title)}</div>
-        ${rowsHtml(groups[0].facts)}
-        <div class="label" style="margin:5mm 0 2.5mm;">${escapeHtml(groups[2].title)}</div>
-        ${rowsHtml(groups[2].facts)}
-      </div>
-      <div class="abs" style="left:110mm; top:56mm; width:82mm;">
-        <div class="label" style="margin-bottom:2.5mm;">${escapeHtml(groups[1].title)}</div>
-        ${rowsHtml(groups[1].facts)}
-      </div>
-      ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
-  }
-
-  // twoColumn
-  return `<div class="page"><div class="sheet">${head}
-    <div class="abs serif" style="left:18mm; top:34mm; width:174mm; font-size:25pt;">${escapeHtml(values.title)}</div>
-    <div class="abs" style="left:18mm; top:58mm; width:82mm;">${rowsHtml([...groups[0].facts, ...groups[2].facts])}</div>
-    <div class="abs" style="left:110mm; top:58mm; width:82mm;">${rowsHtml(groups[1].facts)}</div>
-    ${drawingBlock(values, drawingTop)}${contact}${folio(4)}</div></div>`;
+function wordCount(text) {
+  if (!text) return 0;
+  return text.split(/\s+/).filter(Boolean).length;
 }
 
-/** Merge studio overrides into a design that already exists. */
-export function mergeDesignOverrides(base, overrides, photoCount = 1) {
-  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
-    throw new LlmError('The design overrides could not be read.', { type: 'invalid_reply' });
-  }
-  const design = { ...base };
-  if (overrides.tone !== undefined) {
-    const tone = clean(overrides.tone);
-    design.tone = pickEnum(TONE_ALIASES[tone.toLowerCase()] ?? tone, TONES, 'tone', design.tone);
-  }
-  if (overrides.type !== undefined) design.type = pickEnum(overrides.type, TYPES, 'type', design.type);
-  if (overrides.cover !== undefined) design.cover = pickEnum(overrides.cover, COVERS, 'cover', design.cover);
-  if (overrides.story !== undefined) {
-    const story = clean(overrides.story);
-    design.story = STORY_ALIASES[story] ?? pickEnum(story, STORY_LAYOUTS, 'story', design.story);
-  }
-  if (overrides.materials !== undefined) {
-    design.materials = pickEnum(overrides.materials, MATERIALS_LAYOUTS, 'materials', design.materials);
-  }
-  if (overrides.spec !== undefined) design.spec = pickEnum(overrides.spec, SPECS, 'spec', design.spec);
-  if (overrides.coverPhoto !== undefined) design.coverPhoto = pickPhoto(overrides.coverPhoto, photoCount, design.coverPhoto ?? 0);
-  if (overrides.storyPhoto !== undefined) design.storyPhoto = pickPhoto(overrides.storyPhoto, photoCount, design.storyPhoto ?? 0);
-  if (overrides.detailPhoto !== undefined) design.detailPhoto = pickPhoto(overrides.detailPhoto, photoCount, design.detailPhoto ?? 0);
-  if (overrides.statement !== undefined) {
-    design.statement = capText(overrides.statement, 100) || design.statement;
-  }
-  return design;
+function tokenList(html) {
+  return new Set([...html.matchAll(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g)].map((match) => match[1]));
 }
 
-/** Validate a copy object the studio edited by hand. */
-export function readCopyOverride(copy) {
-  if (!copy || typeof copy !== 'object' || Array.isArray(copy)) {
-    throw new LlmError('The brochure copy could not be read.', { type: 'invalid_reply' });
+const PAGE_WORD_LIMITS = [42, 260, 70, 280];
+
+/**
+ * Read the model's HTML reply. Returns the CSS and the four page bodies, or
+ * throws an LlmError describing every problem that stops the document from
+ * printing. The page wrappers are removed and rebuilt by the server, so the
+ * body can never end up with content beside the pages.
+ */
+export function parseDesignerReply(content, photoCount = 4) {
+  const raw = typeof content === 'string' ? content : '';
+  if (raw.trim() === '') {
+    throw new LlmError('The model returned an empty brochure design.', { type: 'invalid_reply' });
   }
-  const headline = capText(copy.headline, 120);
-  const body = capText(copy.body, 2400);
-  const closing = capText(copy.closing, 160);
-  if (!headline || body.split(/\s+/).filter(Boolean).length < 20) {
-    throw new LlmError('The brochure copy needs a headline and a body.', { type: 'invalid_reply' });
+  if (raw.length > DESIGNER_MAX_CHARS) {
+    throw new LlmError('The brochure design came back far too long to print.', { type: 'invalid_reply' });
   }
-  return { headline, body, closing };
+  const styleBlocks = [...raw.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((match) => match[1]);
+  const styles = styleBlocks.join('\n').trim();
+  const withoutStyles = raw.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ');
+  const bodyMatch = /<body\b[^>]*>([\s\S]*?)<\/body>/i.exec(withoutStyles);
+  const bodyHtml = bodyMatch ? bodyMatch[1] : withoutStyles;
+
+  if (/<head\b/i.test(bodyHtml) && !/<body\b/i.test(withoutStyles)) {
+    throw new LlmError('The brochure design was not a complete HTML document.', { type: 'invalid_reply' });
+  }
+
+  const pages = pageSegments(bodyHtml);
+  const issues = [];
+  if (pages.length !== 4) {
+    issues.push(`it has ${pages.length} pages instead of four`);
+  }
+
+  for (const [index, page] of pages.entries()) {
+    const number = index + 1;
+    const words = wordCount(visibleText(page));
+    if (words > PAGE_WORD_LIMITS[index]) {
+      issues.push(`page ${number} carries too many words (${words}, the limit is ${PAGE_WORD_LIMITS[index]})`);
+    }
+    if (words < 3) {
+      issues.push(`page ${number} is almost empty`);
+    }
+  }
+
+  const whole = pages.join('\n');
+  for (const pattern of FORBIDDEN_MARKUP) {
+    if (pattern.test(styles) || pattern.test(whole)) {
+      issues.push(`it contains something that can not be printed (${pattern.source})`);
+    }
+  }
+  if (/\.page\s*\{[^}]*(width|height|position|margin|page-break)/i.test(styles)) {
+    issues.push('the style block changes the page box');
+  }
+  if (/(^|\})\s*(html|body)\s*[,{]/i.test(styles)) {
+    issues.push('the style block styles html or body');
+  }
+
+  const tokens = tokenList(whole);
+  const known = new Set([
+    ...COPY_TOKENS,
+    ...IDENTITY_TOKENS,
+    ...FACT_TOKENS,
+    ...MATERIAL_TOKENS,
+    ...MOTIF_TOKENS,
+    'logo',
+    'drawing',
+    ...[...Array(Math.max(1, photoCount)).keys()].map((index) => `photo${index + 1}`),
+  ]);
+  const unknown = [...tokens].filter((token) => !known.has(token));
+  if (unknown.length > 0) {
+    issues.push(`it uses tokens that do not exist (${unknown.join(', ')})`);
+  }
+
+  for (const token of COPY_TOKENS) {
+    const uses = countToken(whole, token);
+    if (uses !== 1) issues.push(`{{${token}}} must appear exactly once (it appears ${uses} times)`);
+  }
+  for (const token of FACT_TOKENS) {
+    if (countToken(whole, token) === 0) issues.push(`the specification token {{${token}}} is missing`);
+  }
+  for (const token of MATERIAL_TOKENS) {
+    if (countToken(whole, token) === 0) issues.push(`the material token {{${token}}} is missing`);
+  }
+  if (countToken(whole, 'drawing') === 0) issues.push('the measured drawing {{drawing}} is missing');
+  if (countToken(whole, 'orderNo') === 0) issues.push('the order number token {{orderNo}} is missing');
+  if (countToken(whole, 'phone') === 0) issues.push('the contact token {{phone}} is missing');
+  if (!MOTIF_TOKENS.some((token) => countToken(whole, token) > 0)) {
+    issues.push('no house motif is used');
+  }
+  if (countToken(whole, 'title') === 0) issues.push('the title token {{title}} is missing');
+  if (countToken(whole, 'customer') === 0) issues.push('the customer token {{customer}} is missing');
+  if (countToken(whole, 'brandTamil') + countToken(whole, 'roomTamil') === 0) {
+    issues.push('no Tamil line is used');
+  }
+  if (countToken(whole, 'brand') + countToken(whole, 'logo') === 0) {
+    issues.push('the brand is not named');
+  }
+  const photoUses = [...tokens].filter((token) => /^photo\d+$/.test(token));
+  if (photoUses.length === 0) {
+    issues.push('no photograph is used');
+  }
+  for (const token of photoUses) {
+    const index = Number.parseInt(token.slice(5), 10);
+    if (index < 1 || index > photoCount) issues.push(`{{${token}}} points at a photograph that does not exist`);
+  }
+
+  if (pages.length === 4) {
+    if (!/photo\d+/.test(pages[0]) && !/\{\{photo/i.test(pages[0])) issues.push('the cover has no photograph');
+    if (!/\{\{photo/i.test(pages[1])) issues.push('the story page has no photograph');
+    if (!/\{\{drawing/.test(pages[3])) issues.push('the drawing is not on the specification page');
+    for (const token of FACT_TOKENS) {
+      if (countToken(pages[3], token) === 0) issues.push(`page 4 is missing {{${token}}}`);
+    }
+    for (const token of MATERIAL_TOKENS) {
+      if (countToken(pages[2], token) === 0) issues.push(`page 3 is missing {{${token}}}`);
+    }
+    for (const token of ['title', 'customer']) {
+      if (countToken(pages[0], token) === 0) issues.push(`the cover is missing {{${token}}}`);
+    }
+    if (countToken(pages[0], 'brand') + countToken(pages[0], 'logo') === 0) {
+      issues.push('the cover does not carry the brand');
+    }
+    if (countToken(pages[0], 'brandTamil') + countToken(pages[0], 'roomTamil') === 0) {
+      issues.push('the cover has no Tamil line');
+    }
+  }
+
+  if (issues.length > 0) {
+    throw new LlmError(`The brochure design failed the print checks: ${[...new Set(issues)].join('; ')}.`, {
+      type: 'invalid_reply',
+    });
+  }
+
+  return { styles, pages };
 }
 
-/** Compile a validated design into one print ready HTML document. */
-export function compileAiBrochure({ order, materials, palette: providedPalette, design, copy, templatesDir, attachmentImages = [] }) {
+// ---------------------------------------------------------------------------
+// Compilation
+// ---------------------------------------------------------------------------
+
+function valueOr(value, fallback) {
+  const text = clean(value);
+  return text === '' ? fallback : text;
+}
+
+function buildTokenValues({ values, photos, copy }) {
+  const tokens = {
+    brand: BRAND.name,
+    brandTamil: BRAND.tamil,
+    placeTamil: BRAND.placeTamil,
+    phone: BRAND.phone,
+    email: BRAND.email,
+    address: BRAND.address,
+    orderNo: valueOr(values.orderNo, 'Order number to follow'),
+    date: valueOr(values.date, ''),
+    title: valueOr(values.title, 'Custom wardrobe'),
+    room: valueOr(values.room, 'Room to confirm'),
+    roomTamil: tamilRoom(values),
+    customer: valueOr(values.customerName, 'Customer'),
+    headline: clean(copy?.headline),
+    body: clean(copy?.body),
+    closing: clean(copy?.closing),
+    width: valueOr(values.width, 'To be confirmed'),
+    height: valueOr(values.height, 'To be confirmed'),
+    depth: valueOr(values.depth, 'To be confirmed'),
+    shutters: valueOr(values.shutters, 'To be confirmed'),
+    exterior: valueOr(values.exterior, 'To be confirmed'),
+    interior: valueOr(values.interior, 'To be confirmed'),
+    carcass: valueOr(values.carcass, 'To be confirmed'),
+    backPanel: valueOr(values.backPanel, 'To be confirmed'),
+    shuttersMat: valueOr(values.shuttersMat, 'To be confirmed'),
+    drawers: valueOr(values.drawers, 'To be confirmed'),
+    edgeShutter: valueOr(values.edgeShutter, 'To be confirmed'),
+    edgeCarcass: valueOr(values.edgeCarcass, 'To be confirmed'),
+    edgeNote: valueOr(values.edgeNote, 'To be confirmed'),
+    finishExt: valueOr(values.finishExt, 'To be confirmed'),
+    finishInt: valueOr(values.finishInt, 'To be confirmed'),
+    handle: valueOr(values.handle, 'To be confirmed'),
+    handleNote: valueOr(values.handleNote, 'To be confirmed'),
+    hinges: valueOr(values.hinges, 'To be confirmed'),
+    channels: valueOr(values.channels, 'To be confirmed'),
+    material1Name: valueOr(values.mat1Name, 'Finish sample'),
+    material1Image: values.mat1Image,
+    material2Name: valueOr(values.mat2Name, 'Finish sample'),
+    material2Image: values.mat2Image,
+    material3Name: valueOr(values.mat3Name, 'Finish sample'),
+    material3Image: values.mat3Image,
+    material4Name: valueOr(values.mat4Name, 'Finish sample'),
+    material4Image: values.mat4Image,
+    logo: ASSETS.logo,
+    jaali: ASSETS.jaali,
+    paisley: ASSETS.paisley,
+    lotus: ASSETS.lotus,
+    rangoli: ASSETS.rangoli,
+    arch: ASSETS.arch,
+    drawing: elevationSvg(values),
+  };
+  photos.forEach((photo, index) => {
+    tokens[`photo${index + 1}`] = photo;
+  });
+  return tokens;
+}
+
+function fillTokens(html, tokens) {
+  return String(html).replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (match, key) => {
+    if (!(key in tokens)) return match;
+    const value = tokens[key];
+    if (typeof value !== 'string') return match;
+    return RAW_TOKENS.has(key) ? value : escapeHtml(value);
+  });
+}
+
+function parseColor(value) {
+  const text = String(value ?? '').trim();
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text);
+  if (hex) {
+    let digits = hex[1];
+    if (digits.length === 3) digits = digits.split('').map((part) => part + part).join('');
+    return [0, 2, 4].map((offset) => Number.parseInt(digits.slice(offset, offset + 2), 16) / 255);
+  }
+  const rgb = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i.exec(text);
+  if (rgb) return [rgb[1], rgb[2], rgb[3]].map((part) => Number(part) / 255);
+  return null;
+}
+
+function luminance(rgb) {
+  const [r, g, b] = rgb.map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastIssues(styles) {
+  const issues = [];
+  const read = (name) => {
+    const match = new RegExp(`--${name}\\s*:\\s*([^;]+);`, 'i').exec(styles);
+    return match ? parseColor(match[1]) : null;
+  };
+  const paper = read('paper');
+  const ink = read('ink');
+  if (paper && ink) {
+    const lighter = Math.max(luminance(paper), luminance(ink));
+    const darker = Math.min(luminance(paper), luminance(ink));
+    const contrast = (lighter + 0.05) / (darker + 0.05);
+    if (contrast < 4.5) issues.push('the paper and ink colours do not have enough contrast to read');
+  }
+  return issues;
+}
+
+const PAGE_CSS = `
+@page { size: 216mm 303mm; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+:root {
+  --paper: ${PALETTE.paper};
+  --ink: ${PALETTE.ink};
+  --deep: ${PALETTE.deep};
+  --accent: ${PALETTE.accent};
+  --gold: ${PALETTE.gold};
+  --hair: ${PALETTE.hair};
+  --muted: ${PALETTE.muted};
+  --on-dark: ${PALETTE.onDark};
+  --display: 'Instrument Serif', Georgia, serif;
+  --body: 'Barlow', Helvetica, Arial, sans-serif;
+  --tamil: 'Noto Sans Tamil', 'Barlow', sans-serif;
+}
+.page { position: relative; width: 216mm; height: 303mm; overflow: hidden; page-break-after: always; background: var(--paper); color: var(--ink); }
+.page:last-child { page-break-after: auto; }
+.page img { display: block; max-width: 100%; }
+.page .ph { background-size: cover; background-position: center; background-repeat: no-repeat; }
+.page .abs { position: absolute; }
+.page .tamil, .page [lang="ta"] { font-family: var(--tamil); letter-spacing: normal !important; text-transform: none !important; font-size: max(7.5pt, 1em); }
+.page .serif { font-family: var(--display); font-weight: 400; }
+.page .label { font-family: var(--body); font-size: 6.4pt; letter-spacing: 0.22em; text-transform: uppercase; color: var(--deep); }
+.page .body { font-family: var(--body); font-size: 8.4pt; line-height: 1.6; color: var(--ink); }
+`;
+
+/**
+ * Turn the checked pages into one print ready document. The wrapper owns the
+ * page box, the bleed and the fonts; the model owns everything inside.
+ */
+export function compileGenerativeBrochure({
+  order,
+  materials,
+  templatesDir,
+  attachmentImages = [],
+  copy,
+  pages,
+  styles = '',
+}) {
   const values = buildVoucherValues({
     order,
     materials,
@@ -774,33 +830,66 @@ export function compileAiBrochure({ order, materials, palette: providedPalette, 
     logger: { warn() {}, info() {}, error() {}, debug() {} },
     attachmentImages,
   });
-  const photos = attachmentImages.length > 0
+  const photoTokens = attachmentImages.length > 0
     ? attachmentImages
     : [values.coverImage, values.insideImage, values.insideImage2, values.detailImage];
-  const palette = INDIAN_PALETTES[design.tone] ?? providedPalette;
-  const stack = TYPE_STACKS[design.type] ?? TYPE_STACKS.editorial;
+  const tokens = buildTokenValues({ values, photos: photoTokens, copy });
+
+  const filledPages = pages.map((page) => fillTokens(page, tokens));
+  const filledStyles = fillTokens(styles, tokens);
+  const leftover = tokenList(filledPages.join('\n') + filledStyles);
+  const issues = [...contrastIssues(filledStyles)];
+  if (leftover.size > 0) {
+    issues.push(`tokens were left unfilled (${[...leftover].join(', ')})`);
+  }
+  for (const [index, page] of filledPages.entries()) {
+    const visible = visibleText(page);
+    if (visible.length > 6000) issues.push(`page ${index + 1} carries an unreasonable amount of text`);
+  }
+  if (issues.length > 0) {
+    throw new LlmError(`The brochure did not pass the print checks: ${issues.join('; ')}.`, {
+      type: 'invalid_reply',
+    });
+  }
+
+  // The studio never wants an em dash or an en dash in print, not even one the
+  // model slipped into a label. Normalise them in one place, after all the
+  // tokens are filled, so the rule can not be broken by a stray caption.
+  const noDashes = (value) => value.replace(/[\u2013\u2014]/g, '-');
+  const docStyles = noDashes(filledStyles);
+  const docPages = filledPages.map(noDashes);
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)} · ${escapeHtml(values.orderNo)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
-<style>
-:root { ${paletteCss(palette)}
-  --cream: ${palette.coverPaper};
-  --gold: #C79A3A;
-  --deep: ${palette.dark};
-  --display: ${stack.display};
-  --body: ${stack.body};
-}
-${BASE_CSS}
-</style></head><body>
-${coverHtml(values, design, photos)}
-${storyHtml(values, design, copy, photos)}
-${materialsHtml(values, design)}
-${specificationHtml(values, design)}
+<style>${PAGE_CSS}</style>
+${docStyles ? `<style>${docStyles}</style>` : ''}
+</head><body>
+${docPages.map((page) => `<div class="page">${page}</div>`).join('\n')}
 </body></html>`;
 }
 
-/** Human label for a design, stored with the render for the studio history. */
-export function designLabel(design) {
-  const words = [design.type, design.tone, design.cover, design.story, design.materials, design.spec];
-  return words.map((word) => word.replace(/([A-Z])/g, ' $1').trim()).join(' · ');
+/** Human label for a generated brochure, stored with the render. */
+export function designLabel({ direction = '', referenceName = '', designed = true } = {}) {
+  if (!designed) return 'Brochure';
+  const parts = [];
+  const reference = clean(referenceName);
+  if (reference !== '') parts.push(reference);
+  const note = clean(direction);
+  if (note !== '') parts.push(note.slice(0, 60));
+  return parts.length === 0 ? 'Designed by the model' : `Designed by the model · ${parts.join(' · ')}`;
+}
+
+/** Validate a copy object the studio edited by hand. */
+export function readCopyOverride(copy) {
+  if (!copy || typeof copy !== 'object' || Array.isArray(copy)) {
+    throw new LlmError('The brochure copy could not be read.', { type: 'invalid_reply' });
+  }
+  const strip = (value) => value.replace(/[\u2013\u2014]/g, '-');
+  const headline = typeof copy.headline === 'string' ? strip(copy.headline).trim().slice(0, 80) : '';
+  const body = typeof copy.body === 'string' ? strip(copy.body).trim().slice(0, 1200) : '';
+  const closing = typeof copy.closing === 'string' ? strip(copy.closing).trim().slice(0, 140) : '';
+  if (!headline || body.split(/\s+/).filter(Boolean).length < 20) {
+    throw new LlmError('The brochure copy needs a headline and a body.', { type: 'invalid_reply' });
+  }
+  return { headline, body, closing };
 }

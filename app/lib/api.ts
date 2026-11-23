@@ -37,26 +37,22 @@ export const API_BASE_URL = normaliseBaseUrl(rawBaseUrl) || defaultBaseUrl();
 
 export type OrderStatus = 'draft' | 'approved';
 
-/** The choices the model made for a generated brochure. */
+/** What the model chose for a generated brochure, kept with the render. */
 export interface AiDesign {
-  tone: string;
-  type: string;
-  cover: string;
-  story: string;
-  materials: string;
-  spec: string;
-  statement: string;
-  coverPhoto?: number;
-  storyPhoto?: number;
-  detailPhoto?: number;
   label?: string | null;
+  designed?: boolean;
+  direction?: string;
+  reference?: string | null;
+  referenceName?: string | null;
 }
 
 export interface AiBrochureBody {
   brief?: string;
   direction?: string;
-  overrides?: Partial<Omit<AiDesign, 'label'>>;
+  reference?: string;
   copy?: BrochureCopy;
+  /** A studio sentence to apply to the brochure that already exists. */
+  edit?: string;
 }
 
 export interface Customer {
@@ -138,12 +134,45 @@ export interface Render {
   createdAt: string;
 }
 
+/** One design direction the model wrote for the reference library. */
+export interface DesignReference {
+  id: string;
+  name: string;
+  family: string;
+  mood: string;
+  summary: string;
+  palette: {
+    paper: string;
+    ink: string;
+    deep: string;
+    accent: string;
+    gold: string;
+    hair: string;
+    muted: string;
+    onDark: string;
+  };
+  displayFont: string;
+  bodyFont: string;
+  coverIdea: string;
+  ornament: string;
+}
+
+export interface DesignLibrary {
+  designs: DesignReference[];
+  expected: number;
+  building: boolean;
+  ready: boolean;
+}
+
 export interface Template {
   id: string;
   name: string;
   palette: string;
+  paletteName?: string;
   cover: string;
   family?: string;
+  familyName?: string;
+  accent?: string;
   previewUrl: string;
   pageCount: number;
 }
@@ -416,7 +445,6 @@ export const api = {
     reply: string;
     order: Order;
     copy: BrochureCopy | null;
-    design: Partial<AiDesign>;
     rerender: boolean;
     changedOrder: boolean;
   }> {
@@ -485,6 +513,9 @@ export const api = {
   },
   listTemplates(): Promise<Template[]> {
     return request<Template[]>('/api/templates');
+  },
+  listDesigns(): Promise<DesignLibrary> {
+    return request<DesignLibrary>('/api/designs', { timeoutMs: 90000 });
   },
   listRenders(): Promise<Render[]> {
     return request<Render[]>('/api/renders');

@@ -1,6 +1,6 @@
 # Grace Catalogue Studio
 
-An internal tool for Grace Wood Industry, Nagercoil. It turns a customer requirement into a finished, print ready document: an order confirmation voucher with the specification, the proposed finishes and the company's own photography.
+An internal tool for Grace Wood Industry, Nagercoil. It turns a customer requirement into a finished, print ready brochure: the specification, the proposed finishes and the company's own photography, designed and typeset by a language model for that order.
 
 One codebase. It runs as a phone app and as a website, built with React Native and Expo.
 
@@ -12,12 +12,12 @@ The only external service is the language model chosen in Settings. Everything e
 
 ## What it does
 
-1. A sales person picks a customer and enters the wardrobe specification.
-2. The app asks the server to render the voucher.
-3. The server fills the house templates with that data and prints them to PDF.
+1. A sales person pastes the customer requirement into the chat and attaches photographs.
+2. The app pulls out the order, asks only for what is missing, then designs the brochure.
+3. The model writes the words and typesets all four pages for that order, guided by an optional look from the reference library.
 4. The PDF is previewed in the app, page by page, and can be shared or printed.
 
-The design is fixed. The words are few. The photography carries the page.
+No two brochures share a layout. The words are few. The photography carries the page.
 
 ## Documents
 
@@ -25,28 +25,25 @@ Three documents come out of the same data.
 
 | Document | Where it starts | Pages | Notes |
 |---|---|---|---|
-| Order voucher | Any order, Design gallery | 4 | 30 designs, one per family, model-written body |
+| Brochure | Chat, or any order with Design the brochure | 4 | Designed and typeset by the model for that order |
 | Info kit | Any order, Info kit | 5 | Company brochure: workshop, materials, process |
 
 ![Info kit](docs/screenshots/info-kit.png)
 
 ## Design direction and editing
 
-The studio is not stuck with what the model chose. On the order screen, under AI design:
+The studio is never stuck with what the model chose. Anything can be changed, in plain words, in the chat or on the order screen.
 
 - **Direction.** Type how the brochure should feel in plain words, for example "warmer and more festive, maroon and gold, big Tamil title, like a coffee table book". The model reads it before it designs, and the order remembers it for later generations.
-- **Choices.** Every decision is on screen as a chip: palette, type, cover, story, materials and specification. Change any of them.
-- **Re-render without the model.** Ask the model to redesign with the direction, or re-render immediately with the choices on screen. The direct re-render takes about a second and makes no model call.
-- **Words.** The story line, headline, body and closing are editable fields. Change a word and re-render.
-- **Template instead.** A template option sits beside the AI design. The thirty hand-built designs remain available from Use a template instead and from Change design, and they use the same copy.
-
-![Design direction and editing](docs/screenshots/design-editor.png)
+- **Reference.** Pick one of the hundred looks in the gallery, or let the model decide. A reference only sets the feel: palette, type voice, mood and ornament. Every page is still composed for the order.
+- **Chat edits.** After a brochure exists the same chat edits it: "make the shutters dark walnut", "try a calmer cover", "the height is 2150". The sentence is applied to the order and the existing pages are redesigned around it, never thrown away.
+- **Regenerate.** Design the brochure runs the whole job again from the order, the photographs and the current direction and reference.
 
 ## Chat first
 
 One chat is one order. It opens like a premium assistant: brand avatar, timestamps, copy on every reply, starter cards for the common jobs, and a composer that takes typing, dragging or pasting.
 
-- **Starter cards**: paste a WhatsApp message, add photos or a plan, or pick a cover.
+- **Starter cards**: paste a WhatsApp message, add photos or a plan, or pick a look from the reference strip.
 - **Files**: attach with +, drag files onto the window, or paste an image. Any type, up to 50 MB each. Attachments wait in a tray with a thumbnail, size and remove button before sending.
 - **Brief progress**: after the first reply the composer shows a progress bar, the details still missing as chips, and a Ready to build state.
 - **Skipping what is not known**: press **I don't know** on the missing details, or type it in the chat. Those details are marked to be confirmed, never guessed. The order is still made, the specification prints To be measured, and the measured drawing says it will follow after the site measurement.
@@ -54,42 +51,46 @@ One chat is one order. It opens like a premium assistant: brand avatar, timestam
 - **Nothing is lost on failure**: a failed send puts the message and attachments back in the composer and explains how to fix it.
 - **Model status**: a Model ready pill when the language model is configured, and an Add model banner that links straight to Settings when it is not.
 - **Typing indicator** shows whether the model is Reading or Creating the order.
-- **Cover strip**: the thirty printed covers with No design as the last card. It folds away after the first message and stays one tap away as a cover summary above the composer.
+- **Reference strip**: a sideways scroll of looks the model wrote, with Model decides as the last card. It folds away after the first message and stays one tap away as a reference summary above the composer.
 
 ![The studio chat](docs/screenshots/chat-premium.png)
 
 ![Brief progress and attachments in the composer](docs/screenshots/chat-composer.png)
 
-The first thing the chat asks is the cover: pick one of the thirty printed designs and that cover is printed with the model written copy, or pick **No design** and the model designs the whole brochure for the order.
+The chat offers a look before anything is designed: pick one of the reference cards, or leave it on **Model decides** and the mood is read from the room, the photographs and the finish samples. Either way every page is designed for this order.
 
-![Choosing a cover in the chat](docs/screenshots/chat-design.png)
+![Choosing a look in the chat](docs/screenshots/00b-chat-reference.png)
 
 Then paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. The model pulls out the order, asks only for what is missing, and creates the order and the brochure when it has enough.
 
 ## Editing by conversation
 
-After a brochure exists the chat stays on that order. Every plain sentence is treated as a change request: the model maps it to order fields, brochure copy, a design choice or a photo slot, the server saves it on that order, the same brochure re-renders, and the assistant replies in a normal sentence saying what changed. Examples: "make the shutters dark walnut", "use the second photo on the cover", "shorten the headline", "the height is 2150". An order only change like a new height re-renders the existing design with the corrected specification. New order is the only way to start a different customer.
+After a brochure exists the chat stays on that order. Every plain sentence is treated as a change request: the model maps it to order fields or new copy, the server saves it, and the same sentence goes to the brochure designer, which changes the pages it already has. Examples: "make the shutters dark walnut", "try a calmer cover", "shorten the headline", "the height is 2150". An order only change like a new height keeps the design and corrects the facts. New order is the only way to start a different customer.
 
 ## Generated design
 
-The brochure is not chosen from a library. When the chat finalises an order, the model acts as art director: one call returns the palette, the type pairing, the composition of all four pages and the headline, body and closing for this order. Every order gets a different document.
+There is no fixed template behind a brochure. When the chat finalises an order, the model writes the words and then authors the four pages itself as HTML and CSS: one reply, one complete document. The server only supplies the print box, the fonts, the assets and the facts through tokens, then checks the document before anything is printed.
 
-The design is strict JSON with allowed values only, validated, then compiled to print safe HTML and CSS by the server. The model never emits markup, so nothing unsafe or unprintable can reach the press. `POST /api/orders/:id/ai-brochure` returns the render, the design and the copy, and the design is stored with the document so the studio can explain how each brochure was made.
+`POST /api/orders/:id/ai-brochure` designs and prints in one call and returns the render, the design note and the copy. The document is kept with the render, so the next chat edit changes the pages it already has instead of starting over. An optional `reference` id or an `edit` sentence steers the same call; a hand edited `copy` object wins over generated words.
 
-It is built as an Indian workshop brochure, not a report:
+Every order gets a different document, and every document must pass the same print checks:
 
-1. **Cover.** One strong photograph, a deep maroon brand band, the piece in large type and the customer. Almost nothing else.
-2. **Story.** A full bleed photograph, the statement as a large line, and the copy set in a magazine column.
-3. **Materials.** A maroon header and the four finish textures at size with their names. A colour page, not a table.
-4. **Specification.** Dimensions, materials and hardware, set quietly at the back for the workshop and the client file.
+1. **Cover.** The brand, the piece, the customer and a Tamil line over the photographs. Almost nothing else.
+2. **Story.** The approved headline, body and closing set as an editorial spread with the photographs.
+3. **Materials.** All four finish samples shown at size with their names. A colour page, not a table.
+4. **Specification.** Every dimension, material and hardware fact with the measured drawing, set quietly at the back.
 
-Warm cream stock, deep maroon, metallic gold rules and Indian ornament: a jaali border across the head of the page, paisley and lotus motifs, a rangoli mark and a temple arch behind the framed photograph. The brand appears in English and Tamil (கிரேஸ் வூட் இண்டஸ்ட்ரி) on the cover, the room name appears in Tamil under the English title, the contact strip is bilingual, and the tones are Indian: maroon, teal, copper, sandal and peacock. Display type runs 30 to 46 point and body text 8 point.
+Printed in the Indian workshop voice: warm cream stock, deep maroon, muted gold rules, jaali, paisley, lotus, rangoli and temple arch motifs used like jewellery, Tamil and English together, generous margins, large type, very few words. An unreadable reply is asked for again with the exact problems listed; a reply that still fails reaches nobody.
 
-Finishing details: the cover carries a Made in Nagercoil line, the story page opens with a display drop cap, the four finishes are numbered and framed in gold on the materials page, and the specification page closes with a measured front elevation and plan drawn from the confirmed order, with width, height and depth marked in millimetres.
+## Design references
 
-The studio app carries the same Tamil brand line under its headers.
+The gallery holds one hundred looks, and the model wrote every one of them. Each reference is a palette, a type voice, a mood and a cover idea, generated in four volumes of twenty five and stored in the database as it arrives, so the gallery fills while the studio browses. The first visit starts the build; later visits read it straight from the shelf.
 
-The thirty hand-built designs remain available under Change design for a manual override, but the default path is generated per order.
+A reference is a feeling, never a layout. The brochure designer reads its palette and mood and composes fresh pages for the actual order, the actual photographs and the actual facts. Nothing from a reference is ever printed itself.
+
+![Design references](docs/screenshots/e2e/06b-reference-gallery.png)
+
+`GET /api/designs` serves the library with its build state. `POST /api/orders/:id/ai-brochure` accepts a `reference` id from it.
 
 
 The extraction rules matter as much as the conversation. Bare dimensions become millimetres, counts become digits, unknown fields are dropped, and a reply without usable JSON is rejected with a readable error. A field is only ready when the customer actually said it, never guessed.
@@ -102,11 +103,11 @@ History. Orders are only ever created by the chat, so this screen is read only: 
 
 ![Order detail](docs/screenshots/order-detail.png)
 
-The full specification, then the rendered voucher with page by page preview, open PDF and share.
+The full specification, then the brochure with page by page preview, open PDF and share. The reference card shows the guiding look; direction is one field; Design the brochure runs the whole job again.
 
-![Designs](docs/screenshots/e2e/06-designs.png)
+![Design references](docs/screenshots/e2e/06b-reference-gallery.png)
 
-Thirty cover designs. The specification and finish pages stay identical, so picking a design is safe. Choose one from the order screen and the next render uses it.
+One hundred looks the model wrote. Picking one is safe: it only sets the feel, and the next design composes fresh pages around it.
 
 
 ## Architecture
@@ -166,25 +167,39 @@ Full contract in [CONTRACT.md](CONTRACT.md). The essentials:
 |---|---|---|
 | GET | `/api/bootstrap` | customers, orders and materials in one call |
 | POST | `/api/orders` | create an order |
-| POST | `/api/orders/:id/render` | render a voucher with an optional `templateId`, returns page URLs |
-| GET | `/api/templates` | the 30 brochure templates and their thumbnail URLs |
-| GET | `/previews/:templateId.png` | a template thumbnail |
+| POST | `/api/orders/:id/render` | render a voucher or kit with an optional `templateId`, returns page URLs |
+| POST | `/api/orders/:id/ai-brochure` | design, typeset and print the brochure, accepts `brief`, `direction`, `reference`, `edit` and `copy` |
+| POST | `/api/orders/:id/edit` | apply a plain language change to the order, returns whether to re-render |
+| GET | `/api/designs` | the 100 model written design references with build state |
+| GET | `/api/templates` | the classic house layouts and their thumbnail URLs |
+| GET | `/previews/:templateId.png` | a classic layout thumbnail |
 | GET | `/api/materials` | internal workshop finishes used by the brochure (no app screen) |
 | PATCH | `/api/materials/:id` | update a material, including its trade rate |
 | GET | `/files/:name` | the PDF |
 | GET | `/pages/:renderId/:n.png` | a page image for the in app preview |
 
-A voucher has 30 selectable designs: ten complete document families with their
-own cover, specification, finishes and inside pages, each offered in three
-palettes. The catalogue is data in `templates/variants.json`; every family is a
-full four page HTML document in `templates/voucher/families/`, and the palette
-arrives as CSS variables. The app sends `templateId` with a render; missing
-means the first template (`atelier-copper`). Thumbnails are cached in
-`data/previews/` and generated once per template.
+A brochure is designed per order, not selected. The app sends the order, the
+photographs, the copy, a direction and an optional `reference` id; the model
+authors the four pages itself. The classic house layouts still exist underneath
+for the voucher and kit paths: ten complete document families in
+`templates/voucher/families/`, catalogued in `templates/variants.json` with
+three palettes each, rendered with `templateId` and cached as thumbnails in
+`data/previews/`.
 
 ## Rendering
 
-Templates live in `templates/`. The server replaces `{{key}}` tokens with order data, writes the built HTML into `templates/voucher/` (or `templates/kit/`) so relative asset paths resolve, then calls:
+Model authored brochures are checked, not trusted: exactly four pages, every
+fact and material token printed once, no external URL, no clipped content, no
+em dash or en dash reaching print. The server fills the tokens with order data,
+writes the built HTML into `templates/voucher/` so relative asset paths
+resolve, then calls:
+
+```
+weasyprint <html> data/renders/<id>.pdf
+pdftoppm -png -r 96 <pdf> data/renders/<id>
+```
+
+Classic layouts live in `templates/`. The server replaces `{{key}}` tokens with order data, writes the built HTML into `templates/voucher/` (or `templates/kit/`) so relative asset paths resolve, then calls the same two commands:
 
 ```
 weasyprint <html> data/renders/<id>.pdf
@@ -217,59 +232,29 @@ House rules for copy: short sentences, no em dashes or en dashes, a middot for s
 ## Tests
 
 ```bash
-npm test          # 87 server tests, api, rendering, the model and uploads
+npm test          # 105 server tests, api, rendering, the model and uploads
 npm run verify    # black box: create, render, check the pdf with pdfinfo
 npm run e2e       # drives the real web app in Chrome like a person
 npm run typecheck
 npm run lint
 ```
 
-`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, render, open PDF, share, re-render, choose a different design, tests the AI design editor and its re-render, test the model connection, draft a customer note, write the brochure body, confirm the body inside the generated PDF, render the info kit, the chat creating its own order and brochure, settings, deep link, mobile viewport, and the sad path when the API is down. 104 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
+`npm run e2e` starts the API, the web build and a mock model provider, then walks the product like a person: history, an order created the way the chat does, detail, design, open PDF, share, design again, pick a design reference and prove the render followed it, test the model connection, draft a customer note, render the info kit, the chat creating its own order and brochure, chat edits to the live order, settings, deep link, mobile viewport, and the sad path when the API is down. 98 checks. Screenshots land in `docs/screenshots/e2e/`. The run fails on console errors.
 
-## Design templates
+## Design references
 
-![All designs](docs/screenshots/all-designs.png)
+![All looks](docs/screenshots/e2e/06b-reference-gallery.png)
 
-Thirty designs, and every one is a **different document**, not a recolor. Each design is a complete four page family with its own cover, specification page, finishes page and inside page, in one fixed palette. The gallery refuses to show two arrangements of the same page.
+One hundred looks, and the model wrote every one of them. Each reference is a palette, a type voice, a mood and a cover idea, generated in four volumes of twenty five. The gallery fills volume by volume while the studio browses, and the choice only sets the feel: every page is still composed for the order, its photographs and its facts.
 
-| Design | What makes it different |
+| Volume | Character |
 |---|---|
-| Copper Atelier | Editorial paper cover, labelled specification tables, four up finish grid and a large inside photograph |
-| Ink Swiss | Grotesque grid with numbered sections, hairline key value lists and a full width swatch band |
-| Sand Gallery | Huge margins and small centred text, one photograph per page, a single centred specification column |
-| Indigo Index | Dense trade catalogue with small type, a three column specification and a coded finishes grid |
-| Ink Dark | Ink black cover and section dividers, a reversed white on black specification and light hairlines |
-| Indigo Blueprint | Technical drawing furniture, a specification table with a units column and annotated finish strips |
-| Sand Lookbook | Full bleed photography on every page, text in corners over photographs, a compressed overlay specification |
-| Olive Poster | One enormous title with almost nothing else, a six line specification and plain finish strips |
-| Copper Card | Modular bordered cards, a specification split into labelled boxes and a cover built as one card |
-| Ink Folio | Classical centred folio with small caps, thin double rules, one elegant specification list and numbered swatches |
-| Indigo Timeline | Horizontal stage rail and numbered markers, vertical four-stage specification with facts attached to cut, band, assemble and finish, perforated film-strip finishes, two stage frames joined by a drawn line |
-| Indigo Blue Paper | Knocked-out outlined title with a data plate, annotated elevation with dimension lines and numbered callouts, chips on leader lines, photo plates with registration brackets |
-| Olive Magazine | Grace Wood masthead with cover lines and issue line, two-column spread with a pull quote and small caps entries, four-frame photo essay finishes with a full width detail, drop cap article inside |
-| Sand Frame | A single matted photograph with the title as a wall label, wall-label specification panel with generous white space, four framed swatches with plaques, two framed works at different sizes inside |
-| Copper Ticket | Perforated stub with serial and tear-off counterfoil, receipt style dockets with dashed separators and totals rows, four tear-off swatch stubs, stamp circle and ticket window photographs |
-| Indigo Axonometric | Faint 30 degree grid cover with an orientation key and gridded photo plate, three ascending axonometric specification panels with numbered edges, finish blocks with visible top faces, surveyed photographs with corner coordinates |
-| Sand Swatchbook | Overlapping rounded swatch cards fanned over the cover with the title on the top card, tabbed ruled index card specification, stacked finish cards with shadows, paper photo card with a swatch strip footer |
-| Ink Broadsheet | Masthead and edition line above a huge stacked headline, photograph in a rectangular cut with a contents rail, four column classified specification with a display advert, framed finish plate, lead story with pull quote and captions |
-| Sand Redline | Annotated cover photograph with accent circles and an arrow over a revision strip, a revision log table holding every order fact with a change column, ticked and underlined samples, marked up inside photos and a sign off block |
-| Copper Collage | Three overlapping rotated frames with paper tape, title on the top photo, order number on a paper tag, facts on a rotated file card over scraps, pinned swatch chips, two collaged photos with a torn paper strip |
-| Copper Ledger | Account header cover with a received stamp and a contents ledger, double entry specification across two ruled leaves with control totals, posted swatch entries with amount columns, continuation ledger with framed photographs |
-| Olive Geometric | A huge accent circle and ink bars crossed by the grotesque title, a square index, specification rows under oversized numerals and thick accent blocks, bold swatch panels, photographs in heavy bar frames |
-| Olive Sketchbook | Graph paper, dashed annotations with leader lines, italic title, taped photograph and measurement slip, circled number specification sketches with dashed leaders and a drawn elevation, taped swatch cards, callout sketch page |
-| Copper Sleeve | Circular cut out label photograph and catalogue corner, back cover tracklist in two sides with a barcode, liner notes beside square swatch tiles, inside vinyl whose label is a photograph with text around it |
-| Ink Envelope | Folded flap, address block, accent stamp box with date and order number, photo window, letterhead specification letter with indented fact lines and signature, enclosed four window swatch card, closing letter clipped over two photographs |
-| Ink Accordion | Dotted fold creases on every page, two panel title, vertical panel headers on the specification, swatch names running up the folds, two photo panorama inside with a fold register |
-| Sand Split | Vertical paper and photo cover, reversed band above a two column specification, solid diagonal finish field, inside spread with one photograph crossing the seam |
-| Copper Specimen | Giant Aa and alphabet proof on the cover, a glyph grid holding every specification fact, type sample finish rows, proof sheet with specimen paragraphs inside |
-| Sand Contact | Film strips with punched sprocket holes, grease pencil circle, title written across a strip, camera notes specification pad, hand marked swatch strip, enlarged signed frame inside |
-| Olive Atlas | Contour fields, compass rose, legend block with order and date, symbol legend with scale bar, terrain swatch keys, inside map detail with landmarks and an elevation trace |
+| Warm traditional | Deep maroon, muted gold, cream paper, a temple quiet |
+| Modern editorial | Cream and charcoal, enormous photographs, wide quiet margins |
+| Colour and craft | Teal, indigo, olive and copper led by the finish samples |
+| Ornament and celebration | Jaali, lotus, rangoli and temple arches, gold used like jewellery |
 
-Palettes: copper `#A65E22`, ink `#1C1A17`, olive `#5C6B3C`, indigo `#2F3E6B`, sand `#B08A63`.
-
-`GET /api/templates` lists them with preview images. A render accepts `templateId`. The app shows the gallery from the order screen under Design. Every design shares the same placeholders and the same data, so switching design never changes what the document says.
-
-Measured, not asserted: `node scripts/design-uniqueness.mjs` renders all thirty with one order and compares them as images. The closest pair of covers differs by 12 of 64 perceptual bits, the average pair by 29.5, and no pair of full documents comes close to matching. The check fails loudly if two designs become near duplicates.
+Measured, not asserted: `GET /api/designs` must return 100 references with unique ids and names, varied families, complete palettes and known ornaments before the suite passes. The classic house layouts underneath are untouched and keep their own uniqueness check.
 
 ## Desktop app for Windows and Mac
 
@@ -290,7 +275,7 @@ The desktop process starts the server itself through `server/src/boot.mjs`. The 
 
 The Windows installer is a custom NSIS wizard in `desktop/installer/GraceStudio.nsi`, built the same way as the Attendance Report Studio installer: Welcome, options, install, Finish with a Launch checkbox. It installs for the current Windows user into `%LOCALAPPDATA%\Programs\Grace Studio`, so there is no administrator prompt, creates a Start Menu shortcut and optionally a desktop shortcut, registers a proper Apps and Features uninstall entry, and upgrades cleanly. Data in the app data folder is never touched.
 
-`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.12.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
+`.github/workflows/desktop.yml` builds both installers on every `v*` tag and attaches them to the GitHub release: `Grace.Studio.Setup.1.0.13.exe` and a portable exe for Windows, dmg and zip for macOS. The Windows job also installs the wizard silently on the runner, checks that the app landed at the expected path, then uninstalls it to prove both directions work. Builds are unsigned for now: SmartScreen and Gatekeeper will warn on first open.
 
 The standalone app was built and launched on this machine: the packaged build started its embedded server, designed a brochure with the live model, and printed all four pages through the Electron engine in 1.5 seconds.
 

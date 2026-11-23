@@ -17,16 +17,19 @@ import {
   deleteOrder,
   deleteSetting,
   getCustomer,
+  getDesignCatalog,
   getLlmCache,
   getMaterial,
   getOrder,
   getRender,
+  getRenderHtml,
   llmCacheStats,
   pruneLlmCache,
   putLlmCache,
   listCustomers,
   listMaterials,
   listOrders,
+  putDesignCatalog,
   listRenders,
   listRendersForOrder,
   setOrderCopy,
@@ -45,13 +48,26 @@ import {
 } from './config.mjs';
 import { installHttpHardening, isExecutable, uploadBodyLimit } from './http.mjs';
 import {
-  buildAiBrochureMessages,
-  compileAiBrochure,
+  DESIGNER_MAX_TOKENS,
+  DESIGNER_TEMPERATURE,
+  DESIGNER_TRIES,
+  buildDesignerMessages,
+  buildDesignerRepairMessages,
+  compileGenerativeBrochure,
+  defaultPhotoUrls,
   designLabel,
-  mergeDesignOverrides,
-  parseAiDesign,
+  parseDesignerReply,
+  photoProfiles,
   readCopyOverride,
 } from './ai-brochure.mjs';
+import {
+  CATALOG_BATCH,
+  CATALOG_SIZE,
+  CATALOG_VERSION,
+  buildCatalogMessages,
+  parseCatalogReply,
+  referenceForDesigner,
+} from './design-catalog.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from './llm-cache.mjs';
 import {
   INTAKE_MAX_MESSAGE_CHARS,
@@ -85,6 +101,7 @@ import {
   buildNoteMessages,
   capText,
   copyQualityIssues,
+  LlmError,
   llmFailureBody,
   parseCopyReply,
   parseJsonObject,
@@ -461,6 +478,43 @@ export function createApp(options) {
   const app = new Hono();
   const lifecycle = { shuttingDown: false };
 
+  /**
+   * Write the brochure words with the model, then repair them once if the
+   * quality rules are broken. The copy route and the brochure route share this
+   * so a printed brochure always carries the approved copy.
+   */
+  async function writeCopyWithModel(order, config) {
+    let result = await requestChat({
+      provider: config.provider,
+      endpoint: config.endpoint,
+      model: config.model,
+      apiKey: config.apiKey,
+      messages: buildCopyMessages(order, order.brief ?? ''),
+      maxTokens: COPY_MAX_TOKENS,
+      temperature: COPY_TEMPERATURE,
+    });
+    let copy = parseCopyReply(result.content);
+    let issues = copyQualityIssues(copy, order);
+    if (issues.length > 0) {
+      logger.warn('Brochure copy needed a repair pass.', { issues });
+      result = await requestChat({
+        provider: config.provider,
+        endpoint: config.endpoint,
+        model: config.model,
+        apiKey: config.apiKey,
+        messages: buildCopyRepairMessages(order, order.brief ?? '', copy, issues),
+        maxTokens: COPY_MAX_TOKENS,
+        temperature: COPY_TEMPERATURE,
+      });
+      copy = parseCopyReply(result.content);
+      issues = copyQualityIssues(copy, order);
+      if (issues.length > 0) {
+        logger.warn('Brochure copy still has issues after the repair pass.', { issues });
+      }
+    }
+    return { copy, model: result.model, latencyMs: result.latencyMs };
+  }
+
   installHttpHardening(app, {
     logger,
     corsOrigins,
@@ -469,6 +523,67 @@ export function createApp(options) {
     noteLimitPerMin,
     isShuttingDown: () => lifecycle.shuttingDown,
   });
+
+  // The design reference library is built in the background, one volume at a
+  // time, and saved after every volume so the gallery fills up while the person
+  // is already browsing. Only one build runs at a time.
+  const designBuildState = { active: false };
+
+  async function requestCatalogVolume(config, existing) {
+    const count = Math.min(CATALOG_BATCH, CATALOG_SIZE - existing.length);
+    const messages = buildCatalogMessages({
+      volumeIndex: Math.floor(existing.length / CATALOG_BATCH),
+      count,
+      existingNames: existing.map((design) => design.name),
+    });
+    const result = await requestChat({
+      provider: config.provider,
+      endpoint: config.endpoint,
+      model: config.model,
+      apiKey: config.apiKey,
+      messages,
+      maxTokens: 6000,
+      temperature: 0.8,
+    });
+    return parseCatalogReply(result.content, {
+      count,
+      existingIds: existing.map((design) => design.id),
+      existingNames: existing.map((design) => design.name),
+    });
+  }
+
+  function startDesignBuild(config) {
+    if (designBuildState.active) return;
+    designBuildState.active = true;
+    void (async () => {
+      let catalog = getDesignCatalog(db);
+      let designs = catalog.version === CATALOG_VERSION ? [...catalog.designs] : [];
+      try {
+        if (catalog.version !== CATALOG_VERSION) {
+          designs = [];
+          putDesignCatalog(db, { version: CATALOG_VERSION, expected: CATALOG_SIZE, designs });
+        }
+        let attempts = 0;
+        while (designs.length < CATALOG_SIZE && attempts < 12) {
+          attempts += 1;
+          try {
+            const volume = await requestCatalogVolume(config, designs);
+            designs = [...designs, ...volume].slice(0, CATALOG_SIZE);
+            putDesignCatalog(db, { version: CATALOG_VERSION, expected: CATALOG_SIZE, designs });
+            logger.info('Design reference volume added.', { count: designs.length });
+          } catch (error) {
+            logger.warn('Design reference volume failed.', {
+              reason: error instanceof Error ? error.message : String(error),
+              count: designs.length,
+            });
+          }
+        }
+      } finally {
+        designBuildState.active = false;
+        logger.info('Design reference library ready.', { count: designs.length });
+      }
+    })();
+  }
 
   // Concurrent requests for the same document share one build instead of
   // queueing a second identical render behind the first.
@@ -1073,34 +1188,8 @@ export function createApp(options) {
     }
 
     try {
-      let result = await requestChat({
-        provider: config.provider,
-        endpoint: config.endpoint,
-        model: config.model,
-        apiKey: config.apiKey,
-        messages: baseMessages,
-        maxTokens: COPY_MAX_TOKENS,
-        temperature: COPY_TEMPERATURE,
-      });
-      let copy = parseCopyReply(result.content);
-      let issues = copyQualityIssues(copy, order);
-      if (issues.length > 0) {
-        logger.warn('Brochure copy needed a repair pass.', { issues });
-        result = await requestChat({
-          provider: config.provider,
-          endpoint: config.endpoint,
-          model: config.model,
-          apiKey: config.apiKey,
-          messages: buildCopyRepairMessages(order, order.brief ?? '', copy, issues),
-          maxTokens: COPY_MAX_TOKENS,
-          temperature: COPY_TEMPERATURE,
-        });
-        copy = parseCopyReply(result.content);
-        issues = copyQualityIssues(copy, order);
-        if (issues.length > 0) {
-          logger.warn('Brochure copy still has issues after the repair pass.', { issues });
-        }
-      }
+      const generated = await writeCopyWithModel(order, config);
+      const copy = generated.copy;
       setOrderCopy(db, id, copy);
       if (cacheKey) {
         putLlmCache(db, {
@@ -1108,10 +1197,10 @@ export function createApp(options) {
           provider: config.provider,
           endpoint: config.endpoint,
           model: config.model,
-          responseJson: JSON.stringify({ copy, model: result.model }),
+          responseJson: JSON.stringify({ copy, model: generated.model }),
         });
       }
-      return c.json({ copy, model: result.model, latencyMs: result.latencyMs, cached: false });
+      return c.json({ copy, model: generated.model, latencyMs: generated.latencyMs, cached: false });
     } catch (error) {
       return llmFailureResponse(c, error);
     }
@@ -1267,6 +1356,36 @@ export function createApp(options) {
   // The AI art director: the model designs a fresh four page document for this
   // order and writes its copy in the same pass. With overrides the studio keeps
   // the design it already likes and re-renders only the choices it changed.
+  // The design reference library the gallery and the chat picker read. The
+  // first request starts the background build and returns whatever is ready,
+  // so the client can fill the gallery volume by volume.
+  app.get('/api/designs', (c) => {
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+    let catalog = getDesignCatalog(db);
+    if (catalog.version !== CATALOG_VERSION) {
+      catalog = putDesignCatalog(db, {
+        version: CATALOG_VERSION,
+        expected: CATALOG_SIZE,
+        designs: [],
+      });
+    }
+    if (catalog.designs.length < CATALOG_SIZE && !designBuildState.active) {
+      startDesignBuild(config);
+    }
+    const designs = catalog.designs ?? [];
+    return c.json({
+      designs,
+      expected: CATALOG_SIZE,
+      building: designBuildState.active || designs.length < CATALOG_SIZE,
+      ready: designs.length >= CATALOG_SIZE,
+    });
+  });
+
+  // The model designs and typesets the brochure. No template is chosen: the
+  // order, the photographs, the approved copy and the studio direction go to
+  // the model, which authors the four pages itself. A chat edit carries the
+  // last document in so the model changes only what the studio asked for.
   app.post('/api/orders/:id/ai-brochure', async (c) => {
     let order = getOrder(db, c.req.param('id'));
     if (!order) return fail(c, 404, 'Order not found.');
@@ -1293,10 +1412,28 @@ export function createApp(options) {
       }
     }
 
-    if (body.overrides !== undefined && (typeof body.overrides !== 'object' || body.overrides === null || Array.isArray(body.overrides))) {
-      return fail(c, 400, 'Field "overrides" must be an object.');
+    // An optional design reference from the gallery. It only reaches the model
+    // as words and mood; the reference itself is never rendered.
+    let reference = null;
+    if (body.reference !== undefined && body.reference !== null) {
+      if (typeof body.reference !== 'string') {
+        return fail(c, 400, 'Field "reference" must be a design id.');
+      }
+      const requestedReference = body.reference.trim();
+      if (requestedReference !== '') {
+        const chosen = getDesignCatalog(db).designs.find((design) => design.id === requestedReference);
+        if (!chosen) return fail(c, 400, `Unknown design reference "${requestedReference}".`);
+        reference = referenceForDesigner(chosen);
+      }
     }
-    const overrides = body.overrides ?? null;
+
+    let editNote = '';
+    if (body.edit !== undefined) {
+      if (typeof body.edit !== 'string') {
+        return fail(c, 400, 'Field "edit" must be a sentence.');
+      }
+      editNote = body.edit.trim().slice(0, 1200);
+    }
 
     let copyOverride = null;
     if (body.copy !== undefined) {
@@ -1307,118 +1444,102 @@ export function createApp(options) {
       }
     }
 
-    const photoPaths = voucherPhotoFiles(order, path.join(dataDir, 'media'));
-    const photoCount = photoPaths.length > 0 ? photoPaths.length : 4;
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+
+    const attached = voucherPhotoFiles(order, path.join(dataDir, 'media'));
+    const photos = attached.length > 0 ? attached : defaultPhotoUrls(templatesDir);
+    const photoShapes = photoProfiles(photos, templatesDir);
 
     try {
-      let design;
-      let copy;
-      let generated = null;
+      // 1. Words. Studio edited copy wins, then the stored copy, then a fresh
+      // pass with the usual quality repair.
+      let copy = copyOverride ?? order.copy ?? null;
       let usedModel = null;
       let latencyMs = 0;
+      if (!copy) {
+        const generated = await writeCopyWithModel(order, config);
+        copy = generated.copy;
+        usedModel = generated.model;
+        latencyMs = generated.latencyMs;
+      }
 
-      if (overrides || copyOverride) {
-        // Re-render path: keep the design the studio has and apply its edits.
-        const previous = listRendersForOrder(db, order.id)
-          .filter((render) => render.kind === 'ai' && render.design)
+      // 2. The document the studio already has, so an edit changes one thing
+      // instead of throwing the design away.
+      let previousHtml = '';
+      if (editNote !== '') {
+        const latest = listRendersForOrder(db, order.id)
+          .filter((render) => render.kind === 'ai')
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
-        const base = previous?.design
-          ? { ...previous.design }
-          : {
-              tone: 'maroon',
-              type: 'editorial',
-              cover: 'fullBleed',
-              story: 'hero',
-              materials: 'grid4',
-              spec: 'twoColumn',
-              coverPhoto: 0,
-              storyPhoto: 1,
-              detailPhoto: 0,
-              statement: 'Made for the room it stands in.',
-            };
-        design = mergeDesignOverrides(base, overrides ?? {}, photoCount);
-        copy = copyOverride ?? order.copy ?? null;
-        if (!copy) {
-          return fail(c, 400, 'Write the brochure copy before changing the design.');
-        }
-        const issues = copyQualityIssues(copy, order);
-        if (issues.length > 0) logger.warn('Studio edited copy has quality notes.', { issues });
-        if (copyOverride) order = setOrderCopy(db, order.id, copy);
-      } else {
-        const config = resolveLlmConfig(db, llmEnv);
-        if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
-        const messages = buildAiBrochureMessages(order, brief, photoCount, direction);
+        if (latest) previousHtml = getRenderHtml(db, latest.id) ?? '';
+      }
 
-        let result = await requestChat({
+      // 3. Design and typeset, then ask again with the exact print problems.
+      const messages = buildDesignerMessages({
+        order,
+        brief,
+        direction,
+        copy,
+        photos,
+        photoShapes,
+        reference,
+        previousHtml,
+        editNote,
+      });
+      let html = null;
+      let previousReply = '';
+      let lastIssues = '';
+      for (let attempt = 1; attempt <= DESIGNER_TRIES && !html; attempt += 1) {
+        const requestMessages =
+          attempt === 1 ? messages : buildDesignerRepairMessages(messages, previousReply, lastIssues);
+        const result = await requestChat({
           provider: config.provider,
           endpoint: config.endpoint,
           model: config.model,
           apiKey: config.apiKey,
-          messages,
-          maxTokens: 3200,
-          temperature: 0.75,
+          messages: requestMessages,
+          maxTokens: DESIGNER_MAX_TOKENS,
+          temperature: DESIGNER_TEMPERATURE,
         });
-        let parsedDesign;
-        try {
-          parsedDesign = parseAiDesign(result.content, photoCount);
-        } catch (error) {
-          if (error?.type !== 'invalid_reply') throw error;
-          logger.warn('AI brochure design could not be read, asking once more.', { reason: error.message });
-          result = await requestChat({
-            provider: config.provider,
-            endpoint: config.endpoint,
-            model: config.model,
-            apiKey: config.apiKey,
-            messages: [
-              ...messages,
-              { role: 'assistant', content: capText(result.content, 1500) },
-              {
-                role: 'user',
-                content:
-                  'That reply was not usable. Reply with the strict JSON object only, no prose, using the exact field names and allowed values.',
-              },
-            ],
-            maxTokens: 3200,
-            temperature: 0.4,
-          });
-          parsedDesign = parseAiDesign(result.content, photoCount);
-        }
-        generated = parsedDesign;
-        design = parsedDesign.design;
-        copy = parsedDesign.copy;
-
-        let issues = copyQualityIssues(copy, order);
-        if (issues.length > 0) {
-          logger.warn('AI brochure copy needs a repair pass.', { issues });
-          const repair = await requestChat({
-            provider: config.provider,
-            endpoint: config.endpoint,
-            model: config.model,
-            apiKey: config.apiKey,
-            messages: buildCopyRepairMessages(order, brief, copy, issues),
-            maxTokens: COPY_MAX_TOKENS,
-            temperature: COPY_TEMPERATURE,
-          });
-          copy = parseCopyReply(repair.content);
-          issues = copyQualityIssues(copy, order);
-          if (issues.length > 0) logger.warn('AI brochure copy still has issues.', { issues });
-        }
         usedModel = result.model;
         latencyMs = result.latencyMs;
+        previousReply = result.content;
+        try {
+          const document = parseDesignerReply(result.content, photos.length);
+          html = compileGenerativeBrochure({
+            order,
+            materials: listMaterials(db),
+            templatesDir,
+            attachmentImages: attached,
+            copy,
+            pages: document.pages,
+            styles: document.styles,
+          });
+        } catch (error) {
+          if (error?.type !== 'invalid_reply') throw error;
+          lastIssues = error.message;
+          logger.warn('The brochure design did not pass the print checks, asking once more.', {
+            attempt,
+            reason: capText(lastIssues, 240),
+          });
+        }
+      }
+      if (!html) {
+        throw new LlmError(`The model could not produce a printable brochure. ${lastIssues}`, {
+          type: 'invalid_reply',
+        });
       }
 
-      const palette = variants.palettesById.get(design.tone) ?? variants.palettes[0];
-      const html = compileAiBrochure({
-        order,
-        materials: listMaterials(db),
-        palette,
-        design,
-        copy,
-        templatesDir,
-        attachmentImages: photoPaths,
-      });
+      // 4. Print it and remember the document for the next chat edit.
       const renderId = newRenderId();
       const rendered = await renderer.renderHtml({ html, renderId });
+      const design = {
+        label: designLabel({ direction, referenceName: reference?.name ?? '' }),
+        designed: true,
+        direction,
+        reference: reference?.id ?? null,
+        referenceName: reference?.name ?? null,
+      };
       const render = createRender(db, {
         id: renderId,
         orderId: order.id,
@@ -1427,7 +1548,8 @@ export function createApp(options) {
         pdfUrl: rendered.pdfUrl,
         pageUrls: rendered.pageUrls,
         templateId: null,
-        design: { ...design, label: designLabel(design) },
+        design,
+        html,
       });
       setOrderCopy(db, order.id, copy);
       return c.json({ render, design, copy, direction, model: usedModel, latencyMs }, 201);
@@ -1437,8 +1559,8 @@ export function createApp(options) {
   });
 
   // Plain language edits to an order that already has a brochure. The model
-  // turns the sentence into order fields, copy or design overrides, the server
-  // persists them, and the app re-renders the same order.
+  // turns the sentence into order fields or new copy; the same sentence is then
+  // handed to the brochure designer, which changes the pages it already has.
   app.post('/api/orders/:id/edit', async (c) => {
     const order = getOrder(db, c.req.param('id'));
     if (!order) return fail(c, 404, 'Order not found.');
@@ -1451,19 +1573,19 @@ export function createApp(options) {
     }
     const config = resolveLlmConfig(db, llmEnv);
     if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
-    const latest = listRendersForOrder(db, order.id)
-      .filter((render) => render.kind === 'ai' && render.design)
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
     const prompt = [
       'You edit one existing furniture order and its brochure for Grace Wood Industry, Nagercoil.',
       'The studio will speak naturally about a change. Reply with strict JSON only:',
-      '{"reply":"one or two natural sentences saying what you changed","order":{...only changed order fields...},"copy":{...only changed copy fields, headline body closing...},"design":{...only changed design fields: tone type cover story materials spec statement...},"rerender":true}',
+      '{"reply":"one or two natural sentences saying what you changed","order":{...only changed order fields...},"copy":{...only changed copy fields, headline body closing...},"rerender":true}',
       'Order fields: title room width height depth shutters carcass backPanel shuttersMat drawers exterior interior hinges channels edgeShutter edgeCarcass edgeNote handle handleNote finishExt finishInt brief.',
-      'Allowed design: tone maroon|teal|copper|sandal|peacock, type editorial|modern|classic, cover fullBleed|splitLeft|splitRight|bandTop|framed|masthead, story hero|editorial|diptych|collage, materials grid4|filmstrip|band|museum|stacked, spec twoColumn|threeColumn|ledger|cards|stacked. Photo choice is coverPhoto, storyPhoto and detailPhoto as a zero based index into the photos attached to the order; include one only when the studio asks for a specific photo.',
-      'Never invent dimensions or materials. If the instruction is unclear, ask a short question, set rerender false and return empty objects. No em dashes. No markdown.',
+      'Rules:',
+      '- Change only what the studio asked for. Never invent a dimension, material, price, date or claim.',
+      '- If the sentence is about the design, cover, colour, type, layout, photograph or mood, leave order and copy empty and set rerender true. The brochure designer reads the same sentence and changes the pages itself.',
+      '- If the sentence only asks a question, or is too unclear to apply, answer it briefly, set rerender false, and return empty order and copy objects.',
+      '- Do not rewrite the copy unless the studio asks for new words.',
+      '- No em dashes. No markdown.',
       `Current order: ${JSON.stringify(order)}`,
       `Current copy: ${JSON.stringify(order.copy ?? {})}`,
-      `Current design: ${JSON.stringify(latest?.design ?? {})}`,
       `Studio says: ${message}`,
     ].join('\n');
     try {
@@ -1493,21 +1615,18 @@ export function createApp(options) {
           if (typeof reply.copy[key] === 'string') copy[key] = capText(reply.copy[key], key === 'body' ? 2400 : 200);
         }
       }
-      const design = reply.design && typeof reply.design === 'object' ? reply.design : {};
       let updated = order;
       if (Object.keys(orderPatch).length > 0) updated = updateOrder(db, order.id, orderPatch);
       if (copy) updated = setOrderCopy(db, order.id, copy);
       const assistantReply = typeof reply.reply === 'string' && reply.reply.trim() !== ''
         ? capText(reply.reply.trim(), 400)
         : 'Done, I updated the order.';
+      const changed = Object.keys(orderPatch).length > 0 || copy !== null;
       return c.json({
         reply: assistantReply,
         order: updated,
         copy: copy ?? order.copy ?? null,
-        design,
-        rerender:
-          reply.rerender !== false &&
-          (Object.keys(design).length > 0 || copy !== null || Object.keys(orderPatch).length > 0),
+        rerender: reply.rerender === false ? false : changed || reply.rerender === true,
         changedOrder: Object.keys(orderPatch).length > 0,
       });
     } catch (error) {

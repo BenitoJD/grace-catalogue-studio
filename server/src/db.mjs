@@ -58,7 +58,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 10;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -279,6 +279,32 @@ export const MIGRATIONS = Object.freeze([
       // Free text from the studio on how the brochure should feel. The model
       // reads it before it designs, and the next generation remembers it.
       addColumnIfMissing(db, 'orders', 'design_direction', 'TEXT');
+    },
+  },
+  {
+    version: 9,
+    name: 'model authored brochure document',
+    up(db) {
+      // The model now writes the brochure itself. The document is kept so the
+      // next chat edit can change one thing without losing the design.
+      addColumnIfMissing(db, 'renders', 'html', 'TEXT');
+    },
+  },
+  {
+    version: 10,
+    name: 'model written design reference library',
+    up(db) {
+      // The gallery is a library of design directions the model writes, not
+      // hand made templates. One row keeps the whole library together.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS design_catalog (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          version INTEGER NOT NULL,
+          expected INTEGER NOT NULL,
+          designs_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `);
     },
   },
 ]);
@@ -682,6 +708,9 @@ function renderFromRow(row) {
     render.design = null;
   }
   delete render.design_json;
+  // The document can be large; it is read on demand by getRenderHtml and never
+  // sent to the app in a render list.
+  delete render.html;
   return render;
 }
 
@@ -695,10 +724,11 @@ export function createRender(db, input) {
     pageUrls: input.pageUrls,
     templateId: input.templateId ?? null,
     design: input.design ?? null,
+    html: input.html ?? null,
     createdAt: input.createdAt ?? now(),
   };
   db.prepare(
-    'INSERT INTO renders (id, orderId, kind, pageCount, pdfUrl, pageUrls, templateId, design_json, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO renders (id, orderId, kind, pageCount, pdfUrl, pageUrls, templateId, design_json, html, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   ).run(
     render.id,
     render.orderId,
@@ -708,6 +738,7 @@ export function createRender(db, input) {
     JSON.stringify(render.pageUrls),
     render.templateId,
     render.design === null ? null : JSON.stringify(render.design),
+    render.html,
     render.createdAt,
   );
   return plain(render);
@@ -729,6 +760,49 @@ export function listRendersForOrder(db, orderId) {
 
 export function getRender(db, id) {
   return renderFromRow(db.prepare('SELECT * FROM renders WHERE id = ?').get(id));
+}
+
+/**
+ * The model authored document behind a render, used to carry one design into
+ * the next chat edit. Read separately so render lists stay small.
+ */
+export function getRenderHtml(db, id) {
+  const row = db.prepare('SELECT html FROM renders WHERE id = ?').get(id);
+  return row && typeof row.html === 'string' && row.html.trim() !== '' ? row.html : null;
+}
+
+// ---------------------------------------------------------------------------
+// Design reference library
+// ---------------------------------------------------------------------------
+
+export function getDesignCatalog(db) {
+  const row = db.prepare('SELECT * FROM design_catalog WHERE id = 1').get();
+  if (!row) return { version: 0, expected: 0, designs: [], createdAt: null };
+  let designs = [];
+  try {
+    const parsed = JSON.parse(row.designs_json);
+    if (Array.isArray(parsed)) designs = parsed;
+  } catch {
+    designs = [];
+  }
+  return {
+    version: Number(row.version) || 0,
+    expected: Number(row.expected) || 0,
+    designs,
+    createdAt: row.created_at ?? null,
+  };
+}
+
+export function putDesignCatalog(db, { version, expected, designs }) {
+  db.prepare(
+    `INSERT INTO design_catalog (id, version, expected, designs_json, created_at)
+     VALUES (1, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       version = excluded.version,
+       expected = excluded.expected,
+       designs_json = excluded.designs_json`,
+  ).run(version, expected, JSON.stringify(designs), now());
+  return getDesignCatalog(db);
 }
 
 // ---------------------------------------------------------------------------

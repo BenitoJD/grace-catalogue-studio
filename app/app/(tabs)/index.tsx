@@ -24,8 +24,8 @@ import {
   fileUrl,
   type IntakeMessage,
   type OrderAttachment,
+  type DesignReference,
   type Render,
-  type Template,
 } from '@/lib/api';
 import { openUrl } from '@/lib/actions';
 import { copyText } from '@/lib/clipboard';
@@ -54,7 +54,7 @@ type Bubble =
     };
 
 const WELCOME =
-  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order and ask only for what is missing, then make the brochure.\n\nIf a detail is not known yet, say so and I will mark it to be confirmed.\n\nFirst, choose a cover below, or pick No design and I will design one for this order.';
+  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order and ask only for what is missing, then design the brochure.\n\nIf a detail is not known yet, say so and I will mark it to be confirmed.\n\nA look below is only a reference for the feel. The pages are composed for this order from the photographs, the finish samples and the facts.';
 
 
 let counter = 0;
@@ -92,39 +92,77 @@ function formatBytes(bytes: number): string {
 }
 
 function DesignTile({
-  label,
-  image,
+  design,
   selected,
   noDesign = false,
   onPress,
 }: {
-  label: string;
-  image?: string | null;
+  design?: DesignReference;
   selected: boolean;
   noDesign?: boolean;
   onPress: () => void;
 }) {
+  if (noDesign || !design) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Let the model decide the look"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.designCard,
+          selected && styles.designCardSelected,
+          pressed && styles.sendPressed,
+        ]}>
+        <View style={[styles.designThumb, styles.designThumbNo]}>
+          <Text style={styles.designThumbNoLabel}>AI</Text>
+          <Text style={styles.designThumbNoSub}>From the room</Text>
+        </View>
+        <Text
+          style={[styles.designName, selected && styles.designNameSelected]}
+          numberOfLines={2}>
+          Model decides
+        </Text>
+        <Text style={styles.designSub} numberOfLines={1}>
+          No reference
+        </Text>
+      </Pressable>
+    );
+  }
+  const palette = design.palette;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={noDesign ? 'Choose no design, let the model design it' : `Choose cover ${label}`}
+      accessibilityLabel={`Use the reference ${design.name}`}
       onPress={onPress}
       style={({ pressed }) => [
         styles.designCard,
         selected && styles.designCardSelected,
         pressed && styles.sendPressed,
       ]}>
-      {noDesign ? (
-        <View style={[styles.designThumb, styles.designThumbNo]}>
-          <Text style={styles.designThumbNoLabel}>AI</Text>
+      <View
+        style={[
+          styles.designThumb,
+          { backgroundColor: palette.paper, borderColor: palette.hair },
+        ]}>
+        <View style={[styles.referenceBand, { backgroundColor: palette.accent }]} />
+        <Text
+          style={[styles.referenceTitle, { color: palette.deep }]}
+          numberOfLines={2}>
+          {design.name}
+        </Text>
+        <View style={styles.referenceDots}>
+          {[palette.accent, palette.deep, palette.gold, palette.ink].map((colour) => (
+            <View key={colour} style={[styles.referenceDot, { backgroundColor: colour }]} />
+          ))}
         </View>
-      ) : (
-        <Image source={{ uri: fileUrl(image ?? '') }} style={styles.designThumb} resizeMode="cover" />
-      )}
+      </View>
       <Text
         style={[styles.designName, selected && styles.designNameSelected]}
-        numberOfLines={2}>
-        {label}
+        numberOfLines={1}>
+        {design.name}
+      </Text>
+      <Text style={styles.designSub} numberOfLines={1}>
+        {design.family}
       </Text>
     </Pressable>
   );
@@ -219,7 +257,8 @@ export default function ChatScreen() {
   const [orderFiles, setOrderFiles] = useState<OrderAttachment[]>([]);
   const [pendingFiles, setPendingFiles] = useState<OrderAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [designs, setDesigns] = useState<DesignReference[]>([]);
+  const [designsBuilding, setDesignsBuilding] = useState(false);
   // 'ai' means no template: let the model design the brochure for this order.
   const [chosenDesign, setChosenDesign] = useState<string>('ai');
   const [modelReady, setModelReady] = useState<boolean | null>(null);
@@ -269,16 +308,22 @@ export default function ChatScreen() {
 
   useEffect(() => {
     let active = true;
-    api
-      .listTemplates()
-      .then((next) => {
-        if (active) setTemplates(next);
-      })
-      .catch(() => {
-        // The picker stays on No design; the order can still be created.
-      });
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const load = async () => {
+      try {
+        const library = await api.listDesigns();
+        if (!active) return;
+        setDesigns(library.designs);
+        setDesignsBuilding(library.building);
+        if (library.building) timer = setTimeout(load, 4000);
+      } catch {
+        if (active) setDesignsBuilding(false);
+      }
+    };
+    void load();
     return () => {
       active = false;
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
@@ -540,26 +585,24 @@ export default function ChatScreen() {
             .map((message) => message.content)
             .join(' ')
             .slice(0, 2000);
-        // If the studio picked a cover in the chat, that cover is printed with
-        // the model written copy. No design means the model designs the whole
-        // brochure for this order.
-        let render: Render;
-        if (chosenDesign !== 'ai' && chosenDesign !== '') {
-          await api.generateOrderCopy(order.id, { brief });
-          render = await api.renderOrder(order.id, 'voucher', chosenDesign);
-        } else {
-          try {
-            const designed = await api.aiBrochure(order.id, brief ? { brief } : {});
-            render = designed.render;
-          } catch {
-            await api.generateOrderCopy(order.id, { brief }).catch(() => null);
-            render = await api.renderOrder(order.id, 'voucher');
-          }
+        // The chosen look is a reference for the model, never a page that gets
+        // printed. The model composes the four pages for this order.
+        const reference = chosenDesign !== 'ai' && chosenDesign !== '' ? chosenDesign : undefined;
+        let render: Render | null = null;
+        let designError: string | null = null;
+        try {
+          const designed = await api.aiBrochure(order.id, {
+            ...(brief ? { brief } : {}),
+            ...(reference ? { reference } : {}),
+          });
+          render = designed.render;
+        } catch (error) {
+          designError = errorMessage(error, 'The brochure could not be designed.');
         }
 
-        setBubbles((current) => [
-          ...current,
-          {
+        const finished: Bubble[] = [];
+        if (render) {
+          finished.push({
             id: nextId(),
             role: 'assistant',
             kind: 'brochure',
@@ -568,8 +611,19 @@ export default function ChatScreen() {
             orderId: order.id,
             orderNo: order.orderNo,
             render,
-          },
-        ]);
+          });
+        }
+        if (designError) {
+          finished.push({
+            id: nextId(),
+            role: 'assistant',
+            kind: 'text',
+            content: `Order ${order.orderNo} is saved, but the brochure could not be designed yet. ${designError} Ask me to design it again and I will retry.`,
+            at: stamp(),
+            failed: true,
+          });
+        }
+        setBubbles((current) => [...current, ...finished]);
         setOrderCreated(true);
         setActiveOrderId(order.id);
         setActiveOrderNo(order.orderNo);
@@ -622,7 +676,7 @@ export default function ChatScreen() {
         let render = null;
         if (edited.rerender) {
           const result = await api.aiBrochure(activeOrderId, {
-            overrides: edited.design,
+            edit: content,
             ...(edited.copy ? { copy: edited.copy } : {}),
           });
           render = result.render;
@@ -866,8 +920,8 @@ export default function ChatScreen() {
                 />
                 <SuggestionCard
                   glyph="◫"
-                  title="Pick a cover"
-                  body="Choose one of the thirty printed covers, or No design."
+                  title="Pick a look"
+                  body="A printed reference for the feel. The model designs your own pages."
                   onPress={() => {
                     setShowDesignPicker(true);
                     setTimeout(scrollToBottom, 60);
@@ -880,10 +934,14 @@ export default function ChatScreen() {
           {!orderCreated && showDesignPicker ? (
             <View style={styles.designPicker}>
               <View style={styles.designPickerHead}>
-                <Text style={[text.caption, styles.designPickerTitle]}>
-                  Choose a cover. The last card is No design, where the model designs the whole
-                  brochure.
-                </Text>
+                <View style={styles.designPickerTitles}>
+                  <Text style={styles.designPickerHeading}>A look to guide the model</Text>
+                  <Text style={[text.caption, styles.designPickerTitle]}>
+                    {designsBuilding && designs.length < 100
+                      ? `The model is writing the reference library. ${designs.length} of 100 ready.`
+                      : 'One reference sets the feel. Every page is still designed for this order.'}
+                  </Text>
+                </View>
                 <View style={styles.designArrows}>
                   <Pressable
                     accessibilityRole="button"
@@ -927,17 +985,15 @@ export default function ChatScreen() {
                 }}
                 scrollEventThrottle={48}
                 contentContainerStyle={styles.designRow}>
-                {templates.map((template) => (
+                {designs.map((design) => (
                   <DesignTile
-                    key={template.id}
-                    label={template.name}
-                    image={template.previewUrl}
-                    selected={chosenDesign === template.id}
-                    onPress={() => setChosenDesign(template.id)}
+                    key={design.id}
+                    design={design}
+                    selected={chosenDesign === design.id}
+                    onPress={() => setChosenDesign(design.id)}
                   />
                 ))}
                 <DesignTile
-                  label="No design"
                   selected={chosenDesign === 'ai'}
                   noDesign
                   onPress={() => setChosenDesign('ai')}
@@ -945,8 +1001,8 @@ export default function ChatScreen() {
               </ScrollView>
               <Text style={[text.caption, styles.designPickerHint]}>
                 {chosenDesign === 'ai'
-                  ? 'No design chosen: the model designs the brochure for this order.'
-                  : `Cover chosen: ${templates.find((template) => template.id === chosenDesign)?.name ?? 'a design'}. The model writes the copy.`}
+                  ? 'No reference: the model chooses the mood from the room and the photographs.'
+                  : `Reference: ${designs.find((design) => design.id === chosenDesign)?.name ?? 'a design'}. The model designs new pages in this spirit.`}
               </Text>
             </View>
           ) : null}
@@ -970,12 +1026,12 @@ export default function ChatScreen() {
               onPress={() => setShowDesignPicker(true)}
               style={({ pressed }) => [styles.coverSummary, pressed && styles.sendPressed]}>
               <Text style={styles.coverSummaryLabel} numberOfLines={1}>
-                {compact ? 'Cover: ' : 'Cover with this order: '}
+                {compact ? 'Look: ' : 'Reference for this brochure: '}
                 {chosenDesign === 'ai'
                   ? compact
-                    ? 'No design'
-                    : 'No design, the model decides'
-                  : templates.find((template) => template.id === chosenDesign)?.name ?? 'selected design'}
+                    ? 'Model decides'
+                    : 'Model decides, no reference'
+                  : designs.find((design) => design.id === chosenDesign)?.name ?? 'selected reference'}
               </Text>
               <Text style={styles.coverSummaryAction}>Change</Text>
             </Pressable>
@@ -1956,8 +2012,6 @@ const styles = StyleSheet.create({
   },
   designPickerTitle: {
     color: colors.muted,
-    flex: 1,
-    paddingRight: space.sm,
   },
   designPickerHead: {
     flexDirection: 'row',
@@ -1988,9 +2042,9 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs ?? 0,
   },
   designCard: {
-    width: 96,
-    borderRadius: 10,
-    padding: 4,
+    width: 112,
+    borderRadius: 14,
+    padding: 6,
     borderWidth: 1,
     borderColor: colors.hair,
     backgroundColor: colors.surface,
@@ -2001,8 +2055,10 @@ const styles = StyleSheet.create({
   },
   designThumb: {
     width: '100%',
-    height: 132,
-    borderRadius: 6,
+    height: 152,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 10,
     backgroundColor: colors.fill,
   },
   designThumbNo: {
@@ -2011,17 +2067,80 @@ const styles = StyleSheet.create({
     backgroundColor: colors.copperSoft,
   },
   designThumbNoLabel: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: 2,
+    fontSize: 26,
+    fontWeight: '600',
+    letterSpacing: 3,
     color: colors.copper,
   },
+  designThumbNoSub: {
+    marginTop: 2,
+    fontSize: 9,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    color: colors.faint,
+  },
+  referenceBand: {
+    width: 34,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'flex-start',
+  },
+  referenceTitle: {
+    marginTop: 10,
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: '500',
+    letterSpacing: -0.2,
+  },
+  referenceDots: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 10,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  referenceDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.18)',
+  },
   designName: {
-    marginTop: 4,
-    fontSize: 10,
+    marginTop: 6,
+    fontSize: 11.5,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: colors.ink,
+    textAlign: 'left',
+  },
+  designSub: {
+    marginTop: 1,
+    fontSize: 9.5,
     lineHeight: 13,
-    color: colors.muted,
-    textAlign: 'center',
+    color: colors.faint,
+    textAlign: 'left',
+  },
+  designPalette: {
+    position: 'absolute',
+    right: 7,
+    bottom: 7,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.9)',
+  },
+  designPickerTitles: {
+    flex: 1,
+    gap: 2,
+    paddingRight: space.sm,
+  },
+  designPickerHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.ink,
   },
   designNameSelected: {
     color: colors.copper,

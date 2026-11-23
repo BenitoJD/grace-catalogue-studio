@@ -255,6 +255,28 @@ export function templateCatalog(variants) {
   });
 }
 
+/**
+ * The metadata behind a design reference. The gallery shows the printed page,
+ * but the model receives the words: family, mood, palette. A reference is a
+ * feeling to design towards, never a layout to copy.
+ */
+export function designReferenceFor(variants, templateId) {
+  const variant = variants.byId.get(String(templateId ?? ''));
+  if (!variant) return null;
+  const family = variants.familiesById.get(variant.family);
+  const palette = variants.palettesById.get(variant.palette);
+  return {
+    id: variant.id,
+    name: variant.name,
+    familyName: family?.name ?? '',
+    summary: family?.summary ?? '',
+    cover: family?.cover ?? '',
+    paletteName: palette?.name ?? '',
+    accent: palette?.accent ?? '',
+    paper: palette?.coverPaper ?? '',
+  };
+}
+
 // Raw CSS custom properties for one palette. The voucher families and the
 // catalogue rate card share the same tone sets.
 export function paletteVariables(palette) {

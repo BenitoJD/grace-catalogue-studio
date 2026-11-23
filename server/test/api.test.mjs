@@ -80,6 +80,36 @@ const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
 const weasyprintBin = resolveWeasyprint(rootDir);
 const pdftoppmBin = 'pdftoppm';
+const DESIGNER_HTML = readFileSync(path.join(rootDir, 'scripts', 'fixtures', 'designer-reply.html'), 'utf8');
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const CATALOG_FAMILIES = ['Atelier', 'Ledger', 'Jaali', 'Monsoon', 'Kolam', 'Verandah', 'Bazaar', 'Manuscript', 'Courtyard', 'Silk Route', 'Laterite', 'Palm Court'];
+const CATALOG_PALETTES = [
+  { paper: '#FBF3E4', ink: '#2A1512', deep: '#4A1116', accent: '#7C2A22', gold: '#C79A3A', hair: '#E3D2B8', muted: '#6B4A3E', onDark: '#FBF3E4' },
+  { paper: '#F8F3E6', ink: '#142A28', deep: '#123B3A', accent: '#1E5C5A', gold: '#D9B76A', hair: '#D9D2BC', muted: '#4C615C', onDark: '#F8F3E6' },
+  { paper: '#FBF4E7', ink: '#2B1A0F', deep: '#5A2A1E', accent: '#A65E22', gold: '#E8C27A', hair: '#E4D3B8', muted: '#6B4E36', onDark: '#FBF4E7' },
+  { paper: '#F8F2E3', ink: '#12222E', deep: '#0D3350', accent: '#16537E', gold: '#E8C27A', hair: '#D8D0BC', muted: '#4A5B66', onDark: '#F8F2E3' },
+];
+const CATALOG_ORNAMENTS = ['jaali', 'paisley', 'lotus', 'rangoli', 'arch', 'none'];
+
+function catalogBatch(start, count = 25) {
+  const designs = Array.from({ length: count }, (_, index) => {
+    const number = start + index + 1;
+    return {
+      id: `mock-design-${number}`,
+      name: `Mock Design ${number}`,
+      family: CATALOG_FAMILIES[number % CATALOG_FAMILIES.length],
+      mood: 'quiet, warm, measured',
+      summary: 'A calm printed look with warm paper and one precise accent',
+      palette: CATALOG_PALETTES[number % CATALOG_PALETTES.length],
+      displayFont: number % 2 === 0 ? 'Barlow' : 'Instrument Serif',
+      bodyFont: 'Barlow',
+      coverIdea: 'A tall photograph with the title low and the brand at the head',
+      ornament: CATALOG_ORNAMENTS[number % CATALOG_ORNAMENTS.length],
+    };
+  });
+  return JSON.stringify({ designs });
+}
 
 let tempDir;
 let dataDir;
@@ -3391,37 +3421,55 @@ test('a ready intake reply never asks for more', async () => {
 });
 
 
-const AI_DESIGN_REPLY = {
-  design: {
-    tone: 'maroon',
-    type: 'modern',
-    cover: 'splitLeft',
-    spec: 'twoColumn',
-    materials: 'filmstrip',
-    story: 'editorial',
-    coverPhoto: 0,
-    detailPhoto: 0,
-    storyPhoto: 1,
-    statement: 'Measured for the room it stands in.',
-  },
-  copy: {
-    headline: 'A wardrobe cut for the guest room',
-    body:
-      'The guest room gives one long wall to storage, and the wardrobe takes it from end to end without crowding the bed. ' +
-      'Three shutters divide the face into equal parts, so the eye reads proportion before hardware. ' +
-      'The exterior is cream laminate, quiet against the plaster, and the interior stays white so a folded shirt is easy to find. ' +
-      'Lower drawers take the bedding, and the hanging space above takes the suitcases that arrive with visitors. ' +
-      'The handles run vertically, one set to each shutter, a thin dark line against the pale front. ' +
-      'At 600 mm deep the wardrobe holds what a guest brings and still leaves the floor clear. ' +
-      'Nothing about the piece asks for attention; it simply keeps the room ready.',
-    closing: 'Drawn to the wall it stands against.',
-  },
-};
+function setOrderCopyForTest(copy = BROCHURE_COPY) {
+  db.prepare('UPDATE orders SET copy_json = ?, design_direction = ? WHERE id = ?').run(
+    JSON.stringify(copy),
+    '',
+    orderId,
+  );
+}
 
-test('the model designs a brochure from scratch and it prints', { timeout: 240_000 }, async () => {
+test('the design reference library is written by the model and served', { timeout: 120_000 }, async () => {
   resetLlmState();
   await configureLlm();
-  resetMockProvider({ reply: JSON.stringify(AI_DESIGN_REPLY) });
+  db.prepare('DELETE FROM design_catalog').run();
+  resetMockProvider({
+    replies: [catalogBatch(0), catalogBatch(25), catalogBatch(50), catalogBatch(75)],
+  });
+
+  const first = await fetch(`${baseUrl}/api/designs`);
+  assert.equal(first.status, 200);
+  const opening = await first.json();
+  assert.equal(opening.expected, 100);
+  assert.ok(opening.building, 'the first request starts the background build');
+
+  let library = opening;
+  for (let attempt = 0; attempt < 200 && !library.ready; attempt += 1) {
+    await sleep(100);
+    library = await (await fetch(`${baseUrl}/api/designs`)).json();
+  }
+  assert.equal(library.ready, true, `the library stopped at ${library.designs.length} designs`);
+  assert.equal(library.designs.length, 100);
+  assert.equal(new Set(library.designs.map((design) => design.id)).size, 100, 'every id is unique');
+  assert.equal(new Set(library.designs.map((design) => design.name)).size, 100, 'every name is unique');
+  assert.ok(new Set(library.designs.map((design) => design.family)).size > 1, 'families vary');
+  for (const design of library.designs) {
+    assert.match(design.palette.paper, /^#[0-9A-F]{6}$/);
+    assert.match(design.palette.ink, /^#[0-9A-F]{6}$/);
+    assert.ok(['Instrument Serif', 'Barlow'].includes(design.displayFont));
+    assert.ok(['jaali', 'paisley', 'lotus', 'rangoli', 'arch', 'none'].includes(design.ornament));
+  }
+  const requestsAfterBuild = mockProviderState.requests.length;
+  const again = await (await fetch(`${baseUrl}/api/designs`)).json();
+  assert.equal(again.ready, true);
+  assert.equal(mockProviderState.requests.length, requestsAfterBuild, 'a built library is not asked again');
+});
+
+test('the model designs and typesets a printable brochure from scratch', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  resetMockProvider({ reply: DESIGNER_HTML });
 
   const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
   const raw = await response.text();
@@ -3430,61 +3478,61 @@ test('the model designs a brochure from scratch and it prints', { timeout: 240_0
   assert.equal(body.render.kind, 'ai');
   assert.equal(body.render.templateId, null);
   assert.equal(body.render.pageCount, 4);
-  assert.equal(body.render.design.tone, 'maroon');
-  assert.equal(body.render.design.cover, 'splitLeft');
-  assert.match(body.render.design.label, /modern/i);
-  assert.equal(body.copy.headline, AI_DESIGN_REPLY.copy.headline);
+  assert.equal(body.render.design.designed, true);
+  assert.match(body.render.design.label, /Designed by the model/i);
+  assert.deepEqual(body.copy, BROCHURE_COPY);
+  assert.equal(body.design.reference, null);
 
   const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
   const flat = normaliseText(text);
+  assert.ok(flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()), 'the headline is printed');
+  assert.ok(flat.includes(BROCHURE_COPY.closing), 'the closing is printed');
+  assert.ok(flat.includes('Master Bedroom Wardrobe'), 'the title is printed');
   assert.ok(
-    flat.toLowerCase().includes(AI_DESIGN_REPLY.copy.headline.toLowerCase()),
-    'the AI headline is printed',
+    flat.replace(/\s+/g, '').toLowerCase().includes('testcustomer'),
+    'the customer is printed',
   );
-  assert.ok(flat.includes(AI_DESIGN_REPLY.copy.closing), 'the AI closing is printed');
-  assert.ok(flat.includes('Wardrobe') || flat.includes('wardrobe'), 'the title is printed');
-  assert.ok(/2[46]00 mm/.test(flat), 'the order width is printed');
+  assert.ok(/2400/.test(flat), 'the width is printed');
+  assert.ok(flat.includes('Dark Walnut'), 'the finish sample is named');
+  assert.equal(flat.includes('{{'), false, 'no token is printed');
+  assert.equal(/\u2014|\u2013/.test(flat), false, 'no em dash or en dash reaches print');
 
   const detail = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
-  assert.equal(detail.copy.headline, AI_DESIGN_REPLY.copy.headline);
+  assert.deepEqual(detail.copy, BROCHURE_COPY);
 
-  const renders = await (await fetch(`${baseUrl}/api/renders`)).json();
-  const stored = renders.find((render) => render.id === body.render.id);
-  assert.equal(stored.kind, 'ai');
-  assert.equal(stored.design.cover, 'splitLeft');
+  const storedHtml = db.prepare('SELECT html FROM renders WHERE id = ?').get(body.render.id).html;
+  assert.ok(typeof storedHtml === 'string' && storedHtml.length > 4000, 'the document is kept for the next edit');
+
+  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
+  assert.match(prompt, /art director, typographer and print designer/i);
+  assert.match(prompt, /\{\{headline\}\}/);
+  assert.match(prompt, /PHOTOGRAPHS AVAILABLE/);
+  assert.match(prompt, /Width \{\{width\}\}/);
 });
 
-test('two designs produce two different documents', { timeout: 240_000 }, async () => {
+test('two generated brochures print different pages', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();
-  resetMockProvider({ reply: JSON.stringify(AI_DESIGN_REPLY) });
+  setOrderCopyForTest();
+  resetMockProvider({ reply: DESIGNER_HTML });
   const first = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
 
-  const secondDesign = {
-    ...AI_DESIGN_REPLY,
-    design: {
-      ...AI_DESIGN_REPLY.design,
-      tone: 'teal',
-      type: 'classic',
-      cover: 'masthead',
-      spec: 'ledger',
-      materials: 'band',
-      story: 'diptych',
-    },
-    copy: { ...AI_DESIGN_REPLY.copy, headline: 'A wall given to the guest room' },
-  };
-  resetMockProvider({ reply: JSON.stringify(secondDesign) });
+  const secondHtml = DESIGNER_HTML.replace('--accent:#7C2A22', '--accent:#16537E').replace(
+    '--deep:#4A1116',
+    '--deep:#0D3350',
+  );
+  resetMockProvider({ reply: secondHtml });
   const second = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
   assert.notEqual(second.render.id, first.render.id);
-  assert.equal(second.render.design.cover, 'masthead');
-  const firstPage = hashBytes(Buffer.from(await (await fetch(`${baseUrl}${first.render.pageUrls[0]}`)).arrayBuffer()));
-  const secondPage = hashBytes(Buffer.from(await (await fetch(`${baseUrl}${second.render.pageUrls[0]}`)).arrayBuffer()));
-  assert.notEqual(firstPage, secondPage, 'different designs print different covers');
+  const firstPage = hashBytes(Buffer.from(await (await fetch(`${baseUrl}${first.render.pageUrls[1]}`)).arrayBuffer()));
+  const secondPage = hashBytes(Buffer.from(await (await fetch(`${baseUrl}${second.render.pageUrls[1]}`)).arrayBuffer()));
+  assert.notEqual(firstPage, secondPage, 'a different palette prints a different story page');
 });
 
-test('an unreadable design is retried once and then fails cleanly', { timeout: 120_000 }, async () => {
+test('an unusable design is retried once and then fails cleanly', { timeout: 120_000 }, async () => {
   resetLlmState();
   await configureLlm();
+  setOrderCopyForTest();
   resetMockProvider({ reply: 'I made you a lovely brochure in my head.' });
   const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
   assert.equal(response.status, 502);
@@ -3493,51 +3541,77 @@ test('an unreadable design is retried once and then fails cleanly', { timeout: 1
   assert.equal(mockProviderState.requests.length, 2, 'one retry, then the failure is surfaced');
 });
 
-
-test('the studio can edit a generated design without asking the model again', { timeout: 240_000 }, async () => {
+test('a studio reference guides the design but is never printed itself', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();
-  resetMockProvider({ reply: JSON.stringify(AI_DESIGN_REPLY) });
+  setOrderCopyForTest();
+  const library = await (await fetch(`${baseUrl}/api/designs`)).json();
+  assert.ok(library.designs.length > 0, 'the library exists from the earlier test');
+  const reference = library.designs[0];
+  resetMockProvider({ reply: DESIGNER_HTML });
 
-  const first = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
-  const requestsBefore = mockProviderState.requests.length;
-
-  const editedCopy = {
-    ...AI_DESIGN_REPLY.copy,
-    headline: 'A calmer wardrobe for the guest room',
-  };
   const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {
-    direction: 'warmer and more festive, like a coffee table book',
-    overrides: {
-      tone: 'teal',
-      type: 'classic',
-      cover: 'masthead',
-      story: 'diptych',
-      materials: 'band',
-      spec: 'ledger',
-      statement: 'A calmer wall for the guest room.',
-    },
-    copy: editedCopy,
+    reference: reference.id,
   });
   const raw = await response.text();
   assert.equal(response.status, 201, raw);
-  const edited = JSON.parse(raw);
-  assert.equal(edited.design.tone, 'teal');
-  assert.equal(edited.design.cover, 'masthead');
-  assert.equal(edited.design.story, 'diptych');
-  assert.equal(edited.design.materials, 'band');
-  assert.equal(edited.design.statement, 'A calmer wall for the guest room.');
-  assert.equal(edited.copy.headline, editedCopy.headline);
-  assert.match(edited.render.design.label, /classic/i);
-  assert.equal(mockProviderState.requests.length, requestsBefore, 'editing does not call the model');
+  const body = JSON.parse(raw);
+  assert.equal(body.design.reference, reference.id);
+  assert.equal(body.design.referenceName, reference.name);
+  assert.match(body.render.design.label, new RegExp(reference.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
+  const prompt = lastProviderRequest().json.messages.map((message) => message.content).join('\n');
+  assert.match(prompt, /STUDIO REFERENCE/);
+  assert.ok(prompt.includes(reference.name));
+  assert.ok(prompt.includes(reference.palette.paper));
+  assert.ok(prompt.toLowerCase().includes('never copy a reference layout'));
+});
+
+test('a chat sentence edits the order and the page it already has', { timeout: 300_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  resetMockProvider({ reply: DESIGNER_HTML });
+  const base = await (await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {})).json();
+
+  resetMockProvider({
+    reply: JSON.stringify({
+      reply: 'Done. The shutters are now dark walnut.',
+      order: { finishExt: 'Dark walnut laminate outside' },
+      rerender: true,
+    }),
+  });
+  const editResponse = await postJson(`${baseUrl}/api/orders/${orderId}/edit`, {
+    message: 'Make the shutters dark walnut.',
+  });
+  const editBody = await editResponse.json();
+  assert.equal(editResponse.status, 200);
+  assert.equal(editBody.rerender, true);
+  assert.equal(editBody.order.finishExt, 'Dark walnut laminate outside');
+
+  resetMockProvider({ reply: DESIGNER_HTML });
+  const revised = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {
+    edit: 'Make the shutters dark walnut.',
+    copy: editBody.copy,
+  });
+  const raw = await revised.text();
+  assert.equal(revised.status, 201, raw);
+  const body = JSON.parse(raw);
+  assert.notEqual(body.render.id, base.render.id);
+
+  const messages = lastProviderRequest().json.messages;
+  assert.ok(
+    messages.some(
+      (message) => message.role === 'assistant' && String(message.content).includes('<!DOCTYPE html>'),
+    ),
+    'the previous document is sent back so the design survives the edit',
+  );
+  assert.ok(
+    messages.some((message) => String(message.content).includes('THE STUDIO IS CHANGING AN EXISTING BROCHURE')),
+  );
 
   const detail = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
-  assert.equal(detail.designDirection, 'warmer and more festive, like a coffee table book');
-  assert.equal(detail.copy.headline, editedCopy.headline);
-
-  const coverEdited = Buffer.from(await (await fetch(`${baseUrl}${edited.render.pageUrls[0]}`)).arrayBuffer());
-  const coverFirst = Buffer.from(await (await fetch(`${baseUrl}${first.render.pageUrls[0]}`)).arrayBuffer());
-  assert.notEqual(hashBytes(coverEdited), hashBytes(coverFirst), 'the edited cover differs');
+  assert.equal(detail.finishExt, 'Dark walnut laminate outside');
 });
 
 
@@ -3664,8 +3738,7 @@ test('a plain language edit changes the live order and asks for a re-render', as
     reply: JSON.stringify({
       reply: 'Done. I changed the shutters to dark walnut.',
       order: { finishExt: 'Dark walnut laminate outside' },
-      copy: { ...AI_DESIGN_REPLY.copy, headline: 'A walnut wardrobe for the guest room' },
-      design: { tone: 'teal' },
+      copy: { ...BROCHURE_COPY, headline: 'A walnut wardrobe for the guest room' },
       rerender: true,
     }),
   });
@@ -3678,7 +3751,6 @@ test('a plain language edit changes the live order and asks for a re-render', as
   assert.equal(body.reply, 'Done. I changed the shutters to dark walnut.');
   assert.equal(body.order.finishExt, 'Dark walnut laminate outside');
   assert.equal(body.copy.headline, 'A walnut wardrobe for the guest room');
-  assert.equal(body.design.tone, 'teal');
   assert.equal(body.rerender, true);
   const stored = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
   assert.equal(stored.finishExt, 'Dark walnut laminate outside');

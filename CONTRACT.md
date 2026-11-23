@@ -131,7 +131,9 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | GET | `/api/orders/:id` | | `Order` |
 | PATCH | `/api/orders/:id` | partial order fields | `Order` |
 | DELETE | `/api/orders/:id` | | `{ ok: true }` |
-| POST | `/api/orders/:id/ai-brochure` | `{ brief? }` | `{ render, design, copy, model, latencyMs }` (kinds `ai`) |
+| POST | `/api/orders/:id/ai-brochure` | `{ brief?, direction?, reference?, edit?, copy? }` | `{ render, design, copy, direction, model, latencyMs }` (kind `ai`) |
+| POST | `/api/orders/:id/edit` | `{ message }` | `{ reply, order, copy, rerender, changedOrder }` |
+| GET | `/api/designs` | | `{ designs, expected, building, ready }` (100 model written references) |
 | POST | `/api/orders/:id/render` | `{ kind: "voucher" \| "kit", templateId? }` | `Render` (201) |
 | POST | `/api/intake` | `{ messages: [{ role, content }], draft? }` | `{ reply, draft, missing, ready, model, latencyMs }` |
 | POST | `/api/orders/:id/copy` | `{ brief?, regenerate? }` | `{ copy: { headline, body, closing }, model, latencyMs, cached }` |
@@ -141,8 +143,8 @@ All responses JSON unless noted. Errors: `{ "error": "message" }` with 4xx/5xx.
 | GET | `/api/llm/settings` | | `{ endpoint, model, hasKey, source, updatedAt }` |
 | PUT | `/api/llm/settings` | `{ endpoint?, model?, apiKey? }` | same shape as GET |
 | POST | `/api/llm/test` | `{}` | `{ ok: true, latencyMs, model, sample }` or 502 with the provider message |
-| GET | `/api/templates` | | `Template[]` (30 brochure templates) |
-| GET | `/previews/:templateId.png` | | `image/png` (template thumbnail) |
+| GET | `/api/templates` | | `Template[]` (classic house layouts) |
+| GET | `/previews/:templateId.png` | | `image/png` (classic layout thumbnail) |
 | GET | `/api/renders` | | `Render[]` |
 | GET | `/api/renders/:id` | | `Render` |
 | GET | `/files/:name` | | `application/pdf` |
@@ -197,16 +199,25 @@ Image paths are relative to the template directory, i.e. `../assets/company/tex-
 
 ## Brochure templates
 
-The voucher has 30 selectable designs: thirty complete document families, one
-palette each. Every family is a different document with its own cover,
-specification, finishes and inside pages; no two families share a page
-structure, and a palette swap can never create a second design.
+The brochure has no fixed template. The template system is a library of one
+hundred design references, and the model writes every one of them: each
+reference is an id, a name, a family, a mood, a summary, a full eight colour
+palette, a display face, a cover idea and a house ornament. The gallery and the
+chat strip read them from `GET /api/designs`; the brochure designer takes the
+chosen reference as words and mood and composes fresh pages for the order, so a
+reference is never printed itself.
 
-The families are: `atelier`, `swiss`, `gallery`, `index`, `dark`, `blueprint`, `lookbook`, `poster`, `card`, `folio`, `timeline`, `bluepaper`, `magazine`, `frame`, `ticket`, `axonometric`, `swatchbook`, `broadsheet`, `redline`, `collage`, `ledger`, `geometric`, `sketchbook`, `sleeve`, `envelope`, `accordion`, `split`, `specimen`, `contact`, `atlas`.
+The library is generated in four volumes of twenty five and stored in the
+`design_catalog` table (schema v10) after every volume, so the first request
+starts a background build and returns whatever is ready with
+`{ designs, expected: 100, building, ready }`. A later request with a complete
+library never calls the provider again.
 
-Each family is one HTML file under `templates/voucher/families/<family>.html`
-with four pages. `templates/variants.json` lists the families, their palettes
-and their fitted cover title boxes; a variant id is `<family>-<palette>`.
+The classic house layouts remain underneath for the voucher and kit paths: ten
+complete document families with their own cover, specification, finishes and
+inside pages live in `templates/voucher/families/`, catalogued in
+`templates/variants.json` with three palettes each. They are not shown in the
+studio brochure flow.
 
 ## Language model
 
@@ -275,28 +286,35 @@ Entries expire after `LLM_CACHE_TTL_HOURS` (default 168, 0 disables). Expiry is 
 `POST /api/orders/:id/ai-brochure` accepts:
 
 ```json
-{"brief":"...", "direction":"warmer and more festive", "overrides":{"tone":"teal","type":"classic","cover":"framed","story":"collage","materials":"band","spec":"cards","statement":"..."}, "copy":{"headline":"...","body":"...","closing":"..."}}
+{"brief":"...", "direction":"warmer and more festive", "reference":"temple-quiet", "edit":"make the cover calmer", "copy":{"headline":"...","body":"...","closing":"..."}}
 ```
 
-With no `overrides` the model returns a complete design and its copy in one
-reply. With `overrides` the server keeps the latest AI design, applies only the
-fields sent, and re-renders without calling the provider; `copy` is required
-then. `direction` is stored on the order as `designDirection` (schema v8) and
-passed to the model on later generations. The design reply shape is:
+All fields are optional. `brief` replaces the stored brief, `direction` is kept
+on the order as `designDirection` (schema v8), `reference` must be an id from
+`GET /api/designs`, `edit` carries a studio sentence to the designer with the
+previous document attached, and a hand edited `copy` wins over generated words.
+When the order has no stored copy the server writes one first through the usual
+copy route with its repair pass.
 
-```json
-{"design":{"tone":"...","type":"...","cover":"...","story":"hero|editorial|diptych|collage","materials":"grid4|filmstrip|band|museum|stacked","spec":"twoColumn|threeColumn|ledger|cards|stacked","coverPhoto":0,"storyPhoto":1,"detailPhoto":2,"statement":"..."},"copy":{"headline":"...","body":"...","closing":"..."}}
-```
+The model authors the four pages itself as one HTML document: exactly four
+`<div class="page">` elements, the required tokens, no external URL, no script,
+no fixed positioning, and the page box left to the server. The reply is
+checked: page count, word limits per page, every specification and material
+token printed, the measured drawing on the specification page, the brand and a
+Tamil line on the cover, a house motif somewhere, photographs used, and no
+unknown token. A failure is asked for again with the exact problems listed;
+two failures return 502 `invalid_reply` and print nothing. Filled tokens are
+escaped except raw asset and image paths; em dashes and en dashes are
+normalised to hyphens before print. The document is stored on the render as
+`html` (schema v9) so the next edit keeps the design. The resulting render has
+`kind: "ai"`, `templateId: null` and a `design` object with
+`{ label, designed, direction, reference, referenceName }`.
 
-Allowed values are checked, photo indexes are clamped, and the copy passes the
-same quality gate as the classic path. The tone selects one of five Indian
-palettes (maroon, teal, copper, sandal, peacock) over warm cream stock with gold
-rules, a Tamil brand line and Indian ornament (jaali border, paisley, lotus,
-rangoli, temple arch). The specification page also carries a measured front elevation and plan generated from the order dimensions; the story page opens with a drop cap and the covers carry the room name in Tamil. The server compiles the design to HTML
-and CSS from print safe primitives; the provider never writes markup. The
-resulting render has `kind: "ai"`, `templateId: null` and a `design` object with
-the composition and a human label. Designs are cached by prompt like other model
-replies.
+`POST /api/orders/:id/edit` maps a plain sentence to changed order fields and
+copy with `rerender` and `changedOrder` flags. Design sentences leave order and
+copy empty and set `rerender` true; the same sentence then reaches the designer
+through the `edit` field, which replays the stored document and changes only
+what was asked.
 
 ## Network egress
 

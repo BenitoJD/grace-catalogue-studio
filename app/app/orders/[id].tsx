@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -21,96 +20,11 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { ErrorState, LoadingState } from '@/components/StateViews';
 import { openUrl, shareLink } from '@/lib/actions';
 import { copyText } from '@/lib/clipboard';
-import {
-  api,
-  errorMessage,
-  fileUrl,
-  type AiDesign,
-  type BrochureCopy,
-  type Order,
-  type OrderNote,
-  type Render,
-  type Template,
-} from '@/lib/api';
+import { api, errorMessage, fileUrl, type Order, type OrderNote, type Render } from '@/lib/api';
 import { displayValue, formatDate, pageCountLabel, statusLabel } from '@/lib/format';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 
 const PAGE_ASPECT = 794 / 1123;
-
-const TONE_OPTIONS = [
-  { value: 'maroon', label: 'Maroon' },
-  { value: 'teal', label: 'Teal' },
-  { value: 'copper', label: 'Copper' },
-  { value: 'sandal', label: 'Sandal' },
-  { value: 'peacock', label: 'Peacock' },
-];
-const TYPE_OPTIONS = [
-  { value: 'editorial', label: 'Editorial' },
-  { value: 'modern', label: 'Modern' },
-  { value: 'classic', label: 'Classic' },
-];
-const COVER_OPTIONS = [
-  { value: 'fullBleed', label: 'Full bleed' },
-  { value: 'splitLeft', label: 'Photo left' },
-  { value: 'splitRight', label: 'Photo right' },
-  { value: 'masthead', label: 'Masthead' },
-  { value: 'bandTop', label: 'Photo top' },
-  { value: 'framed', label: 'Framed' },
-];
-const STORY_OPTIONS = [
-  { value: 'hero', label: 'Hero' },
-  { value: 'editorial', label: 'Editorial' },
-  { value: 'diptych', label: 'Diptych' },
-  { value: 'collage', label: 'Collage' },
-];
-const MATERIALS_OPTIONS = [
-  { value: 'grid4', label: 'Grid' },
-  { value: 'filmstrip', label: 'Filmstrip' },
-  { value: 'band', label: 'Band' },
-  { value: 'museum', label: 'Museum' },
-  { value: 'stacked', label: 'Stacked' },
-];
-const SPEC_OPTIONS = [
-  { value: 'twoColumn', label: 'Two column' },
-  { value: 'threeColumn', label: 'Three column' },
-  { value: 'ledger', label: 'Ledger' },
-  { value: 'cards', label: 'Cards' },
-  { value: 'stacked', label: 'Stacked' },
-];
-
-function ChoiceRow({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: { value: string; label: string }[];
-  value: string | undefined;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <View style={styles.choiceBlock}>
-      <Text style={[text.caption, styles.choiceLabel]}>{label}</Text>
-      <View style={styles.chipRow}>
-        {options.map((option) => {
-          const active = option.value === value;
-          return (
-            <Pressable
-              key={option.value}
-              accessibilityRole="button"
-              accessibilityLabel={`${label}: ${option.label}`}
-              onPress={() => onChange(option.value)}
-              style={[styles.chip, active && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{option.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
 
 const SPEC_SECTIONS: {
   title: string;
@@ -172,7 +86,11 @@ const SPEC_SECTIONS: {
 ];
 
 export default function OrderDetailScreen() {
-  const { id, templateId: routeTemplateId } = useLocalSearchParams<{ id?: string; templateId?: string }>();
+  const { id, reference: routeReference, referenceName: routeReferenceName } = useLocalSearchParams<{
+    id?: string;
+    reference?: string;
+    referenceName?: string;
+  }>();
   const orderId = id;
   const insets = useSafeAreaInsets();
 
@@ -180,15 +98,13 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [render, setRender] = useState<Render | null>(null);
-  const [rendering, setRendering] = useState(false);
-  const [renderError, setRenderError] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
-  const [briefDraft, setBriefDraft] = useState<string | null>(null);
-  const [writtenCopy, setWrittenCopy] = useState<BrochureCopy | null>(null);
-  const [copyModel, setCopyModel] = useState<string | null>(null);
-  const [copyLoading, setCopyLoading] = useState(false);
-  const [copyError, setCopyError] = useState<string | null>(null);
+  const [reference, setReference] = useState<string>(routeReference ?? '');
+  const [referenceName, setReferenceName] = useState<string>(routeReferenceName ?? '');
+  const [direction, setDirection] = useState('');
+  const [designLoading, setDesignLoading] = useState(false);
+  const [designError, setDesignError] = useState<string | null>(null);
+  const [designStatus, setDesignStatus] = useState<string | null>(null);
   const [kitRender, setKitRender] = useState<Render | null>(null);
   const [kitLoading, setKitLoading] = useState(false);
   const [kitError, setKitError] = useState<string | null>(null);
@@ -196,14 +112,15 @@ export default function OrderDetailScreen() {
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [aiDesign, setAiDesign] = useState<AiDesign | null>(null);
-  const [aiDirection, setAiDirection] = useState('');
-  const [aiCopy, setAiCopy] = useState<BrochureCopy | null>(null);
-  const [designLoading, setDesignLoading] = useState(false);
-  const [designError, setDesignError] = useState<string | null>(null);
-  const [designStatus, setDesignStatus] = useState<string | null>(null);
-  const chosenTemplate = routeTemplateId;
+
+  // Returning from the reference gallery replaces the route parameters while
+  // this screen stays mounted, so the choice is copied into state.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (routeReference !== undefined) setReference(routeReference);
+    if (routeReferenceName !== undefined) setReferenceName(routeReferenceName);
+  }, [routeReference, routeReferenceName]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -216,8 +133,7 @@ export default function OrderDetailScreen() {
     try {
       const next = await api.getOrder(orderId);
       setOrder(next);
-      setAiDirection(next.designDirection ?? '');
-      setAiCopy(next.copy ?? null);
+      setDirection(next.designDirection ?? '');
     } catch (fetchError) {
       setLoadError(errorMessage(fetchError, 'The order could not be loaded. Try again.'));
     } finally {
@@ -226,68 +142,36 @@ export default function OrderDetailScreen() {
   }, [orderId]);
 
   const loadLatestRender = useCallback(async () => {
-    if (!orderId) {
-      return;
-    }
+    if (!orderId) return;
     try {
       const all = await api.listRenders();
       const mine = all
-        .filter((candidate) => candidate.orderId === orderId)
+        .filter((candidate) => candidate.orderId === orderId && candidate.kind === 'ai')
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
       if (mine.length > 0) {
         setRender(mine[0]);
-        const latestAi = mine.find((candidate) => candidate.kind === 'ai' && candidate.design);
-        if (latestAi?.design) {
-          setAiDesign(latestAi.design as unknown as AiDesign);
+        const design = mine[0].design as
+          | { reference?: string | null; referenceName?: string | null }
+          | null
+          | undefined;
+        if (!routeReference && design?.reference) {
+          setReference(design.reference);
+          setReferenceName(design.referenceName ?? '');
         }
       }
     } catch {
-      // No previous render is not an error. The person can generate a new one.
+      // No previous brochure is not an error.
     }
-  }, [orderId]);
+  }, [orderId, routeReference]);
 
-  // Loads once when the screen opens. The loading state is the initial state,
-  // so the first paint is correct and no extra render is needed.
+  // The loading state is the initial state, so the first paint is already
+  // correct; the effect only fills it.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void loadOrder();
     void loadLatestRender();
   }, [loadOrder, loadLatestRender]);
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  useEffect(() => {
-    // Designs load in the background. A failure here never blocks the document.
-    let active = true;
-    api
-      .listTemplates()
-      .then((next) => {
-        if (active) setTemplates(next);
-      })
-      .catch(() => {
-        // Designs are a nicety. Rendering still works with the default.
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const currentTemplate = useMemo(() => {
-    const wanted = chosenTemplate ?? render?.templateId ?? templates[0]?.id;
-    return templates.find((candidate) => candidate.id === wanted) ?? templates[0] ?? null;
-  }, [chosenTemplate, render?.templateId, templates]);
-
-  useEffect(() => {
-    if (!rendering) {
-      return;
-    }
-    const startedAt = Date.now();
-    const timer = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-    return () => {
-      clearInterval(timer);
-    };
-  }, [rendering]);
 
   const goBack = useCallback(() => {
     if (router.canGoBack()) {
@@ -297,138 +181,38 @@ export default function OrderDetailScreen() {
     router.replace('/');
   }, []);
 
-  const generateVoucher = useCallback(async () => {
-    if (rendering) {
-      return;
-    }
-    if (!orderId) {
-      setRenderError('This order link is missing an id. Go back to the order book.');
-      return;
-    }
-    setRendering(true);
-    setElapsed(0);
-    setRenderError(null);
+  const designBrochure = useCallback(async () => {
+    if (!orderId || designLoading) return;
+    setDesignLoading(true);
+    setDesignError(null);
+    setDesignStatus(null);
     setShareStatus(null);
     try {
-      const next = await api.renderOrder(orderId, 'voucher', chosenTemplate ?? currentTemplate?.id);
-      setRender(next);
-    } catch (renderFailure) {
-      setRenderError(errorMessage(renderFailure, 'The voucher could not be rendered. Try again.'));
-    } finally {
-      setRendering(false);
-    }
-  }, [chosenTemplate, currentTemplate, orderId, rendering]);
-
-  const writeCopy = useCallback(async () => {
-    if (!orderId || copyLoading) {
-      return;
-    }
-    setCopyLoading(true);
-    setCopyError(null);
-    try {
-      const result = await api.generateOrderCopy(orderId, { brief: briefDraft ?? order?.brief ?? '' });
-      setWrittenCopy(result.copy);
-      setCopyModel(result.model);
-      setOrder((current) => (current ? { ...current, copy: result.copy } : current));
-    } catch (error) {
-      setCopyError(errorMessage(error, 'The model could not write the copy. Check the model settings.'));
-    } finally {
-      setCopyLoading(false);
-    }
-  }, [briefDraft, copyLoading, order, orderId]);
-
-  const updateDesign = useCallback((patch: Partial<AiDesign>) => {
-    setAiDesign((current) => (current ? { ...current, ...patch } : current));
-  }, []);
-
-  const updateCopy = useCallback(
-    (patch: Partial<BrochureCopy>) => {
-      setAiCopy((current) => ({
-        ...(current ?? order?.copy ?? { headline: '', body: '', closing: '' }),
-        ...patch,
-      }));
-    },
-    [order?.copy]
-  );
-
-  const designWithModel = useCallback(async () => {
-    if (!orderId || designLoading) {
-      return;
-    }
-    setDesignLoading(true);
-    setDesignError(null);
-    setDesignStatus(null);
-    try {
       const result = await api.aiBrochure(orderId, {
-        direction: aiDirection,
-        brief: briefDraft ?? order?.brief ?? '',
+        direction,
+        ...(reference ? { reference } : {}),
       });
-      setAiDesign(result.design);
-      setAiCopy(result.copy);
-      setWrittenCopy(result.copy);
       setRender(result.render);
       setOrder((current) =>
         current
-          ? { ...current, copy: result.copy, designDirection: result.direction ?? aiDirection }
+          ? { ...current, copy: result.copy, designDirection: result.direction ?? direction }
           : current
       );
-      setDesignStatus('A new brochure was designed and rendered.');
+      const design = result.design as
+        | { reference?: string | null; referenceName?: string | null }
+        | null
+        | undefined;
+      if (design?.referenceName) setReferenceName(design.referenceName);
+      setDesignStatus('The brochure was designed and printed.');
     } catch (error) {
-      setDesignError(
-        errorMessage(error, 'The model could not design this brochure. Check the model settings.')
-      );
+      setDesignError(errorMessage(error, 'The model could not design this brochure. Check the settings.'));
     } finally {
       setDesignLoading(false);
     }
-  }, [aiDirection, briefDraft, designLoading, order, orderId]);
-
-  const rerenderDesign = useCallback(async () => {
-    if (!orderId || !aiDesign || designLoading) {
-      return;
-    }
-    const copy = aiCopy ?? order?.copy ?? null;
-    if (!copy) {
-      setDesignError('Write the brochure copy first, then re-render the design.');
-      return;
-    }
-    setDesignLoading(true);
-    setDesignError(null);
-    setDesignStatus(null);
-    try {
-      const result = await api.aiBrochure(orderId, {
-        direction: aiDirection,
-        overrides: {
-          tone: aiDesign.tone,
-          type: aiDesign.type,
-          cover: aiDesign.cover,
-          story: aiDesign.story,
-          materials: aiDesign.materials,
-          spec: aiDesign.spec,
-          statement: aiDesign.statement,
-        },
-        copy,
-      });
-      setAiDesign(result.design);
-      setAiCopy(result.copy);
-      setWrittenCopy(result.copy);
-      setRender(result.render);
-      setOrder((current) =>
-        current
-          ? { ...current, copy: result.copy, designDirection: result.direction ?? aiDirection }
-          : current
-      );
-      setDesignStatus('The brochure was re-rendered with your choices.');
-    } catch (error) {
-      setDesignError(errorMessage(error, 'The design could not be re-rendered.'));
-    } finally {
-      setDesignLoading(false);
-    }
-  }, [aiCopy, aiDesign, aiDirection, designLoading, order, orderId]);
+  }, [designLoading, direction, orderId, reference]);
 
   const draftNote = useCallback(async () => {
-    if (!orderId || noteLoading) {
-      return;
-    }
+    if (!orderId || noteLoading) return;
     setNoteLoading(true);
     setNoteError(null);
     setNoteStatus(null);
@@ -443,9 +227,7 @@ export default function OrderDetailScreen() {
   }, [noteLoading, orderId]);
 
   const renderKit = useCallback(async () => {
-    if (!orderId || kitLoading) {
-      return;
-    }
+    if (!orderId || kitLoading) return;
     setKitLoading(true);
     setKitError(null);
     try {
@@ -459,40 +241,25 @@ export default function OrderDetailScreen() {
   }, [kitLoading, orderId]);
 
   const copyNote = useCallback(async () => {
-    if (!note) {
-      return;
-    }
+    if (!note) return;
     const ok = await copyText(note.note);
     setNoteStatus(ok ? 'Note copied to the clipboard.' : 'Could not copy. Select the text and copy it by hand.');
   }, [note]);
 
   const pdfUrl = render ? fileUrl(render.pdfUrl) : null;
 
-  const handleOpenPdf = useCallback(() => {
-    if (pdfUrl) {
-      void openUrl(pdfUrl);
-    }
-  }, [pdfUrl]);
-
   const handleShare = useCallback(async () => {
-    if (!render || !order) {
-      return;
-    }
+    if (!render || !order) return;
     setShareStatus(null);
     const outcome = await shareLink({
-      title: `Voucher ${order.orderNo}`,
+      title: `Brochure ${order.orderNo}`,
       message: `${order.title}, ${order.customerName}`,
       url: fileUrl(render.pdfUrl),
     });
-    if (outcome === 'copied') {
-      setShareStatus('Link copied to the clipboard.');
-    } else if (outcome === 'shared') {
-      setShareStatus('Voucher link shared.');
-    } else if (outcome === 'dismissed') {
-      setShareStatus('Sharing cancelled.');
-    } else if (outcome === 'unavailable') {
-      setShareStatus('Sharing is not available here. Open the PDF and share it from there.');
-    }
+    if (outcome === 'copied') setShareStatus('Link copied to the clipboard.');
+    else if (outcome === 'shared') setShareStatus('Brochure link shared.');
+    else if (outcome === 'dismissed') setShareStatus('Sharing cancelled.');
+    else if (outcome === 'unavailable') setShareStatus('Sharing is not available here. Open the PDF and share it from there.');
   }, [order, render]);
 
   return (
@@ -549,311 +316,96 @@ export default function OrderDetailScreen() {
                 </View>
               ))}
 
-              <View style={styles.voucherSection}>
+              <View style={styles.section}>
                 <View style={shared.rowBetween}>
-                  <Text style={text.sectionLabel}>AI design</Text>
-                  <Text style={text.caption}>{aiDesign?.label ?? 'Not designed yet'}</Text>
+                  <Text style={text.sectionLabel}>Brochure</Text>
+                  {render ? <Text style={text.caption}>{pageCountLabel(render.pageCount)}</Text> : null}
                 </View>
-                <Text style={[text.muted, styles.voucherIntro]}>
-                  Say how the brochure should feel, then let the model design it. Change any choice
-                  and re-render without asking the model again.
+                <Text style={[text.muted, styles.intro]}>
+                  The model writes the words and typesets the four pages from this order, the
+                  photographs and the finish samples. A reference only sets the feel; the layout is
+                  composed for this piece.
                 </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose a design reference"
+                  onPress={() => {
+                    if (!orderId) return;
+                    router.push({
+                      pathname: '/templates',
+                      params: { orderId, reference: reference || undefined },
+                    });
+                  }}
+                  style={({ pressed }) => [styles.referenceCard, pressed && styles.referencePressed]}>
+                  <View style={styles.referenceMark}>
+                    <Text style={styles.referenceMarkLabel}>◈</Text>
+                  </View>
+                  <View style={styles.referenceText}>
+                    <Text style={styles.referenceTitle}>
+                      {referenceName || reference ? referenceName || 'Selected reference' : 'No reference'}
+                    </Text>
+                    <Text style={[text.caption, styles.referenceCaption]}>
+                      {reference || referenceName
+                        ? 'Reference feel. Change it whenever you like.'
+                        : 'Let the model read the room. Pick a look only if you want to guide the mood.'}
+                    </Text>
+                  </View>
+                  <Text style={styles.referenceAction}>{reference || referenceName ? 'Change' : 'Choose'}</Text>
+                </Pressable>
+
                 <View style={styles.briefField}>
                   <Field
-                    label="Design direction"
-                    value={aiDirection}
-                    onChangeText={setAiDirection}
-                    placeholder="Warm and festive, quiet and minimal, big Tamil title, like a coffee table book"
+                    label="Direction, optional"
+                    value={direction}
+                    onChangeText={setDirection}
+                    placeholder="Warmer and more festive, like a coffee table book, big Tamil title"
                     multiline
                     maxLength={1200}
                   />
                 </View>
-                {aiDesign ? (
-                  <>
-                    <ChoiceRow
-                      label="Palette"
-                      options={TONE_OPTIONS}
-                      value={aiDesign.tone}
-                      onChange={(tone) => updateDesign({ tone })}
-                    />
-                    <ChoiceRow
-                      label="Type"
-                      options={TYPE_OPTIONS}
-                      value={aiDesign.type}
-                      onChange={(type) => updateDesign({ type })}
-                    />
-                    <ChoiceRow
-                      label="Cover"
-                      options={COVER_OPTIONS}
-                      value={aiDesign.cover}
-                      onChange={(cover) => updateDesign({ cover })}
-                    />
-                    <ChoiceRow
-                      label="Story"
-                      options={STORY_OPTIONS}
-                      value={aiDesign.story}
-                      onChange={(story) => updateDesign({ story })}
-                    />
-                    <ChoiceRow
-                      label="Materials"
-                      options={MATERIALS_OPTIONS}
-                      value={aiDesign.materials}
-                      onChange={(materials) => updateDesign({ materials })}
-                    />
-                    <ChoiceRow
-                      label="Specification"
-                      options={SPEC_OPTIONS}
-                      value={aiDesign.spec}
-                      onChange={(spec) => updateDesign({ spec })}
-                    />
-                    <View style={styles.briefField}>
-                      <Field
-                        label="Story line"
-                        value={aiDesign.statement}
-                        onChangeText={(statement) => updateDesign({ statement })}
-                        maxLength={100}
-                      />
-                    </View>
-                    <View style={styles.briefField}>
-                      <Field
-                        label="Headline"
-                        value={aiCopy?.headline ?? order?.copy?.headline ?? ''}
-                        onChangeText={(headline) => updateCopy({ headline })}
-                        maxLength={120}
-                      />
-                    </View>
-                    <View style={styles.briefField}>
-                      <Field
-                        label="Body"
-                        value={aiCopy?.body ?? order?.copy?.body ?? ''}
-                        onChangeText={(body) => updateCopy({ body })}
-                        multiline
-                        maxLength={2400}
-                      />
-                    </View>
-                    <View style={styles.briefField}>
-                      <Field
-                        label="Closing"
-                        value={aiCopy?.closing ?? order?.copy?.closing ?? ''}
-                        onChangeText={(closing) => updateCopy({ closing })}
-                        maxLength={160}
-                      />
-                    </View>
-                  </>
-                ) : null}
+
                 {designError ? <Text style={[text.muted, styles.noteError]}>{designError}</Text> : null}
                 {designStatus ? <Text style={[text.muted, styles.noteStatus]}>{designStatus}</Text> : null}
+
                 <View style={styles.generateAction}>
                   <Button
-                    label={aiDesign ? 'Ask the model to redesign' : 'Design with the model'}
+                    label={render ? 'Design it again' : 'Design the brochure'}
                     loading={designLoading}
-                    loadingLabel="Designing"
-                    onPress={() => void designWithModel()}
+                    loadingLabel="Designing and printing"
+                    onPress={() => void designBrochure()}
                   />
                 </View>
-                {aiDesign ? (
-                  <View style={styles.generateAction}>
-                    <Button
-                      label="Re-render with these choices"
-                      variant="secondary"
-                      loading={designLoading}
-                      loadingLabel="Rendering"
-                      onPress={() => void rerenderDesign()}
-                    />
-                  </View>
-                ) : null}
-                <View style={styles.generateAction}>
-                  <Button
-                    label="Use a template instead"
-                    variant="secondary"
-                    onPress={() => {
-                      if (!orderId) return;
-                      router.push({
-                        pathname: '/templates',
-                        params: { orderId, selected: currentTemplate?.id ?? '' },
-                      });
-                    }}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.voucherSection}>
-                <View style={shared.rowBetween}>
-                  <Text style={text.sectionLabel}>Design</Text>
-                  <Text style={text.caption}>{currentTemplate?.name ?? 'Copper Full Bleed'}</Text>
-                </View>
-                <View style={styles.designRow}>
-                  {currentTemplate ? (
-                    <Image
-                      source={{ uri: fileUrl(currentTemplate.previewUrl) }}
-                      style={styles.designThumb}
-                      resizeMode="cover"
-                      accessibilityLabel={`${currentTemplate.name} cover preview`}
-                    />
-                  ) : (
-                    <View style={[styles.designThumb, styles.designThumbEmpty]} />
-                  )}
-                  <View style={styles.designText}>
-                    <Text style={text.muted}>
-                      {templates.length > 0
-                        ? `${templates.length} designs across ten document styles. Every design carries the same information.`
-                        : 'Every design carries the same information in its own layout.'}
-                    </Text>
-                    <Button
-                      label="Change design"
-                      variant="secondary"
-                      onPress={() => {
-                        if (!orderId) return;
-                        router.push({
-                          pathname: '/templates',
-                          params: { orderId, selected: currentTemplate?.id ?? '' },
-                        });
-                      }}
-                    />
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.voucherSection}>
-                <View style={shared.rowBetween}>
-                  <Text style={text.sectionLabel}>Brochure copy</Text>
-                  {copyModel ? <Text style={text.caption}>{copyModel}</Text> : null}
-                </View>
-                <Text style={[text.muted, styles.voucherIntro]}>
-                  Paste what the customer said, including anything they added or dropped. The model
-                  writes the body from the order and this brief, then the voucher is rendered again.
-                </Text>
-                <View style={styles.briefField}>
-                  <Field
-                    label="Customer brief, optional"
-                    value={briefDraft ?? order.brief ?? ''}
-                    onChangeText={setBriefDraft}
-                    placeholder="Anything the customer added, changed or dropped"
-                    multiline
-                    maxLength={2000}
-                  />
-                </View>
-                {copyError ? <Text style={[text.muted, styles.noteError]}>{copyError}</Text> : null}
-                {writtenCopy ?? order.copy ? (
-                  <View style={styles.noteBox}>
-                    <Text style={[text.caption, styles.noteStatus]}>
-                      Generate the voucher again to print this copy.
-                    </Text>
-                    <Text style={[text.value, styles.copyHeadline]}>
-                      {(writtenCopy ?? order.copy)?.headline}
-                    </Text>
-                    <Text style={[text.body, styles.noteText]} selectable>
-                      {(writtenCopy ?? order.copy)?.body}
-                    </Text>
-                    <Text style={[text.caption, styles.copyClosing]}>
-                      {(writtenCopy ?? order.copy)?.closing}
-                    </Text>
-                  </View>
-                ) : null}
-                <View style={styles.generateAction}>
-                  <Button
-                    label={writtenCopy ?? order.copy ? 'Write it again' : 'Write the brochure copy'}
-                    loading={copyLoading}
-                    loadingLabel="Writing"
-                    onPress={() => void writeCopy()}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.voucherSection}>
-                <View style={shared.rowBetween}>
-                  <Text style={text.sectionLabel}>Voucher</Text>
-                  {render ? <Text style={text.caption}>{pageCountLabel(render.pageCount)}</Text> : null}
-                </View>
-
-                {rendering ? <RenderingProgress elapsed={elapsed} /> : null}
-
-                {renderError ? (
-                  <ErrorState
-                    title="The voucher could not be rendered"
-                    message={renderError}
-                    onRetry={() => {
-                      void generateVoucher();
-                    }}
-                    retrying={rendering}
-                  />
-                ) : null}
-
-                {!render && !rendering && !renderError ? (
-                  <>
-                    <Text style={[text.muted, styles.voucherIntro]}>
-                      A voucher is the printable order summary for the workshop. Pages are set on
-                      A4.
-                    </Text>
-                    <View style={styles.generateAction}>
-                      <Button
-                        label="Generate voucher"
-                        onPress={() => {
-                          void generateVoucher();
-                        }}
-                      />
-                    </View>
-                  </>
-                ) : null}
 
                 {render ? (
                   <>
-                    <VoucherPreview render={render} />
+                    <BrochurePreview render={render} />
                     <View style={styles.previewActions}>
                       <View style={styles.actionCell}>
-                        <Button
-                          label="Open PDF"
-                          variant="secondary"
-                          onPress={handleOpenPdf}
-                          fullWidth
-                        />
+                        <Button label="Open PDF" variant="secondary" onPress={() => void (pdfUrl && openUrl(pdfUrl))} fullWidth />
                       </View>
                       <View style={styles.actionCell}>
-                        <Button
-                          label="Share"
-                          variant="secondary"
-                          onPress={() => {
-                            void handleShare();
-                          }}
-                          fullWidth
-                        />
+                        <Button label="Share" variant="secondary" onPress={() => void handleShare()} fullWidth />
                       </View>
                     </View>
                     {shareStatus ? (
-                      <Text
-                        style={[text.caption, styles.shareStatus]}
-                        accessibilityLiveRegion="polite">
+                      <Text style={[text.caption, styles.shareStatus]} accessibilityLiveRegion="polite">
                         {shareStatus}
                       </Text>
                     ) : null}
-                    <View style={styles.regenerate}>
-                      <Button
-                        label="Generate voucher again"
-                        variant="quiet"
-                        loading={rendering}
-                        loadingLabel="Rendering voucher"
-                        onPress={() => {
-                          void generateVoucher();
-                        }}
-                      />
-                    </View>
                   </>
                 ) : null}
               </View>
 
               {order.attachments && order.attachments.length > 0 ? (
-                <View style={styles.voucherSection}>
+                <View style={styles.section}>
                   <View style={shared.rowBetween}>
                     <Text style={text.sectionLabel}>Customer files</Text>
                     <Text style={text.caption}>
-                      {order.attachments.length === 1
-                        ? '1 file'
-                        : `${order.attachments.length} files`}
+                      {order.attachments.length === 1 ? '1 file' : `${order.attachments.length} files`}
                     </Text>
                   </View>
-                  <Text style={[text.muted, styles.voucherIntro]}>
-                    Uploaded in the chat with this order.
-                  </Text>
+                  <Text style={[text.muted, styles.intro]}>Uploaded in the chat with this order.</Text>
                   {order.attachments.map((file) => (
                     <Pressable
                       key={file.url}
@@ -870,7 +422,7 @@ export default function OrderDetailScreen() {
                 </View>
               ) : null}
 
-              <View style={styles.voucherSection}>
+              <View style={styles.section}>
                 <View style={shared.rowBetween}>
                   <Text style={text.sectionLabel}>Customer note</Text>
                   {note ? <Text style={text.caption}>{note.model}</Text> : null}
@@ -883,7 +435,7 @@ export default function OrderDetailScreen() {
                     <Button label="Copy note" variant="secondary" onPress={() => void copyNote()} />
                   </View>
                 ) : (
-                  <Text style={[text.muted, styles.voucherIntro]}>
+                  <Text style={[text.muted, styles.intro]}>
                     A short message for the customer, drafted from this order and the materials.
                   </Text>
                 )}
@@ -892,9 +444,7 @@ export default function OrderDetailScreen() {
                     {noteStatus}
                   </Text>
                 ) : null}
-                {noteError ? (
-                  <Text style={[text.muted, styles.noteError]}>{noteError}</Text>
-                ) : null}
+                {noteError ? <Text style={[text.muted, styles.noteError]}>{noteError}</Text> : null}
                 <View style={styles.generateAction}>
                   <Button
                     label={note ? 'Draft another' : 'Draft customer note'}
@@ -906,14 +456,12 @@ export default function OrderDetailScreen() {
                 </View>
               </View>
 
-              <View style={styles.voucherSection}>
+              <View style={styles.section}>
                 <View style={shared.rowBetween}>
                   <Text style={text.sectionLabel}>Info kit</Text>
-                  {kitRender ? (
-                    <Text style={text.caption}>{pageCountLabel(kitRender.pageCount)}</Text>
-                  ) : null}
+                  {kitRender ? <Text style={text.caption}>{pageCountLabel(kitRender.pageCount)}</Text> : null}
                 </View>
-                <Text style={[text.muted, styles.voucherIntro]}>
+                <Text style={[text.muted, styles.intro]}>
                   The company brochure: workshop, materials and process, printed on A4.
                 </Text>
                 {kitError ? <Text style={[text.muted, styles.noteError]}>{kitError}</Text> : null}
@@ -929,9 +477,7 @@ export default function OrderDetailScreen() {
                       <Button
                         label="Open PDF"
                         variant="secondary"
-                        onPress={() => {
-                          void openUrl(fileUrl(kitRender.pdfUrl));
-                        }}
+                        onPress={() => void openUrl(fileUrl(kitRender.pdfUrl))}
                       />
                     </View>
                   </View>
@@ -947,9 +493,7 @@ export default function OrderDetailScreen() {
               </View>
 
               <View style={[shared.hairline, styles.footerRule]} />
-              <Text style={[text.caption, styles.footerNote]}>
-                Grace Wood Industry · Catalogue Studio
-              </Text>
+              <Text style={[text.caption, styles.footerNote]}>Grace Wood Industry · Catalogue Studio</Text>
             </>
           ) : null}
         </View>
@@ -958,24 +502,7 @@ export default function OrderDetailScreen() {
   );
 }
 
-function RenderingProgress({ elapsed }: { elapsed: number }) {
-  return (
-    <View
-      style={styles.progress}
-      accessibilityRole="progressbar"
-      accessibilityLabel="Rendering voucher">
-      <ActivityIndicator color={colors.copper} />
-      <View style={styles.progressText}>
-        <Text style={text.value}>Rendering voucher</Text>
-        <Text style={text.caption}>
-          {elapsed > 0 ? `Preparing the pages. ${elapsed} s elapsed.` : 'Preparing the pages.'}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function VoucherPreview({ render }: { render: Render }) {
+function BrochurePreview({ render }: { render: Render }) {
   const { width } = useWindowDimensions();
   const [pageIndex, setPageIndex] = useState(0);
   const frameWidth = Math.min(width, layout.maxWidth);
@@ -985,16 +512,15 @@ function VoucherPreview({ render }: { render: Render }) {
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const next = Math.round(event.nativeEvent.contentOffset.x / previewWidth);
-      const clamped = Math.max(0, Math.min(pages.length - 1, next));
-      setPageIndex(clamped);
+      setPageIndex(Math.max(0, Math.min(pages.length - 1, next)));
     },
-    [pages.length, previewWidth],
+    [pages.length, previewWidth]
   );
 
   if (pages.length === 0) {
     return (
       <Text style={[text.muted, styles.noPreview]}>
-        The voucher was generated but no page previews came back. Open the PDF to check it.
+        The brochure was printed but no page previews came back. Open the PDF to read it.
       </Text>
     );
   }
@@ -1015,7 +541,7 @@ function VoucherPreview({ render }: { render: Render }) {
         {pages.map((page, index) => (
           <View key={`${page}-${index}`} style={{ width: previewWidth }}>
             <View style={styles.pageFrame}>
-              <PageImage uri={fileUrl(page)} label={`Voucher page ${index + 1}`} />
+              <PageImage uri={fileUrl(page)} label={`Brochure page ${index + 1}`} />
             </View>
           </View>
         ))}
@@ -1023,31 +549,24 @@ function VoucherPreview({ render }: { render: Render }) {
 
       <View style={styles.pageDots}>
         {pages.map((page, index) => (
-          <View
-            key={`dot-${page}-${index}`}
-            style={[styles.pageDot, index === pageIndex && styles.pageDotActive]}
-          />
+          <View key={`dot-${page}-${index}`} style={[styles.pageDot, index === pageIndex && styles.pageDotActive]} />
         ))}
       </View>
-      <Text style={[text.caption, styles.pageCounter]}>
-        {`Page ${pageIndex + 1} of ${pages.length}`}
-      </Text>
+      <Text style={[text.caption, styles.pageCounter]}>{`Page ${pageIndex + 1} of ${pages.length}`}</Text>
     </View>
   );
 }
 
 function PageImage({ uri, label }: { uri: string; label: string }) {
   const [failed, setFailed] = useState(false);
-
   if (failed) {
     return (
       <View style={styles.pageFallback}>
         <Text style={[text.caption, styles.pageFallbackText]}>This page image did not load.</Text>
-        <Text style={[text.caption, styles.pageFallbackText]}>Open the PDF to read the voucher.</Text>
+        <Text style={[text.caption, styles.pageFallbackText]}>Open the PDF to read the brochure.</Text>
       </View>
     );
   }
-
   return (
     <Image
       source={{ uri }}
@@ -1067,110 +586,11 @@ function formatFileSize(bytes: number): string {
 }
 
 const styles = StyleSheet.create({
-  kitRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.md,
-    marginTop: space.md,
-  },
-  kitThumb: {
-    width: 96,
-    height: 136,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-  },
-  kitActions: {
-    gap: space.sm,
-  },
-  choiceBlock: {
-    marginTop: space.md,
-  },
-  choiceLabel: {
-    marginBottom: space.sm,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.sm,
-  },
-  chip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.hair,
-    backgroundColor: colors.surface,
-    paddingHorizontal: space.md,
-    paddingVertical: 7,
-  },
-  chipActive: {
-    borderColor: colors.copper,
-    backgroundColor: colors.copperSoft,
-  },
-  chipText: {
-    fontSize: 13,
-    color: colors.muted,
-  },
-  chipTextActive: {
-    color: colors.copper,
-    fontWeight: '600',
-  },
-  briefField: {
-    marginTop: space.md,
-    maxWidth: 640,
-  },
-  copyHeadline: {
-    fontFamily: 'Georgia',
-    fontSize: 19,
-    lineHeight: 26,
-  },
-  copyClosing: {
-    color: colors.muted,
-  },
-  noteBox: {
-    marginTop: space.md,
-    gap: space.md,
-    padding: space.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
-    backgroundColor: colors.paperDeep,
-    maxWidth: 640,
-  },
-  noteText: {
-    lineHeight: 24,
-  },
-  noteStatus: {
-    marginTop: space.sm,
-    color: colors.muted,
-  },
-  noteError: {
-    marginTop: space.sm,
-    color: '#8C2F24',
-  },
-  designRow: {
-    flexDirection: 'row',
-    gap: space.md,
-    alignItems: 'flex-start',
-  },
-  designThumb: {
-    width: 84,
-    height: 118,
-    borderRadius: 8,
-    backgroundColor: colors.fill,
-  },
-  designThumbEmpty: {
-    backgroundColor: colors.paperDeep,
-  },
-  designText: {
-    flex: 1,
-    gap: space.sm,
-  },
   scroll: {
     paddingTop: 0,
   },
   page: {
     paddingHorizontal: layout.gutter,
-  },
-  rule: {
-    marginTop: space.xl,
   },
   specSection: {
     backgroundColor: colors.surface,
@@ -1201,11 +621,74 @@ const styles = StyleSheet.create({
   specValueEmpty: {
     color: colors.faint,
   },
-  voucherSection: {
+  section: {
     marginTop: space.md,
     backgroundColor: colors.surface,
     borderRadius: layout.radius,
     padding: space.lg,
+  },
+  intro: {
+    marginTop: space.md,
+    maxWidth: 560,
+  },
+  referenceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    marginTop: space.lg,
+    padding: space.md,
+    borderRadius: layout.radiusSmall,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    backgroundColor: colors.paperDeep,
+  },
+  referencePressed: {
+    opacity: 0.8,
+  },
+  referenceMark: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.copperSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  referenceMarkLabel: {
+    fontSize: 16,
+    color: colors.copper,
+  },
+  referenceText: {
+    flex: 1,
+    gap: 2,
+  },
+  referenceTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  referenceCaption: {
+    color: colors.muted,
+  },
+  referenceAction: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.copper,
+  },
+  briefField: {
+    marginTop: space.md,
+    maxWidth: 640,
+  },
+  generateAction: {
+    marginTop: space.lg,
+    alignSelf: 'flex-start',
+  },
+  noteStatus: {
+    marginTop: space.sm,
+    color: colors.muted,
+  },
+  noteError: {
+    marginTop: space.sm,
+    color: '#8C2F24',
   },
   fileRow: {
     flexDirection: 'row',
@@ -1223,26 +706,32 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     color: colors.ink,
   },
-  voucherIntro: {
+  noteBox: {
     marginTop: space.md,
-    maxWidth: 480,
-  },
-  generateAction: {
-    marginTop: space.lg,
-    alignSelf: 'flex-start',
-  },
-  progress: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    gap: space.md,
+    padding: space.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.hair,
-    borderRadius: layout.radius,
-    padding: space.lg,
-    marginTop: space.lg,
+    backgroundColor: colors.paperDeep,
+    maxWidth: 640,
   },
-  progressText: {
-    marginLeft: space.md,
-    flex: 1,
+  noteText: {
+    lineHeight: 24,
+  },
+  kitRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.md,
+    marginTop: space.md,
+  },
+  kitThumb: {
+    width: 96,
+    height: 136,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+  },
+  kitActions: {
+    gap: space.sm,
   },
   preview: {
     marginTop: space.lg,
@@ -1302,9 +791,6 @@ const styles = StyleSheet.create({
   },
   shareStatus: {
     marginTop: space.md,
-  },
-  regenerate: {
-    marginTop: space.lg,
   },
   noPreview: {
     marginTop: space.lg,
