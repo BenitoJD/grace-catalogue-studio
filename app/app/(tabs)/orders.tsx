@@ -57,9 +57,19 @@ export default function OrdersScreen() {
   const header = (
     <View>
       <View style={styles.header}>
-        <Text style={text.eyebrow}>Catalogue studio</Text>
-        <TamilLine />
-        <Text style={[text.display, styles.title]}>Grace Wood</Text>
+        <View style={styles.brandRow}>
+          <Image
+            source={require('@/assets/images/logo.png')}
+            style={styles.brandMark}
+            resizeMode="contain"
+            accessibilityLabel="Grace Wood Industry"
+          />
+          <View style={styles.brandText}>
+            <Text style={text.eyebrow}>Catalogue studio</Text>
+            <TamilLine />
+            <Text style={[text.display, styles.title]}>Grace Wood</Text>
+          </View>
+        </View>
         <Text style={[text.muted, styles.subtitle]}>
           Every order the chat has made, with the brochure it produced.
         </Text>
@@ -199,6 +209,23 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: space.md,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandText: {
+    flexShrink: 1,
+  },
+  brandMark: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    flexShrink: 0,
   },
   title: {
     marginTop: 2,

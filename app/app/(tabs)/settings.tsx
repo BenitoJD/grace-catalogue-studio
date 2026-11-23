@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -141,9 +141,19 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: space.xxxl + insets.bottom }]}>
         <View style={shared.frame}>
           <View style={styles.header}>
-            <Text style={text.eyebrow}>Grace Wood</Text>
+            <View style={styles.brandRow}>
+              <Image
+                source={require('@/assets/images/logo.png')}
+                style={styles.brandMark}
+                resizeMode="contain"
+                accessibilityLabel="Grace Wood Industry"
+              />
+              <View style={styles.brandText}>
+                <Text style={text.eyebrow}>Grace Wood</Text>
             <TamilLine />
             <Text style={[text.screenTitle, styles.title]}>Settings</Text>
+              </View>
+            </View>
             <Text style={[text.muted, styles.subtitle]}>Model and app details. Everything runs on this computer.</Text>
           </View>
 
@@ -331,6 +341,23 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: space.md,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandText: {
+    flexShrink: 1,
+  },
+  brandMark: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    flexShrink: 0,
   },
   title: {
     marginTop: 2,

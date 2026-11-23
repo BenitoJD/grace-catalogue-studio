@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, space, text } from '@/lib/theme';
 
@@ -32,7 +32,15 @@ export function ScreenHeader({ eyebrow, title, subtitle, back, onBack, children 
         </Pressable>
       ) : null}
       {eyebrow ? <Text style={[text.eyebrow, back && styles.eyebrowAfterBack]}>{eyebrow}</Text> : null}
-      <Text style={[text.screenTitle, (eyebrow || back) && styles.titleAfterEyebrow]}>{title}</Text>
+      <View style={[styles.titleRow, (eyebrow || back) && styles.titleAfterEyebrow]}>
+        <Image
+          source={require('@/assets/images/logo.png')}
+          style={styles.mark}
+          resizeMode="contain"
+          accessibilityLabel="Grace Wood Industry"
+        />
+        <Text style={[text.screenTitle, styles.titleText]}>{title}</Text>
+      </View>
       {subtitle ? <Text style={[text.muted, styles.subtitle]}>{subtitle}</Text> : null}
       {children ? <View style={styles.children}>{children}</View> : null}
     </View>
@@ -72,6 +80,23 @@ const styles = StyleSheet.create({
   },
   titleAfterEyebrow: {
     marginTop: 2,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  titleText: {
+    flexShrink: 1,
+  },
+  mark: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hair,
+    flexShrink: 0,
   },
   subtitle: {
     marginTop: 4,
