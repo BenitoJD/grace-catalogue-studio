@@ -91,6 +91,7 @@ export async function ensureSampleCopy({ db, config, requestChat, logger }) {
     messages: baseMessages,
     maxTokens: 4000,
     temperature: 0.5,
+    timeoutMs: 120_000,
   });
   let copy = parseCopyReply(result.content);
   if (copyQualityIssues(copy, SAMPLE_ORDER).length > 0) {
@@ -102,6 +103,7 @@ export async function ensureSampleCopy({ db, config, requestChat, logger }) {
       messages: buildCopyRepairMessages(SAMPLE_ORDER, SAMPLE_ORDER.brief, copy, copyQualityIssues(copy, SAMPLE_ORDER)),
       maxTokens: 4000,
       temperature: 0.5,
+      timeoutMs: 120_000,
     });
     copy = parseCopyReply(result.content);
   }
@@ -168,6 +170,7 @@ export async function buildPreviewForDesign(deps, design) {
       messages: requestMessages,
       maxTokens: DESIGNER_MAX_TOKENS,
       temperature: DESIGNER_TEMPERATURE,
+      timeoutMs: 300_000,
     });
     previousReply = result.content;
     try {

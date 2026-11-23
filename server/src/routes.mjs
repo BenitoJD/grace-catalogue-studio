@@ -497,6 +497,7 @@ export function createApp(options) {
       messages: buildCopyMessages(order, order.brief ?? ''),
       maxTokens: COPY_MAX_TOKENS,
       temperature: COPY_TEMPERATURE,
+      timeoutMs: 120_000,
     });
     let copy = parseCopyReply(result.content);
     let issues = copyQualityIssues(copy, order);
@@ -510,6 +511,7 @@ export function createApp(options) {
         messages: buildCopyRepairMessages(order, order.brief ?? '', copy, issues),
         maxTokens: COPY_MAX_TOKENS,
         temperature: COPY_TEMPERATURE,
+        timeoutMs: 120_000,
       });
       copy = parseCopyReply(result.content);
       issues = copyQualityIssues(copy, order);
@@ -583,6 +585,7 @@ export function createApp(options) {
       messages,
       maxTokens: 6000,
       temperature: 0.8,
+      timeoutMs: 300_000,
     });
     return parseCatalogReply(result.content, {
       count,
@@ -1567,6 +1570,7 @@ export function createApp(options) {
           messages: requestMessages,
           maxTokens: DESIGNER_MAX_TOKENS,
           temperature: DESIGNER_TEMPERATURE,
+          timeoutMs: 300_000,
         });
         usedModel = result.model;
         latencyMs = result.latencyMs;
