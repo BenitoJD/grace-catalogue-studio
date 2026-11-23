@@ -215,7 +215,7 @@ starts a background build and returns whatever is ready with
 library never calls the provider again.
 
 Once the library is complete the same request starts the preview engine, which
-prints a real four page brochure per reference from one fixed sample order and
+prints a real brochure per reference from one fixed sample order and
 serves its cover at `/design-previews/<id>.png` with the full proof at
 `/design-previews/<id>.pdf`. One shared sample copy is written once and kept in
 the catalog row (schema v11); each preview runs the designer prompt with its
@@ -305,14 +305,17 @@ previous document attached, and a hand edited `copy` wins over generated words.
 When the order has no stored copy the server writes one first through the usual
 copy route with its repair pass.
 
-The model authors the four pages itself as one HTML document: exactly four
+The model authors the pages itself as one HTML document: four to eight
 `<div class="page">` elements, the required tokens, no external URL, no script,
-no fixed positioning, and the page box left to the server. The reply is
-checked: page count, word limits per page, every specification and material
-token printed, the measured drawing on the specification page, the brand and a
-Tamil line on the cover, a house motif somewhere, photographs used, and no
-unknown token. A failure is asked for again with the exact problems listed;
-two failures return 502 `invalid_reply` and print nothing. Filled tokens are
+no fixed positioning, and the page box left to the server. The first page is
+always the cover and the last always the specification; the middle holds the
+story and the materials. The reply is checked: page count in range, word
+limits per page with tokens counted at their printed weight, copy and material
+tokens exactly once and placed in their pages, every specification token once
+on the last page, the measured drawing last, the brand and a Tamil line on the
+cover, a house motif somewhere, photographs used, and no unknown token. A
+failure is asked for again with the exact problems listed; two failures return
+502 `invalid_reply` and print nothing. Filled tokens are
 escaped except raw asset and image paths; em dashes and en dashes are
 normalised to hyphens before print. The document is stored on the render as
 `html` (schema v9) so the next edit keeps the design. The resulting render has

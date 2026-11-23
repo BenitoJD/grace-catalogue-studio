@@ -41,6 +41,7 @@ import {
   setSetting,
 } from '../src/db.mjs';
 import { CATALOG_VERSION } from '../src/design-catalog.mjs';
+import { parseDesignerReply } from '../src/ai-brochure.mjs';
 import { buildPendingPreviews, countReadyPreviews } from '../src/design-previews.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
@@ -92,6 +93,7 @@ const templatesDir = path.join(rootDir, 'templates');
 const weasyprintBin = resolveWeasyprint(rootDir);
 const pdftoppmBin = 'pdftoppm';
 const DESIGNER_HTML = readFileSync(path.join(rootDir, 'scripts', 'fixtures', 'designer-reply.html'), 'utf8');
+const DESIGNER_LONG_HTML = readFileSync(path.join(rootDir, 'scripts', 'fixtures', 'designer-reply-long.html'), 'utf8');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const CATALOG_FAMILIES = ['Atelier', 'Ledger', 'Jaali', 'Monsoon', 'Kolam', 'Verandah', 'Bazaar', 'Manuscript', 'Courtyard', 'Silk Route', 'Laterite', 'Palm Court'];
@@ -3546,6 +3548,34 @@ test('two generated brochures print different pages', { timeout: 240_000 }, asyn
   const firstPage = hashBytes(Buffer.from(await (await fetch(`${baseUrl}${first.render.pageUrls[1]}`)).arrayBuffer()));
   const secondPage = hashBytes(Buffer.from(await (await fetch(`${baseUrl}${second.render.pageUrls[1]}`)).arrayBuffer()));
   assert.notEqual(firstPage, secondPage, 'a different palette prints a different story page');
+});
+
+test('a longer brochure prints six pages when the content needs room', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  resetMockProvider({ reply: DESIGNER_LONG_HTML });
+
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  const raw = await response.text();
+  assert.equal(response.status, 201, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.render.kind, 'ai');
+  assert.equal(body.render.pageCount, 6);
+  assert.equal(body.render.pageUrls.length, 6);
+
+  const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
+  const flat = normaliseText(text);
+  assert.ok(flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()), 'the headline is printed');
+  assert.ok(flat.includes('Dark Walnut'), 'the finish sample is named');
+  assert.equal(flat.includes('{{'), false, 'no token is printed');
+});
+
+test('a brochure outside four to eight pages is rejected before print', () => {
+  const pages = (count) =>
+    Array.from({ length: count }, (_, index) => `<div class="page"><p>Page ${index + 1} carries some words for the count.</p></div>`).join('\n');
+  assert.throws(() => parseDesignerReply(`<html><body>${pages(3)}</body></html>`, 2), /four to eight/);
+  assert.throws(() => parseDesignerReply(`<html><body>${pages(9)}</body></html>`, 2), /four to eight/);
 });
 
 test('an unusable design is retried once and then fails cleanly', { timeout: 120_000 }, async () => {

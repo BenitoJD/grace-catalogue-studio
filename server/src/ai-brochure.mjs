@@ -17,7 +17,7 @@ import path from 'node:path';
 import { LlmError, clean } from './llm.mjs';
 import { buildVoucherValues, escapeHtml } from './render.mjs';
 
-export const DESIGNER_MAX_TOKENS = 8000;
+export const DESIGNER_MAX_TOKENS = 12000;
 export const DESIGNER_TEMPERATURE = 0.85;
 export const DESIGNER_TRIES = 2;
 export const DESIGNER_MAX_CHARS = 90_000;
@@ -117,19 +117,19 @@ const DESIGNER_SYSTEM = [
   'You design and typeset one printed brochure for one order. Reply with one complete HTML document and nothing else.',
   '',
   'THE DOCUMENT',
-  'A four page A4 brochure printed on warm cream uncoated paper. The page box is 216 mm wide by 303 mm tall and includes a 3 mm bleed on every side, so the trim is 210 by 297 mm.',
+  'An A4 brochure printed on warm cream uncoated paper. The page box is 216 mm wide by 303 mm tall and includes a 3 mm bleed on every side, so the trim is 210 by 297 mm.',
   'It is picture led, quiet, warm and confident, the kind of book a customer keeps on the table. Indian taste: generous margins, large type, deep maroon and muted gold against cream, Tamil and English together, ornament used like jewellery, never a poster and never a website.',
+  'The brochure is as long as its content: at least four pages, at most eight. A quiet order with few photographs is four pages. More photographs, a longer story or a fuller specification earn more pages, up to eight. Never stretch a short brochure with empty space and never squeeze a long one with small type: choose the page count first, then fill every page completely.',
   '',
-  'THE FOUR PAGES',
+  'THE PAGES, IN ORDER',
   '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
-  '2. Story. One or two photographs and the written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet.',
-  '3. Materials. The four finish samples shown at size with their names. A colour page, not a table.',
-  '4. Specification. The order facts set quietly at the back: dimensions, materials and hardware, with the measured drawing. It is for the workshop and the client file, not the reason to open the brochure.',
+  '2 to 7. Story and materials. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. The four finish samples shown at size with their names, a colour page, not a table. Give the story one page when it fits, two when the photographs and the words need room; keep all four samples together on their own page.',
+  'Last. Specification. The order facts set quietly at the back: dimensions, materials and hardware, with the measured drawing. It is for the workshop and the client file, not the reason to open the brochure.',
   '',
   'HOW TO REPLY',
   '- Reply with the HTML document only: no prose, no markdown, no code fences, no explanation.',
   '- The <head> may hold one <style> block. Inline style attributes are welcome.',
-  '- The <body> must hold exactly four page elements in order: <div class="page"> ... </div>. Nothing else beside them.',
+  '- The <body> must hold between four and eight page elements in order: <div class="page"> ... </div>. Nothing else beside them.',
   '- The renderer supplies the page box, the bleed, the fonts and the colour tokens. Do not define @page, @import or @font-face, do not write html or body rules, and do not set width, height, position, margin or page-break on .page.',
   '- Position inside a page with absolute mm offsets, or with flex or grid. Keep type and decoration at least 18 mm from the left and right edges and 18 mm from the top, and keep the bottom 18 mm clear for the folio unless a photograph bleeds.',
   '- Use mm for print sizes. Never use vh or vw for type or position.',
@@ -142,16 +142,15 @@ const DESIGNER_SYSTEM = [
   'The body is one piece of prose: set it in a comfortable measure, two or three columns at 8 to 9.5 pt, and let the paragraph flow. Do not cut it.',
   'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{orderNo}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}.',
   'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover; the list below gives each one its shape.',
-  'Materials: {{material1Name}} and {{material1Image}} through {{material4Name}} and {{material4Image}}. Show all four samples on page 3, each image and each name.',
+  'Materials: {{material1Name}} and {{material1Image}} through {{material4Name}} and {{material4Image}}. Show all four samples on the materials page, each image and each name.',
   'Specification: {{width}}, {{height}}, {{depth}}, {{shutters}}, {{exterior}}, {{interior}}, {{carcass}}, {{backPanel}}, {{shuttersMat}}, {{drawers}}, {{edgeShutter}}, {{edgeCarcass}}, {{edgeNote}}, {{finishExt}}, {{finishInt}}, {{handle}}, {{handleNote}}, {{hinges}}, {{channels}}.',
-  'Print every specification token on page 4, each once, as the value next to a label you set in small caps. Set them in two or three aligned columns with hairline rules, like a colophon, never like a spreadsheet. Never invent, round or reword a value; if a value is empty it prints as a confirmation note.',
-  'Assets: {{logo}} is the brand mark. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image. {{drawing}} is the measured front elevation drawing, a wide technical plate; it must appear on page 4.',
+  'Print every specification token on the last page, the specification page, each once, as the value next to a label you set in small caps. Set them in two or three aligned columns with hairline rules, like a colophon, never like a spreadsheet. Never invent, round or reword a value; if a value is empty it prints as a confirmation note.',
+  'Assets: {{logo}} is the brand mark. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs, usable in an <img> or as a background-image. {{drawing}} is the measured front elevation drawing, a wide technical plate; it must appear on the last page.',
   '',
   'REQUIRED',
-  '- Page 1: at least one photograph, {{title}}, {{customer}}, {{brand}} or {{logo}}, and {{brandTamil}} or {{roomTamil}}.',
-  '- Page 2: {{headline}}, {{body}}, {{closing}}, and at least one photograph.',
-  '- Page 3: all four material images and all four material names.',
-  '- Page 4: every specification token and {{drawing}}.',
+  '- Page 1, the cover: at least one photograph, {{title}}, {{customer}}, {{brand}} or {{logo}}, and {{brandTamil}} or {{roomTamil}}.',
+  '- The middle pages together: {{headline}}, {{body}} and {{closing}} each exactly once, all four material images and all four material names, and photographs throughout. Every middle page shows at least one photograph or material sample.',
+  '- The last page, the specification: every specification token and {{drawing}}. No specification token may appear anywhere else.',
   '- Somewhere in the document: {{orderNo}}, {{phone}}, and at least one house motif token.',
   '- Photographs are not optional. A document with no {{photo1}} is rejected outright and the work is wasted, so put {{photo1}} on the cover and {{photo2}} or {{photo3}} inside, every single time.',
   '',
@@ -165,7 +164,7 @@ const DESIGNER_SYSTEM = [
   '- Tamil is set tight and whole: never letter-space, uppercase or small-cap a Tamil line, and never set it below 7.5 pt. Keep Tamil in a line of its own.',
   '- Ornament once or twice in the whole document, at a corner or a rule: a jaali strip along one edge, a lotus under a title, an arch around a photograph. Never all motifs on one page.',
   '- The cover is the loudest page, the story is the warmest, the materials page is a quiet colour study, and the specification page is a calm technical colophon.',
-  '- Use the whole safe area. No page should feel more than half empty, except where one photograph deliberately holds the page. Keep the last line of a page at least 18 mm above the trim.',
+  '- Use the whole safe area. Every page must feel complete: fill it with photograph, type and ornament at full size rather than leaving a quarter of it empty. If the content does not fill the pages, use fewer pages; if it overflows, add a page up to the limit of eight. Only a page that one photograph deliberately holds may stay airy. Keep the last line of a page at least 18 mm above the trim.',
   '- This brochure is one of many. Do not repeat a stock arrangement from other orders; the photographs, the room and the mood decide the composition.',
   '- If a studio reference is supplied, it is the template: one prompt plus its asset manifest. Its palette, display type and ornament are mandatory, not suggestions. Set the CSS variables to exactly its palette, set --display to exactly its face, and use exactly its ornament. Compose original pages for this order, but never substitute the template assets and never copy a reference arrangement.',
   '- Tamil lines are set in Noto Sans Tamil, never forced into an English serif.',
@@ -459,7 +458,7 @@ export function buildDesignerRepairMessages(messages, previous, issues) {
     content: [
       `That document was rejected by the print checks: ${problems.join('; ')}.`,
       'Reply with the complete corrected HTML document only. Keep the design and fix exactly these problems.',
-      'The body still needs exactly four <div class="page"> elements, the required tokens, and no external references.',
+      'The body still needs four to eight <div class="page"> elements, the required tokens, and no external references.',
     ].join(' '),
   });
   return repaired;
@@ -533,11 +532,31 @@ function wordCount(text) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+/**
+ * Estimate the words a page will actually print. A token is not one word on
+ * paper: the body fills a column, names and titles fill a line. Without this
+ * a story page carrying only {{body}} looks empty to the checks while it
+ * prints a full column.
+ */
+function printedWords(html) {
+  const expanded = String(html)
+    .replace(/\{\{\s*body\s*\}\}/g, ' word'.repeat(110))
+    .replace(/\{\{\s*[A-Za-z0-9_]+\s*\}\}/g, 'word word word');
+  return wordCount(visibleText(expanded));
+}
+
 function tokenList(html) {
   return new Set([...html.matchAll(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g)].map((match) => match[1]));
 }
 
-const PAGE_WORD_LIMITS = [42, 260, 70, 280];
+// The brochure grows with its content: a quiet order is four pages, a full one
+// up to eight. The first page is always the cover and the last always the
+// specification; everything between is story and materials.
+export const MIN_DESIGN_PAGES = 4;
+export const MAX_DESIGN_PAGES = 8;
+const COVER_WORD_LIMIT = 60;
+const MIDDLE_WORD_LIMIT = 280;
+const SPEC_WORD_LIMIT = 300;
 
 /**
  * Read the model's HTML reply. Returns the CSS and the four page bodies, or
@@ -565,18 +584,31 @@ export function parseDesignerReply(content, photoCount = 4) {
 
   const pages = pageSegments(bodyHtml);
   const issues = [];
-  if (pages.length !== 4) {
-    issues.push(`it has ${pages.length} pages instead of four`);
+  if (pages.length < MIN_DESIGN_PAGES || pages.length > MAX_DESIGN_PAGES) {
+    issues.push(`it has ${pages.length} pages; use four to eight pages for the content`);
   }
+  const last = pages.length - 1;
+  const middle = pages.slice(1, last);
 
-  for (const [index, page] of pages.entries()) {
-    const number = index + 1;
-    const words = wordCount(visibleText(page));
-    if (words > PAGE_WORD_LIMITS[index]) {
-      issues.push(`page ${number} carries too many words (${words}, the limit is ${PAGE_WORD_LIMITS[index]})`);
+  const coverWords = printedWords(pages[0] ?? '');
+  if (coverWords > COVER_WORD_LIMIT) {
+    issues.push(`the cover carries too many words (${coverWords}, the limit is ${COVER_WORD_LIMIT})`);
+  }
+  for (const [offset, page] of middle.entries()) {
+    const words = printedWords(page);
+    if (words > MIDDLE_WORD_LIMIT) {
+      issues.push(`page ${offset + 2} carries too many words (${words}, the limit is ${MIDDLE_WORD_LIMIT})`);
     }
-    if (words < 3) {
-      issues.push(`page ${number} is almost empty`);
+  }
+  if (pages.length > 0) {
+    const specWords = printedWords(pages[last]);
+    if (specWords > SPEC_WORD_LIMIT) {
+      issues.push(`the specification page carries too many words (${specWords}, the limit is ${SPEC_WORD_LIMIT})`);
+    }
+  }
+  for (const [index, page] of pages.entries()) {
+    if (printedWords(page) < 3) {
+      issues.push(`page ${index + 1} is almost empty`);
     }
   }
 
@@ -614,10 +646,14 @@ export function parseDesignerReply(content, photoCount = 4) {
     if (uses !== 1) issues.push(`{{${token}}} must appear exactly once (it appears ${uses} times)`);
   }
   for (const token of FACT_TOKENS) {
-    if (countToken(whole, token) === 0) issues.push(`the specification token {{${token}}} is missing`);
+    const uses = countToken(whole, token);
+    if (uses === 0) issues.push(`the specification token {{${token}}} is missing`);
+    else if (uses > 1) issues.push(`the specification token {{${token}}} is printed ${uses} times, print it once`);
   }
   for (const token of MATERIAL_TOKENS) {
-    if (countToken(whole, token) === 0) issues.push(`the material token {{${token}}} is missing`);
+    const uses = countToken(whole, token);
+    if (uses === 0) issues.push(`the material token {{${token}}} is missing`);
+    else if (uses > 1) issues.push(`the material token {{${token}}} is printed ${uses} times, print it once`);
   }
   if (countToken(whole, 'drawing') === 0) issues.push('the measured drawing {{drawing}} is missing');
   if (countToken(whole, 'orderNo') === 0) issues.push('the order number token {{orderNo}} is missing');
@@ -642,16 +678,9 @@ export function parseDesignerReply(content, photoCount = 4) {
     if (index < 1 || index > photoCount) issues.push(`{{${token}}} points at a photograph that does not exist`);
   }
 
-  if (pages.length === 4) {
+  const middleHtml = middle.join('\n');
+  if (pages.length > 0) {
     if (!/photo\d+/.test(pages[0]) && !/\{\{photo/i.test(pages[0])) issues.push('the cover has no photograph');
-    if (!/\{\{photo/i.test(pages[1])) issues.push('the story page has no photograph');
-    if (!/\{\{drawing/.test(pages[3])) issues.push('the drawing is not on the specification page');
-    for (const token of FACT_TOKENS) {
-      if (countToken(pages[3], token) === 0) issues.push(`page 4 is missing {{${token}}}`);
-    }
-    for (const token of MATERIAL_TOKENS) {
-      if (countToken(pages[2], token) === 0) issues.push(`page 3 is missing {{${token}}}`);
-    }
     for (const token of ['title', 'customer']) {
       if (countToken(pages[0], token) === 0) issues.push(`the cover is missing {{${token}}}`);
     }
@@ -660,6 +689,38 @@ export function parseDesignerReply(content, photoCount = 4) {
     }
     if (countToken(pages[0], 'brandTamil') + countToken(pages[0], 'roomTamil') === 0) {
       issues.push('the cover has no Tamil line');
+    }
+  }
+  if (middle.length > 0) {
+    for (const token of COPY_TOKENS) {
+      if (countToken(middleHtml, token) === 0) issues.push(`the story is missing {{${token}}}`);
+    }
+    for (const token of MATERIAL_TOKENS) {
+      if (countToken(middleHtml, token) === 0) issues.push(`the story and materials pages are missing {{${token}}}`);
+    }
+    for (const token of FACT_TOKENS) {
+      if (countToken(middleHtml, token) > 0) issues.push(`{{${token}}} belongs on the specification page, not in the middle`);
+    }
+    for (const [offset, page] of middle.entries()) {
+      if (!/photo\d+/.test(page) && !/material\dImage/.test(page)) {
+        issues.push(`page ${offset + 2} shows no photograph or material sample`);
+      }
+    }
+  }
+  if (pages.length > 0) {
+    for (const token of COPY_TOKENS) {
+      if (countToken(pages[0], token) > 0) issues.push(`{{${token}}} belongs in the story, not on the cover`);
+    }
+    const spec = pages[last];
+    if (!/\{\{drawing/.test(spec)) issues.push('the drawing is not on the specification page');
+    for (const token of FACT_TOKENS) {
+      if (countToken(spec, token) === 0) issues.push(`the specification page is missing {{${token}}}`);
+    }
+    for (const token of MATERIAL_TOKENS) {
+      if (countToken(spec, token) > 0) issues.push(`{{${token}}} belongs on the materials page, not the specification`);
+    }
+    for (const token of COPY_TOKENS) {
+      if (countToken(spec, token) > 0) issues.push(`{{${token}}} belongs in the story, not the specification`);
     }
   }
 

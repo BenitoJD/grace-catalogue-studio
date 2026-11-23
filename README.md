@@ -71,7 +71,7 @@ Files can join late too. Attach a photograph or a plan with the next sentence an
 
 ## Generated design
 
-There is no fixed template behind a brochure. When the chat finalises an order, the model writes the words and then authors the four pages itself as HTML and CSS: one reply, one complete document. The server only supplies the print box, the fonts, the assets and the facts through tokens, then checks the document before anything is printed.
+There is no fixed template behind a brochure, and no fixed length either. When the chat finalises an order, the model writes the words and then authors the pages itself as HTML and CSS: one reply, one complete document, four pages for a quiet order and up to eight when the photographs, the story and the specification need the room. The server only supplies the print box, the fonts, the assets and the facts through tokens, then checks the document before anything is printed.
 
 `POST /api/orders/:id/ai-brochure` designs and prints in one call and returns the render, the design note and the copy. The document is kept with the render, so the next chat edit changes the pages it already has instead of starting over. An optional `reference` id or an `edit` sentence steers the same call; a hand edited `copy` object wins over generated words.
 
@@ -92,7 +92,7 @@ A reference is a feeling, never a layout. The brochure designer reads its palett
 
 ![Design references](docs/screenshots/e2e/06b-reference-gallery.png)
 
-Every reference then proves itself: the preview engine prints a complete four page brochure in its spirit from one fixed sample order, using the same prompt path, the same print checks and the same renderer as a customer brochure. Only a document that passes every check earns its cover image in the gallery; anything else is retried once and left for a later run. Previews build one at a time in the background and resume after a restart, so the gallery fills with printed covers while the studio works.
+Every reference then proves itself: the preview engine prints a complete brochure in its spirit from one fixed sample order, using the same prompt path, the same print checks and the same renderer as a customer brochure. Only a document that passes every check earns its cover image in the gallery; anything else is retried once and left for a later run. Previews build one at a time in the background and resume after a restart, so the gallery fills with printed covers while the studio works.
 
 `GET /api/designs` serves the library with its build state and the preview counts. `POST /api/orders/:id/ai-brochure` accepts a `reference` id from it.
 

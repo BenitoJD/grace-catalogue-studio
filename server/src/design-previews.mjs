@@ -19,6 +19,8 @@ import {
   DESIGNER_MAX_TOKENS,
   DESIGNER_TEMPERATURE,
   DESIGNER_TRIES,
+  MAX_DESIGN_PAGES,
+  MIN_DESIGN_PAGES,
   buildDesignerMessages,
   buildDesignerRepairMessages,
   compileGenerativeBrochure,
@@ -199,7 +201,7 @@ export async function buildPreviewForDesign(deps, design) {
 
   const renderId = newRenderId();
   const rendered = await renderer.renderHtml({ html, renderId });
-  if (!rendered || rendered.pageCount !== 4) return false;
+  if (!rendered || rendered.pageCount < MIN_DESIGN_PAGES || rendered.pageCount > MAX_DESIGN_PAGES) return false;
   const paths = previewPaths(dataDir, design.id);
   mkdirSync(paths.directory, { recursive: true });
   const rendersDir = path.join(dataDir, 'renders');
