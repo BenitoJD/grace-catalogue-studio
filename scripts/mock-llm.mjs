@@ -113,6 +113,85 @@ createServer(async (request, response) => {
     const isCatalogRequest = prompt.includes('house library of printed brochure design references');
     const isDesignRequest = prompt.includes('art director, typographer and print designer');
     const isEditRequest = prompt.includes('you edit one existing furniture order');
+    const isAssistantRequest = prompt.includes('studio assistant for jacob design studio');
+    if (isAssistantRequest) {
+      // Walk the studio tools like the real Pi loop: read the pictures, create
+      // the order, design the brochure, then answer. Edits update the order and
+      // re-design. This is deterministic and exercises the full agent loop.
+      const history = Array.isArray(body.messages) ? body.messages : [];
+      const lastUserIndex = history.map((message) => message.role).lastIndexOf('user');
+      const sinceUser = history.slice(lastUserIndex + 1);
+      const toolMessages = sinceUser.filter((message) => message.role === 'tool');
+      const textOf = (content) =>
+        typeof content === 'string'
+          ? content
+          : Array.isArray(content)
+            ? content.map((part) => (typeof part?.text === 'string' ? part.text : '')).join(' ')
+            : '';
+      const lastUser = textOf(history[lastUserIndex]?.content);
+      const isEdit = /dark walnut|edit|change the/i.test(lastUser);
+      const orderMatch = isEdit
+        ? `${JSON.stringify(history)}`.match(/order already exists: ([A-Za-z0-9-]+)/i)
+        : null;
+      const orderId = orderMatch ? orderMatch[1] : 'order';
+      const call = (name, args) => ({
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          {
+            id: `call-${name}-${toolMessages.length}`,
+            type: 'function',
+            function: { name, arguments: JSON.stringify(args) },
+          },
+        ],
+      });
+      const final = (text) => ({ role: 'assistant', content: text });
+      let message;
+      if (isEdit) {
+        if (toolMessages.length === 0) {
+          message = call('update_order', {
+            orderId,
+            changes: { finishExt: 'Dark walnut laminate outside' },
+            designDirection: 'warmer walnut front',
+          });
+        } else if (toolMessages.length === 1) {
+          message = call('design_brochure', { orderId, direction: 'warmer walnut front' });
+        } else {
+          message = final('I changed the shutters and updated the brochure.');
+        }
+      } else if (toolMessages.length === 0) {
+        message = call('read_pictures', {});
+      } else if (toolMessages.length === 1) {
+        message = call('create_order', {
+          customerName: 'Anita Kumar',
+          title: 'Master Bedroom Wardrobe',
+          room: 'Master Bedroom',
+        });
+      } else if (toolMessages.length === 2) {
+        const created = toolMessages[1]?.content ?? '';
+        const idMatch = created.match(/"orderId":"([A-Za-z0-9-]+)"/);
+        message = call('design_brochure', { orderId: idMatch ? idMatch[1] : 'order' });
+      } else {
+        message = final('Order created and the brochure is ready.');
+      }
+      setTimeout(() => {
+        send(response, 200, {
+          id: 'chatcmpl-mock-assistant',
+          object: 'chat.completion',
+          model: body.model ?? 'mock-flash',
+          choices: [
+            {
+              index: 0,
+              message,
+              finish_reason: toolMessages.length === 0 ? 'tool_calls' : message.tool_calls ? 'tool_calls' : 'stop',
+            },
+          ],
+          usage: { prompt_tokens: 120, completion_tokens: 40, total_tokens: 160 },
+        });
+      }, 10);
+      return;
+    }
+
     const isIntakeRequest = prompt.includes('order intake assistant');
     const isCopyRequest = !isIntakeRequest && !isCatalogRequest && !isDesignRequest && prompt.includes('headline') && prompt.includes('json');
 

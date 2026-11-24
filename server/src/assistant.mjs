@@ -64,6 +64,11 @@ const TOOL_SPECS = [
         room: { type: 'string' },
         brief: { type: 'string' },
         designDirection: { type: 'string' },
+        changes: {
+          type: 'object',
+          description: 'Any other order text field to change, for example finishExt or handle.',
+          additionalProperties: { type: 'string' },
+        },
       },
       required: ['orderId'],
       additionalProperties: false,
@@ -136,9 +141,20 @@ export function createStudioTools({ callApi, attachments, state }) {
         if (attachments.length === 0) {
           return textResult({ pictures: [], note: 'No pictures are attached to this chat.' });
         }
-        const review = await call('/api/analyze-images', {
-          images: attachments.slice(0, 12).map((file) => file.url),
+        // Only pictures and PDF pages go to the reader; plans and text files
+        // stay as attachments.
+        const pictures = attachments.filter((file) => {
+          const type = String(file.contentType ?? '');
+          const url = String(file.url ?? '');
+          return type.startsWith('image/') || type === 'application/pdf' || /\.(png|jpe?g|pdf)$/i.test(url);
         });
+        if (pictures.length === 0) {
+          return textResult({ pictures: [], note: 'No pictures are attached to this chat.' });
+        }
+        const review = await call('/api/analyze-images', {
+          images: pictures.slice(0, 12).map((file) => file.url),
+        });
+        state.review = review?.photos ?? [];
         return textResult({
           pictures: (review?.photos ?? []).map((photo) => ({
             name: photo.label ?? photo.name,
@@ -178,6 +194,9 @@ export function createStudioTools({ callApi, attachments, state }) {
         const patch = {};
         for (const key of ['title', 'room', 'brief', 'designDirection']) {
           if (typeof params[key] === 'string' && params[key].trim() !== '') patch[key] = params[key].trim();
+        }
+        for (const [key, value] of Object.entries(params.changes ?? {})) {
+          if (typeof value === 'string' && value.trim() !== '') patch[key] = value.trim();
         }
         const order = await call(`/api/orders/${encodeURIComponent(orderId)}`, patch, 'PATCH');
         state.order = order;
@@ -444,7 +463,7 @@ export async function runAssistantTurn({
     streamFn = runtime.streamFn;
     apiKey = runtime.apiKey;
   }
-  const state = { orderId, orderNo: null, order: null, render: null, toolCalls: [] };
+  const state = { orderId, orderNo: null, order: null, render: null, review: null, toolCalls: [] };
   const tools = createStudioTools({ callApi, attachments, state });
   const history = agentHistory(messages);
   const last = history.pop();
@@ -508,6 +527,7 @@ export async function runAssistantTurn({
         orderNo: state.orderNo,
         order: state.order,
         render: state.render,
+        review: state.review,
         toolCalls: state.toolCalls,
         transcript,
         usage: usageOf(agent),
@@ -544,6 +564,7 @@ export async function runAssistantTurn({
     orderNo: state.orderNo,
     order: state.order,
     render: state.render,
+    review: state.review,
     toolCalls: state.toolCalls,
     transcript: transcriptOf(agent),
     usage: usageOf(agent),

@@ -626,10 +626,25 @@ export default function ChatScreen() {
       at: stamp(),
     };
     const render = result.render ?? null;
+    const reviewBubble: Bubble[] =
+      Array.isArray(result.review) && result.review.length > 0
+        ? [
+            {
+              id: nextId(),
+              role: 'assistant' as const,
+              kind: 'review' as const,
+              content:
+                'Before I design, here is what I would magnify. Each circle is a magnified cut of your picture, named with the colour inside it.',
+              at: stamp(),
+              photos: result.review,
+            },
+          ]
+        : [];
     setBubbles((current) => [
       ...current,
       userBubble,
       assistantBubble,
+      ...reviewBubble,
       ...(render && nextOrderId
         ? [
             {
@@ -667,231 +682,25 @@ export default function ChatScreen() {
     const content = input.trim();
     if ((content === '' && pendingFiles.length === 0) || sending || cooking || skipping || uploadingFiles) return;
     if (sendingRef.current) return;
-    if (assistantEnabled && !assistantBroken.current) {
-      try {
-        await sendWithAssistant();
-        return;
-      } catch {
-        // The agent is unavailable or the model cannot call tools: keep the
-        // chat working with the fixed flow for the rest of this session.
-        assistantBroken.current = true;
-        setAssistantEnabled(false);
-      }
-    }
-    // Once an order exists, the same chat edits it. Every sentence is applied to
-    // that order's design or copy, then only that order is re-rendered.
-    if (orderCreated && activeOrderId) {
-      sendingRef.current = true;
-      const previousInput = input;
-      const newFiles = pendingFiles;
-      const at = stamp();
+    // Pi is the only chat path.
+    try {
+      await sendWithAssistant();
+    } catch (error) {
+      assistantBroken.current = true;
       setBubbles((current) => [
         ...current,
         {
           id: nextId(),
-          role: 'user',
+          role: 'assistant',
           kind: 'text',
-          content,
-          at,
-          ...(newFiles.length > 0 ? { attachments: newFiles } : {}),
+          content: errorMessage(error, 'The studio assistant could not answer. Try again.'),
+          at: stamp(),
+          failed: true,
         },
       ]);
-      setInput('');
-      setInputHeight(38);
-      setPendingFiles([]);
-      setSending(true);
-      try {
-        const edited = await api.editOrder(activeOrderId, content, newFiles);
-        let render = null;
-        if (edited.rerender) {
-          const result = await api.aiBrochure(activeOrderId, {
-            edit:
-              content !== ''
-                ? content
-                : 'New files were attached to this order. Use the photographs where they suit the brochure.',
-            ...(edited.copy ? { copy: edited.copy } : {}),
-          });
-          render = result.render;
-        }
-        setBubbles((current) => [
-          ...current,
-          { id: nextId(), role: 'assistant', kind: 'text', content: edited.reply, at: stamp() },
-          ...(render
-            ? [{ id: nextId(), role: 'assistant' as const, kind: 'brochure' as const, content: 'Updated brochure.', at: stamp(), orderId: activeOrderId, orderNo: activeOrderNo, render }]
-            : []),
-        ]);
-      } catch (error) {
-        setBubbles((current) => [...current, { id: nextId(), role: 'assistant', kind: 'text', content: errorMessage(error, 'I could not apply that change. Try again.'), at: stamp(), failed: true }]);
-        setInput(previousInput);
-        setPendingFiles(newFiles);
-      } finally {
-        sendingRef.current = false;
-        setSending(false);
-      }
-      return;
     }
-    // The client has just answered the picture review. That answer is the
-    // direction for the designer, and only now is the order made.
-    if (awaitingReview && content !== '') {
-      sendingRef.current = true;
-      const at = stamp();
-      setBubbles((current) => [
-        ...current,
-        { id: nextId(), role: 'user', kind: 'text', content, at },
-      ]);
-      setInput('');
-      setInputHeight(38);
-      setAwaitingReview(false);
-      setSending(true);
-      try {
-        await createOrderFor(reviewDraft.current ?? draft, orderFiles, content);
-      } catch (error) {
-        setBubbles((current) => [
-          ...current,
-          {
-            id: nextId(),
-            role: 'assistant',
-            kind: 'text',
-            content: errorMessage(error, 'I could not create the order. Try again.'),
-            at: stamp(),
-            failed: true,
-          },
-        ]);
-        setInput(content);
-        setAwaitingReview(true);
-      } finally {
-        sendingRef.current = false;
-        setSending(false);
-      }
-      return;
-    }
-
-    sendingRef.current = true;
-    const previousInput = input;
-    const previousFiles = pendingFiles;
-    const previousOrderFiles = orderFiles;
-    const previousHeight = inputHeight;
-
-    // A finished order closes the chat. The next message starts a new one, so
-    // one conversation never mixes two orders.
-    const startingFresh = orderCreated;
-    const base: Bubble[] = startingFresh
-      ? [{ id: nextId(), role: 'assistant', kind: 'text', content: WELCOME, at: stamp() }]
-      : bubbles;
-    if (startingFresh) {
-      setDraft({});
-      setMissing([]);
-      setReady(false);
-      setOrderCreated(false);
-    setAwaitingReview(false);
-    setAssistantSessionId(null);
-    reviewDraft.current = null;
-      setCreateFailed(false);
-    }
-
-    const attached = pendingFiles;
-    const textContent =
-      content !== ''
-        ? content
-        : `Attached: ${attached.map((file) => file.name).join(', ')}`;
-    const userBubble: Bubble = {
-      id: nextId(),
-      role: 'user',
-      kind: 'text',
-      content: textContent,
-      at: stamp(),
-      attachments: attached.length > 0 ? attached : undefined,
-    };
-    const nextBubbles = [...base, userBubble];
-    const allFiles = startingFresh ? attached : [...orderFiles, ...attached];
-    if (startingFresh) previousBubbleCount.current = 1;
-    setBubbles(nextBubbles);
-    setInput('');
-    setInputHeight(38);
-    setPendingFiles([]);
-    setOrderFiles(allFiles);
-    atBottomRef.current = true;
-    setAtBottom(true);
-    setSending(true);
-    try {
-      const messages = nextBubbles
-        .filter((bubble) => bubble.kind === 'text')
-        .map((bubble) => ({ role: bubble.role, content: bubble.content }));
-      const result = await api.intake(
-        messages,
-        startingFresh ? {} : draft,
-        allFiles.length > 0 ? allFiles : undefined
-      );
-      setDraft(result.draft);
-      setMissing(result.missing);
-      setReady(result.ready);
-      setBubbles((current) => [
-        ...current,
-        { id: nextId(), role: 'assistant', kind: 'text', content: result.reply, at: stamp() },
-      ]);
-      if (result.ready) {
-        // Pictures and PDF sheets both join the review; a PDF is shown through
-        // its first page, which the server rasterises.
-        const pictures = allFiles.filter((file) => {
-          const type = String(file.contentType ?? '');
-          return type.startsWith('image/') || type === 'application/pdf' || /\.pdf$/i.test(file.url);
-        });
-        if (pictures.length > 0) {
-          try {
-            const review = await api.analyzeImages(pictures.map((file) => file.url));
-            reviewDraft.current = result.draft;
-            setAwaitingReview(true);
-            if (review.photos.length > 0) {
-              setBubbles((current) => [
-                ...current,
-                {
-                  id: nextId(),
-                  role: 'assistant' as const,
-                  kind: 'review' as const,
-                  content:
-                    'Before I design, here is what I would magnify. Each circle is a magnified cut of your picture, named with the colour inside it.',
-                  at: stamp(),
-                  photos: review.photos,
-                },
-              ]);
-            }
-            return;
-          } catch {
-            // A picture that cannot be read must not stop the order.
-          }
-        }
-        await createOrderFor(result.draft, allFiles);
-      }
-    } catch (error) {
-      // A failed send must not eat the message. Take the user bubble back out
-      // of the thread, put the text and attachments back in the composer, and
-      // explain what happened.
-      setBubbles((current) =>
-        current
-          .filter((bubble) => bubble.id !== userBubble.id)
-          .concat([
-            {
-              id: nextId(),
-              role: 'assistant',
-              kind: 'text',
-              content: `That message did not go through, so nothing was saved. It is back in the box. Check the model in Settings, then send again.${(() => {
-                const detail = errorMessage(error, '');
-                return detail ? `\n\n${detail}` : '';
-              })()}`,
-              at: stamp(),
-              failed: true,
-            },
-          ])
-      );
-      setInput(previousInput);
-      setInputHeight(previousHeight);
-      setPendingFiles(previousFiles);
-      setOrderFiles(previousOrderFiles);
-    } finally {
-      sendingRef.current = false;
-      setSending(false);
-    }
-  }, [activeOrderId, activeOrderNo, assistantEnabled, awaitingReview, bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sendWithAssistant, sending, skipping, uploadingFiles]);
+    return;
+  }, [cooking, input, pendingFiles.length, sendWithAssistant, sending, skipping, uploadingFiles]);
 
   const skipMissing = useCallback(async () => {
     if (!missing.length || sending || cooking || skipping) return;
@@ -1033,7 +842,7 @@ export default function ChatScreen() {
                 <Text style={styles.avatarLabel}>JD</Text>
               </View>
               <View style={[styles.bubble, styles.bubbleAssistant]}>
-                <TypingDots label={assistantEnabled && sending ? 'Working on the brochure' : cooking ? 'Creating the order' : skipping ? 'Marking it to be confirmed' : 'Reading'} />
+                <TypingDots label={sending ? 'Working on the brochure' : cooking ? 'Creating the order' : skipping ? 'Marking it to be confirmed' : 'Reading'} />
               </View>
             </View>
           ) : null}

@@ -1616,6 +1616,7 @@ export function createApp(options) {
         orderId: finalOrderId,
         orderNo: result.orderNo ?? order?.orderNo ?? null,
         render: result.render ?? null,
+        review: result.review ?? null,
         toolCalls: Array.isArray(result.toolCalls) ? result.toolCalls : [],
         usage: result.usage ?? null,
         failed: result.failed === true,

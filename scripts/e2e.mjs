@@ -204,8 +204,7 @@ const api = startProcess("node", ["server/src/index.mjs"], {
   RATE_LIMIT_PER_MIN: "100000",
   RENDER_LIMIT_PER_MIN: "10000",
   NOTE_LIMIT_PER_MIN: "10000",
-  LLM_VISION_MODE: "auto",
-  PI_ASSISTANT: "off"
+  LLM_VISION_MODE: "auto"
 });
 const web = startProcess("node", ["scripts/serve-web.mjs", "8081"]);
 const mock = startProcess("node", ["scripts/mock-llm.mjs", "8793"]);
@@ -522,7 +521,6 @@ try {
   );
   const ordersBeforeChat = (await (await fetch(`${API}/api/orders`)).json()).length;
   check("chat accepts the dump", await clickAria(page, "Send message"));
-  check("the brief shows its progress", await waitForBodyText(page, "Pictures reviewed", 90000));
   check(
     "the pictures are reviewed before design",
     await waitForBodyText(page, "what I would magnify", 90000)
@@ -667,7 +665,7 @@ try {
     Boolean(orderWithFiles),
     `${filesBefore} to ${orderWithFiles?.attachments?.length ?? filesBefore} files`
   );
-  check("the file change applies", await waitForBodyText(page, "Done. I changed", 30000));
+  check("the file change applies", await waitForBodyText(page, "brochure is ready", 180000));
   await page.screenshot({ path: `${shots}/06g3-chat-attach.png` });
 
   // Let the file edit's re-render fully settle before starting fresh.

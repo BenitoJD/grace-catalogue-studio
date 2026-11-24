@@ -179,6 +179,7 @@ export interface AssistantReply {
   orderId?: string | null;
   orderNo?: string | null;
   render?: Render | null;
+  review?: ReviewPhoto[] | null;
   toolCalls?: { name: string; error?: boolean }[];
   usage?: { input: number; output: number; totalTokens: number } | null;
   failed?: boolean;
