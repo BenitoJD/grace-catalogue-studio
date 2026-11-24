@@ -156,7 +156,17 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
           images: pictures.map((file) => file.url),
         });
         state.review = review?.photos ?? [];
+        let studioMarks = [];
+        if (state.orderId) {
+          try {
+            const order = await call(`/api/orders/${encodeURIComponent(state.orderId)}`);
+            studioMarks = Array.isArray(order?.annotations) ? order.annotations : [];
+          } catch {
+            studioMarks = [];
+          }
+        }
         return textResult({
+          studioMarks,
           pictures: (review?.photos ?? []).map((photo) => ({
             name: photo.label ?? photo.name,
             reading: photo.insight ?? null,

@@ -1693,6 +1693,86 @@ export function createApp(options) {
     }
   });
 
+  // Every page of every picture or PDF attachment, in order, for the viewer.
+  async function orderPageFiles(order) {
+    const mediaDir = path.join(dataDir, 'media');
+    const pages = [];
+    for (const file of order.attachments ?? []) {
+      const url = String(file.url ?? '');
+      if (!/^\/media\/[A-Za-z0-9._-]+$/.test(url)) continue;
+      const mediaFile = path.join(mediaDir, path.basename(url));
+      if (!existsSync(mediaFile)) continue;
+      let signature = Buffer.alloc(0);
+      try {
+        signature = readFileSync(mediaFile).subarray(0, 8);
+      } catch {
+        signature = Buffer.alloc(0);
+      }
+      const isPdfFile =
+        signature.subarray(0, 4).toString('ascii') === '%PDF' || /\.pdf$/i.test(url);
+      const isImageFile =
+        (signature[0] === 0x89 && signature[1] === 0x50) ||
+        (signature[0] === 0xff && signature[1] === 0xd8) ||
+        /\.(png|jpe?g|webp)$/i.test(url);
+      if (isPdfFile) {
+        try {
+          const pageFiles = await ensurePdfPages(dataDir, mediaDir, url, pdftoppmBin);
+          pageFiles.forEach((pageFile, pageIndex) => {
+            pages.push({
+              filePath: pageFile,
+              name: file.name ?? path.basename(url),
+              label: `${file.name ?? 'Sheet'} page ${pageIndex + 1}`,
+              pageIndex,
+              pageCount: pageFiles.length,
+            });
+          });
+        } catch (error) {
+          logger.warn('A PDF could not be unpacked for the viewer.', {
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+        continue;
+      }
+      if (!isImageFile) continue;
+      pages.push({
+        filePath: mediaFile,
+        name: file.name ?? path.basename(url),
+        label: file.name ?? path.basename(url),
+        pageIndex: 0,
+        pageCount: 1,
+      });
+    }
+    return pages;
+  }
+
+  app.get('/api/orders/:id/pages', async (c) => {
+    const order = getOrder(db, c.req.param('id'));
+    if (!order) return fail(c, 404, 'Order not found.');
+    const files = await orderPageFiles(order);
+    return c.json({
+      pages: files.map((page, index) => ({
+        url: page.filePath.split('/').pop(),
+        pageUrl: `/api/orders/${order.id}/pages/${index}/image`,
+        name: page.name,
+        label: page.label,
+        pageIndex: index,
+        pageCount: files.length,
+      })),
+      annotations: order.annotations ?? [],
+    });
+  });
+
+  app.get('/api/orders/:id/pages/:index/image', async (c) => {
+    const order = getOrder(db, c.req.param('id'));
+    if (!order) return fail(c, 404, 'Order not found.');
+    const files = await orderPageFiles(order);
+    const index = Number.parseInt(c.req.param('index'), 10);
+    const page = files[index];
+    if (!page) return fail(c, 404, 'Page not found.');
+    const type = /\.png$/i.test(page.filePath) ? 'image/png' : 'image/jpeg';
+    return sendFile(c, page.filePath, type, { 'Cache-Control': 'private, max-age=300' });
+  });
+
   // Reopen the conversation for an order in History. Returns the stored Pi
   // session and the plain text messages, so the chat can be rehydrated.
   app.get('/api/orders/:id/assistant-session', (c) => {

@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -193,6 +193,14 @@ function OrderCard({ order, documents }: { order: Order; documents: Render[] }) 
         }
         style={({ pressed }) => [styles.openRow, pressed && styles.openRowPressed]}>
         <Text style={styles.openRowLabel}>Continue chat</Text>
+        <Text style={styles.openRowChevron}>›</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open the pages workspace for ${order.orderNo}`}
+        onPress={() => router.push(`/workspace/${order.id}` as Href)}
+        style={({ pressed }) => [styles.openRow, pressed && styles.openRowPressed]}>
+        <Text style={styles.openRowLabel}>Pages workspace</Text>
         <Text style={styles.openRowChevron}>›</Text>
       </Pressable>
       <Pressable

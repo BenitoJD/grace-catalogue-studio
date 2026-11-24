@@ -61,6 +61,7 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 - **Conversation state**: every chat has a Pi session stored in SQLite. The full transcript, including tool calls and tool results, is restored on the next turn and across restarts, so edits continue the same order instead of starting over.
 - **Guards**: one turn at a time per chat, one order per chat, the designer can only run for an existing order, and the model cannot create a second order by accident.
 - **Failures keep the work**: if a turn fails or runs long after the order is created, the order and any render are returned and saved, with a reply saying what happened. Nothing is thrown away and no duplicate order is made.
+- **Pages workspace**: a split screen with the document at 75 percent and the studio desk at 25 percent. It opens every picture and every PDF page in the app, with a page strip, zoom, marks pinned on the page, a live loupe preview, a marks panel with swatches and codes, and the same Pi conversation beside it. No external PDF viewer.
 - **Studio marks**: on any picture review the studio can tap the exact area, name the detail and its colour name and code. Marks are saved on the order and become authoritative loupe specifications for the designer, which must print their exact name and code.
 - **Live progress**: while a turn runs, the server publishes each stage. The chat shows the current step (reading the pictures, creating the order, designing the pages, checking the print) with the elapsed seconds and a trail of the steps already done.
 - **Only path**: the chat is the agent. There is no second deterministic chat flow. If a turn fails, the chat reports the failure and keeps any order or render that was already made; the next message continues the same session.
@@ -70,6 +71,8 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 - **Tests**: the browser suite runs the real Pi loop against a deterministic mock model that walks the studio tools, so the agent path itself is under test. The server suite also drives the agent offline with Pi's faux provider.
 
 ![The Pi agent chat, from picture to printed brochure](docs/screenshots/pi-chat.png)
+
+![The pages workspace: document, marks and chat in one screen](docs/screenshots/workspace.png)
 
 ## Chat first
 
@@ -173,9 +176,9 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 133 server tests
+npm test          # server suite
 npm run verify    # black box smoke test
-npm run e2e       # 96 browser checks
+npm run e2e       # 99 browser checks
 npm run typecheck
 npm run lint
 ```

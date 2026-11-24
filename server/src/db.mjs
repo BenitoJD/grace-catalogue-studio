@@ -316,15 +316,6 @@ export const MIGRATIONS = Object.freeze([
     },
   },
   {
-    version: 13,
-    name: 'studio marked details on orders',
-    up(db) {
-      // Areas the studio marked on the pictures, with the colour they want
-      // printed for each one.
-      addColumnIfMissing(db, 'orders', 'annotations_json', 'TEXT');
-    },
-  },
-  {
     version: 12,
     name: 'pi assistant sessions',
     up(db) {
@@ -339,6 +330,15 @@ export const MIGRATIONS = Object.freeze([
         );
       `);
       db.exec('CREATE INDEX IF NOT EXISTS assistant_sessions_order ON assistant_sessions(order_id);');
+    },
+  },
+  {
+    version: 13,
+    name: 'studio marked details on orders',
+    up(db) {
+      // Areas the studio marked on the pictures, with the colour they want
+      // printed for each one.
+      addColumnIfMissing(db, 'orders', 'annotations_json', 'TEXT');
     },
   },
 ]);
@@ -424,7 +424,7 @@ export function schemaVersion(db) {
  */
 export function migrate(db) {
   let current = schemaVersion(db);
-  for (const migration of MIGRATIONS) {
+  for (const migration of [...MIGRATIONS].sort((left, right) => left.version - right.version)) {
     if (migration.version <= current) continue;
     // SQLite can not relax a NOT NULL constraint in place. A migration that
     // rebuilds a table sets foreignKeys: 'off'; the pragma is a no-op inside a

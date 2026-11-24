@@ -442,6 +442,20 @@ export const api = {
     });
   },
 
+  orderPages(orderId: string): Promise<{
+    pages: {
+      url: string;
+      pageUrl: string;
+      name: string;
+      label: string;
+      pageIndex: number;
+      pageCount: number;
+    }[];
+    annotations: MarkedDetail[];
+  }> {
+    return request(`/api/orders/${encodeId(orderId)}/pages`);
+  },
+
   assistantSession(orderId: string): Promise<{
     sessionId: string | null;
     messages: { role: 'user' | 'assistant'; content: string }[];

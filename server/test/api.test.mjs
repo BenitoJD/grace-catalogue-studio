@@ -42,7 +42,7 @@ import {
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { DESIGNER_TRIES, parseDesignerReply, themeFromPalettes } from '../src/ai-brochure.mjs';
+import { DESIGNER_TRIES, buildDesignerMessages, parseDesignerReply, themeFromPalettes } from '../src/ai-brochure.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -4678,6 +4678,72 @@ test('a second Pi turn restores the transcript and designs the same order', { ti
   });
   assert.equal(second.render.pageCount, 4);
   assert.ok(calls.includes('/api/orders/order-1/ai-brochure'));
+});
+
+test('order pages endpoint lists every page and the marks', async () => {
+  const tinyPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const upload = await (await postJson(`${baseUrl}/api/media`, { contentType: 'image/png', name: 'page-one.png', data: tinyPng })).json();
+  const created = await (await postJson(`${baseUrl}/api/orders`, {
+    ...DEMO_ORDER,
+    customerId,
+    attachments: [upload],
+  })).json();
+  await patchJson(`${baseUrl}/api/orders/${created.id}`, {
+    annotations: [{ photo: 'photo1', x: 40, y: 60, label: 'Handle', colourName: 'Brass', colourHex: '#B98A55' }],
+  });
+  const response = await (await fetch(`${baseUrl}/api/orders/${created.id}/pages`)).json();
+  assert.equal(response.pages.length, 1);
+  assert.match(response.pages[0].pageUrl, /^\/api\/orders\/[^/]+\/pages\/0\/image$/);
+  const pageImage = await fetch(`${baseUrl}${response.pages[0].pageUrl}`);
+  assert.equal(pageImage.status, 200);
+  assert.match(pageImage.headers.get('content-type') ?? '', /image\/png/);
+  await pageImage.arrayBuffer();
+  assert.equal(response.pages[0].pageIndex, 0);
+  assert.equal(response.annotations.length, 1);
+  assert.equal(response.annotations[0].label, 'Handle');
+  const missing = await fetch(`${baseUrl}/api/orders/no-such-order/pages`);
+  assert.equal(missing.status, 404);
+});
+
+test('the designer receives studio marks and must print their name and code', () => {
+  const marked = { photo: 'photo1', x: 42, y: 61, label: 'Brass handle', colourName: 'Brass', colourHex: '#B98A55' };
+  const prompt = buildDesignerMessages({
+    order: { title: 'Wardrobe', room: 'Bedroom', customerName: 'Meena' },
+    copy: BROCHURE_COPY,
+    photos: ['photo1'],
+    annotations: [marked],
+  })
+    .map((message) => String(message.content ?? ''))
+    .join('\n');
+  assert.match(prompt, /STUDIO MARKED DETAILS/i);
+  assert.match(prompt, /Brass handle/i);
+  assert.match(prompt, /#B98A55/i);
+});
+
+test('the design route prints the studio marks it is given', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  // Other tests add pictures to the shared order; this fixture covers two.
+  db.prepare('UPDATE orders SET attachments_json = ? WHERE id = ?').run(
+    JSON.stringify(FIXTURE_ROOM_FILES),
+    orderId,
+  );
+  setOrderCopyForTest();
+  await patchJson(`${baseUrl}/api/orders/${orderId}`, {
+    annotations: [{ photo: 'photo1', x: 40, y: 60, label: 'Brass handle', colourName: 'Brass', colourHex: '#B98A55' }],
+  });
+  const designed = DESIGNER_HTML.replace('{{closing}}', '{{closing}} Brass #B98A55');
+  resetMockProvider({ reply: designed });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  const raw = await response.text();
+  assert.equal(response.status, 201, raw);
+  const prompt = lastProviderRequest().json.messages
+    .map((message) => String(message.content ?? ''))
+    .join('\n');
+  assert.match(prompt, /STUDIO MARKED DETAILS/i);
+  assert.match(prompt, /Brass handle/i);
+  await patchJson(`${baseUrl}/api/orders/${orderId}`, { annotations: [] });
 });
 
 test('studio marks are saved on the order and validated', async () => {
