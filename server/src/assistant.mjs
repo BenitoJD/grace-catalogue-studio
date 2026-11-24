@@ -6,7 +6,7 @@ import { Agent } from '@earendil-works/pi-agent-core';
 import { getCurrentTools } from '@earendil-works/pi-ai';
 import { providerHeaders } from './llm.mjs';
 
-const ASSISTANT_TIMEOUT_MS = 900_000;
+const ASSISTANT_TIMEOUT_MS = 30 * 60 * 1000;
 
 const SYSTEM_PROMPT = [
   'You are the studio assistant for Jacob Design Studio, an interior and joinery workshop in Nagercoil.',

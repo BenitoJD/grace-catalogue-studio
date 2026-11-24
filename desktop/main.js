@@ -43,9 +43,9 @@ const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 860;
 const MIN_WIDTH = 900;
 const MIN_HEIGHT = 700;
-// The Pi agent can take several minutes when it designs a brochure inside a
-// turn, so the proxy must not cut the stream at five minutes.
-const PROXY_TIMEOUT_MS = 20 * 60 * 1000;
+// A full art direction pass can take a long while, so the proxy allows a
+// complete turn instead of cutting it off.
+const PROXY_TIMEOUT_MS = 35 * 60 * 1000;
 
 // Any path starting with one of these is sent to the catalogue API.
 const PROXY_PREFIXES = Object.freeze([

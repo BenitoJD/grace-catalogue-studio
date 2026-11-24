@@ -98,6 +98,7 @@ process.env.RENDER_LIMIT_PER_MIN = '100000';
 process.env.NOTE_LIMIT_PER_MIN = '100000';
 // Vision only runs for models known to see; individual tests opt in.
 process.env.LLM_VISION_MODE = 'auto';
+process.env.DESIGN_POLISH = 'off';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
@@ -3616,6 +3617,8 @@ test('the designer is told the pictures are the source and must all be used', { 
   assert.match(prompt, /photo1detail1/);
   assert.match(prompt, /brand plate/i);
   assert.match(prompt, /contact plate/i);
+  assert.match(prompt, /PICTURE BY PICTURE/i);
+  assert.match(prompt, /details worth magnifying/i);
   assert.match(prompt, /photo1 palette:/i);
   assert.match(prompt, /#[0-9A-F]{6}/i);
 });
@@ -3705,6 +3708,19 @@ test('light text on a light page is rejected for contrast', { timeout: 240_000 }
   assert.match(body.error.message, /dark text on a light ground|light text on a dark ground/i);
 });
 
+test('a giant body logo is rejected as decoration', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const huge = DESIGNER_HTML.replace('width:11mm;', 'width:64mm;');
+  resetMockProvider({ reply: huge });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /brand mark in the body/i);
+  assert.match(body.error.message, /8 to 14 mm/i);
+});
+
 test('a brochure without the brand mark is rejected', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();
@@ -3763,6 +3779,27 @@ test('a PDF page counts as a picture that must be used', { timeout: 240_000 }, a
   assert.equal(missing.status, 502);
   const body = await missing.json();
   assert.match(body.error.message, /photo2/i);
+});
+
+test('the art director pass refines a valid brochure', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  resetMockProvider({ replies: [DESIGNER_HTML, DESIGNER_HTML] });
+  const before = mockProviderState.requests.length;
+  process.env.DESIGN_POLISH = 'on';
+  try {
+    const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+    const raw = await response.text();
+    assert.equal(response.status, 201, raw);
+    assert.equal(mockProviderState.requests.length, before + 2, 'designer plus art director');
+    const prompt = mockProviderState.requests.at(-1).json.messages
+      .map((message) => String(message.content ?? ''))
+      .join('\n');
+    assert.match(prompt, /Fortune 500 showroom quality/i, 'the polish pass asks for the top tier');
+  } finally {
+    process.env.DESIGN_POLISH = 'off';
+  }
 });
 
 test('an unusable design is retried once and then fails cleanly', { timeout: 120_000 }, async () => {

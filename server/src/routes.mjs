@@ -54,6 +54,7 @@ import {
   DESIGNER_TRIES,
   buildDesignerMessages,
   buildDesignerRepairMessages,
+  buildPolishMessages,
   compileGenerativeBrochure,
   samplePhotoPlates,
   designLabel,
@@ -315,14 +316,15 @@ async function pictureReadingFor(
   } catch {
     paths = [];
   }
-  const insight = visionEnabled(config)
-    ? (await readPicturesWithVision({
+  const visionInsights = visionEnabled(config)
+    ? await readPicturesWithVision({
         config,
         requestChat,
         filePaths: paths.slice(0, 4),
         logger,
-      }))?.[0] ?? null
+      })
     : null;
+  const insight = visionInsights?.[0] ?? null;
   if (insight) {
     const summary = insight.summary || `a ${facts.title.toLowerCase()} in the ${facts.room.toLowerCase()}`;
     const pieceLine = insight.piece || facts.title;
@@ -342,9 +344,31 @@ async function pictureReadingFor(
   }
 
   const colourLine = colourLineFallback(colours);
+  // The same per picture reading the designer receives, so the pages and the
+  // magnifier captions are composed from what was actually seen.
+  const photos = paths.slice(0, 6).map((filePath, index) => {
+    const analysis = analyseImage(filePath);
+    const pictureInsight = visionInsights?.[index] ?? null;
+    return {
+      photo: `photo${index + 1}`,
+      summary: pictureInsight?.summary ?? '',
+      piece: pictureInsight?.piece ?? facts.title,
+      room: pictureInsight?.room ?? facts.room,
+      colours: (pictureInsight?.colours?.length ? pictureInsight.colours : (analysis?.palette ?? []).map((swatch) => swatch.name)).slice(0, 5),
+      details: (pictureInsight?.details?.length
+        ? pictureInsight.details.map((detail) => (typeof detail === 'string' ? detail : detail?.label))
+        : (analysis?.candidates ?? []).map((candidate) => candidate.label)
+      )
+        .filter(Boolean)
+        .slice(0, 4),
+      palette: (analysis?.palette ?? []).slice(0, 4),
+      candidates: (analysis?.candidates ?? []).map((candidate) => candidate.label),
+    };
+  });
   return {
     title: facts.title,
     room: facts.room,
+    photos,
     text: `Picture reading: likely a ${facts.title.toLowerCase()} in the ${facts.room.toLowerCase()}. Colours read from the pictures: ${colourLine}.${sheetLine}`,
   };
 }
@@ -1747,10 +1771,15 @@ export function createApp(options) {
         photoShapes,
         photoPalettes,
         pictureReading: reading?.text ?? '',
+        pictureAnalysis: reading?.photos ?? [],
         previousHtml,
         editNote,
       });
+      const palettePhotos = Object.keys(photoPalettes)
+        .map((key) => Number.parseInt(key.replace('photo', ''), 10))
+        .filter((index) => Number.isInteger(index));
       let html = null;
+      let acceptedReply = '';
       let previousReply = '';
       let lastIssues = '';
       for (let attempt = 1; attempt <= DESIGNER_TRIES && !html; attempt += 1) {
@@ -1770,9 +1799,6 @@ export function createApp(options) {
         latencyMs = result.latencyMs;
         previousReply = result.content;
         try {
-          const palettePhotos = Object.keys(photoPalettes)
-            .map((key) => Number.parseInt(key.replace('photo', ''), 10))
-            .filter((index) => Number.isInteger(index));
           const designTheme = themeFromPalettes(photoPalettes);
           const document = parseDesignerReply(
             result.content,
@@ -1780,6 +1806,7 @@ export function createApp(options) {
             palettePhotos,
             designTheme,
           );
+          acceptedReply = result.content;
           html = compileGenerativeBrochure({
             order,
             materials: listMaterials(db),
@@ -1801,6 +1828,46 @@ export function createApp(options) {
           });
         }
       }
+      if (html && acceptedReply !== '' && String(process.env.DESIGN_POLISH ?? 'on').toLowerCase() !== 'off') {
+        try {
+          const polished = await requestChat({
+            provider: config.provider,
+            endpoint: config.endpoint,
+            model: config.model,
+            apiKey: config.apiKey,
+            messages: buildPolishMessages({ html: acceptedReply }),
+            maxTokens: DESIGNER_MAX_TOKENS,
+            temperature: 0.5,
+            timeoutMs: 300_000,
+          });
+          const polishedTheme = themeFromPalettes(photoPalettes);
+          const document = parseDesignerReply(
+            polished.content,
+            attached.length,
+            palettePhotos,
+            polishedTheme,
+          );
+          html = compileGenerativeBrochure({
+            order,
+            materials: listMaterials(db),
+            templatesDir,
+            dataDir,
+            attachmentImages: attached,
+            photoPalettes,
+            photoDetails,
+            copy,
+            pages: document.pages,
+            styles: document.styles,
+          });
+          logger.info('The art director pass refined the brochure.');
+        } catch (error) {
+          // A polish pass must never lose a valid document.
+          logger.warn('The art director pass was skipped.', {
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
       if (!html) {
         throw new LlmError(`The model could not produce a printable brochure. ${lastIssues}`, {
           type: 'invalid_reply',

@@ -170,6 +170,18 @@ const DESIGNER_SYSTEM = [
   '- Feature callouts, as in a showroom brochure: magnify details (a handle, a grain, a colour palette, an edge) with a circular loupe. Use the same photograph enlarged: background-size 300% to 420%, background-position set to the detail, a thin ring, a short leader line and a small caption naming the detail. Point the loupe at the joinery: a handle, a shutter edge, a panel joint, an edge band, a shelf line, a change of finish. Never magnify the floor, the ceiling, a fan, a light fitting or a plain wall. Show one loupe per named detail and never a loupe without a caption. Every caption names the colour inside that loupe, using the photograph colour names, for example Walnut, the handle. The studio will name the details; if it has not, choose the details the photographs make obvious, and let the loupe show a named colour.',
   '- When the studio asks for a colour palette callout, print the palette strip or its four chips beside a loupe of the pictured detail, with the mood name underneath.',
   '',
+  'THE QUALITY BAR',
+  'This must look like the printed book a Fortune 500 automotive or luxury interiors brand hands to a customer: art directed, composed, quiet, confident. If a page could have come from a Canva template, a restaurant menu or a website, it is wrong.',
+  'Use a real editorial grid: one 12 column grid with a consistent 18 mm outer margin and an 8 mm gutter, and align every element to it. Set a type scale and keep it: cover display 44 to 64 pt, section titles 20 to 26 pt, body 8.4 to 9.5 pt with 1.55 line height, captions 6.4 to 7 pt with 0.2 em tracking, folio 6.4 pt.',
+  'Give every page a clear job and a different composition. Vary full bleed photograph pages, a two thirds split page, a quiet type page, a colour plate page and the magnifier spread. Never repeat the same arrangement twice in one document.',
+  'The cover is a designed photograph, not a template: full bleed image or a strong 2:3 split, an oversized title reacting to the image, the brand plate placed with intent, and nothing centered by default. Use a kicker, a hairline and one line of quiet information. No logo, title, photo and footer stack.',
+  'Treat typography like a brand book: one display face, one text face, real hierarchy, generous leading, ragged right body, small caps labels with wide tracking, oversized folio numbers, and no more than three type sizes on a page.',
+  'Compose with negative space, hairlines and the palette. Only three colour families on a page. Gold is a one point rule, a numeral or a motif, never a fill. No gradients, no drop shadows, no rounded cards, no badges, no clip art icons, no emoji, no chevrons, no buttons.',
+  'Photographs are the hero: crop with intent, let them bleed, and use a solid scrim or band for any words that sit on them. Never make a photograph small and polite unless the page is deliberately quiet.',
+  'Magnifier spread: the loupe is a designed object, not a sticker. Place it on a large photograph, align it to the grid, connect it with a hairline leader, set the caption in small caps naming the detail and its colour name and code, and leave generous space around it.',
+  'Colour page: treat the palette like paint chips in an automotive book. Strips at full measure, chips aligned in a row on the grid, names in small caps, codes small and quiet, one line of mood copy. No card frames and no shadows.',
+  'The closing page is a quiet exhale: brand plate, contact plate, one line of thanks, a motif if it belongs. Nothing else.',
+  '',
   'DESIGN RULES',
   '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',
   '- One dominant ground, one ink, one accent. Gold is a line, a number or a motif, never a large fill. A deep colour may carry a band or a whole page. Never set body text in gold on cream.',
@@ -181,6 +193,7 @@ const DESIGNER_SYSTEM = [
   '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
   '- Colour strips are images, not pale samples: frame each one with a hairline rule or a keyline so it reads as a colour plate.',
   '- Tamil is set tight and whole: never letter-space, uppercase or small-cap a Tamil line, and never set it below 7.5 pt. Keep Tamil in a line of its own.',
+  '- The mark in the body is a small quiet sign, 8 to 14 mm wide, set in a corner or a footer, never a large graphic, never a watermark and never behind or over a title. Large marks belong only on the cover and closing plates.',
   '- Ornament once or twice in the whole document, at a corner or a rule: a jaali strip along one edge, a lotus under a title, an arch around a photograph. Never all motifs on one page.',
   '- The cover is the loudest page, the story is the warmest, and the colour pages are a quiet chromatic study.',
   '- Use the whole safe area. Every page must feel complete: fill it with photograph, type and colour at full size rather than leaving a quarter of it empty. If the content does not fill the pages, use fewer pages; if it overflows, add a page up to the limit of eight. Keep the last line of a page at least 18 mm above the trim.',
@@ -388,7 +401,7 @@ function copySummary(copy) {
   return `Headline ${headline.length} characters. Body ${words} words. Closing ${closing.length} characters.`;
 }
 
-function designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, previousHtml, editNote }) {
+function designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, previousHtml, editNote }) {
   const photoLines = photos.map((_, index) => {
     const shape = photoShapes[index] ? ` (${photoShapes[index]})` : '';
     return `photo${index + 1}${shape}`;
@@ -409,6 +422,19 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
       ? String(pictureReading).trim()
       : 'No reading supplied; take the piece, the room and the colours from the order and the palettes.',
     '',
+    'PICTURE BY PICTURE',
+    Array.isArray(pictureAnalysis) && pictureAnalysis.length > 0
+      ? pictureAnalysis
+          .map((picture) => {
+            const lines = [`${picture.photo}: ${picture.summary || `${picture.piece} in the ${picture.room}`}.`];
+            if (picture.colours?.length) lines.push(`colours seen: ${picture.colours.join(', ')}.`);
+            if (picture.details?.length) lines.push(`details worth magnifying: ${picture.details.join(', ')}.`);
+            return lines.join(' ');
+          })
+          .join('\n')
+      : 'No picture by picture analysis supplied.',
+    '',
+    'Use this reading: choose the cover photograph and the spreads from what each picture shows, and name the magnifier captions after the details listed here.',
     'COLOURS FROM THE PICTURES',
     Object.entries(photoPalettes ?? {}).length > 0
       ? Object.entries(photoPalettes)
@@ -445,8 +471,26 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
   return parts.join('\n');
 }
 
-export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], photoPalettes = {}, pictureReading = '', previousHtml = '', editNote = '' }) {
-  const user = designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, previousHtml, editNote });
+export const POLISH_SYSTEM = [
+  'You are an award winning print art director for luxury automotive and interiors brand books. You do not add content. You art direct.',
+  'You receive one brochure as complete HTML authored by a designer. Raise it to the standard of a Fortune 500 showroom book: stronger cover composition, a real grid, one clear hierarchy, better page rhythm, more confident whitespace, photographs treated as heroes, refined captions and folios, and quieter, more precise detail.',
+  'Keep every token, every required element, the page count and all print rules exactly as they are. Change only composition, typography, spacing and colour usage inside the page. Do not add new tokens, do not remove tokens, do not add external URLs, scripts or fonts, and do not change the page box.',
+  'Return the complete revised HTML document only, with no prose and no code fences. If the document is already at the standard, return it unchanged.',
+].join(' ');
+
+/** Messages for the art direction pass over the designer's own document. */
+export function buildPolishMessages({ html }) {
+  return [
+    { role: 'system', content: POLISH_SYSTEM },
+    {
+      role: 'user',
+      content: `Art direct this brochure to Fortune 500 showroom quality. Keep all tokens and constraints. Return the complete revised HTML only.\n\n${html}`,
+    },
+  ];
+}
+
+export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], photoPalettes = {}, pictureReading = '', pictureAnalysis = [], previousHtml = '', editNote = '' }) {
+  const user = designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, previousHtml, editNote });
   const messages = [
     { role: 'system', content: DESIGNER_SYSTEM },
     { role: 'user', content: user },
@@ -812,6 +856,22 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
       if (countToken(pages[last], `photo${index}Palette`) > 0) {
         issues.push('the photograph colour strip belongs on a colour page, not the closing page');
       }
+    }
+  }
+
+  // The body mark is a small quiet sign, never a giant logo behind the type.
+  for (const [index, page] of pages.entries()) {
+    for (const match of page.matchAll(/<img[^>]*src="\{\{logo(?:White)?\}\}"[^>]*>/gi)) {
+      const tag = match[0];
+      const width = /width\s*:\s*([0-9.]+)mm/i.exec(tag) ?? /width="([0-9.]+)mm"/i.exec(tag);
+      if (!width || Number.parseFloat(width[1]) > 20) {
+        issues.push(
+          `page ${index + 1}: the brand mark in the body must be 8 to 14 mm wide, never a large graphic`,
+        );
+      }
+    }
+    if (/background-image\s*:\s*url\(\s*['"]?\{\{logo(?:White)?\}\}/i.test(page)) {
+      issues.push(`page ${index + 1}: the brand mark must not be used as a background or watermark`);
     }
   }
 
