@@ -47,6 +47,17 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 
 ![The colour study with the palette strips and the loupe](docs/screenshots/palette-study.png)
 
+## The Pi agent
+
+The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK inside the server. Pi owns the agent loop, tool calling and transcript; this app supplies the studio tools and the model transport.
+
+- **Tools the agent can call**: `read_pictures` (vision reading of the attached pictures), `create_order`, `update_order`, `design_brochure` and `get_order`. Every tool calls the same validated HTTP routes the rest of the app uses, so the print contract still applies.
+- **Model transport**: one OpenAI compatible request per turn through the same provider settings as the rest of the studio, including provider headers such as the OpenCode session id. Pi's own provider SDKs are not used for requests, only its agent runtime.
+- **Conversation**: the app sends the chat history as context with the new message, plus any attachments. The agent decides whether to confirm the reading, ask for the customer name, create the order or design the brochure.
+- **Safety net**: if the agent turn fails or times out, the chat falls back to the deterministic intake and design flow for the rest of the session. The app never stops working because of the agent.
+- **Bundling**: Pi is bundled into the desktop server by esbuild, with a require shim for its dynamic imports. No Python, no sidecar, no extra runtime.
+- **Switch**: `PI_ASSISTANT=off` disables the agent and uses the fixed flow. Tests use that, and the agent loop itself is covered offline with Pi's faux provider.
+
 ## Chat first
 
 One chat is one order. It opens with the studio greeting, a date and time on every message, starter cards and a composer that takes typing, dragging or pasting.
@@ -147,7 +158,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 125 server tests
+npm test          # 127 server tests
 npm run verify    # black box smoke test
 npm run e2e       # 97 browser checks
 npm run typecheck

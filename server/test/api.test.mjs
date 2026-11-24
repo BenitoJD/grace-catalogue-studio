@@ -78,6 +78,14 @@ import {
 } from '../src/render.mjs';
 import { sweepRenders } from '../src/retention.mjs';
 import { createApp } from '../src/routes.mjs';
+import { runAssistantTurn } from '../src/assistant.mjs';
+import {
+  createModels,
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxText,
+  fauxToolCall,
+} from '@earendil-works/pi-ai';
 
 // The suite fires a large burst of requests from 127.0.0.1. Give the shared
 // app generous limits so test order cannot trip the limiter; the dedicated rate
@@ -131,6 +139,7 @@ let server;
 let baseUrl;
 let customerId;
 let orderId;
+let app;
 
 function startApp(app) {
   return new Promise((resolve, reject) => {
@@ -383,7 +392,7 @@ before(async () => {
 
   // llmEnv: {} keeps the suite independent from any LLM_* variables in the
   // environment of whoever runs the tests.
-  const app = createApp({
+  app = createApp({
     db,
     dataDir,
     templatesDir,
@@ -413,7 +422,10 @@ after(async () => {
 test('health returns ok and version', async () => {
   const response = await fetch(`${baseUrl}/health`);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { ok: true, version: '1.0.0' });
+  const body = await response.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.version, '1.0.0');
+  assert.equal(body.assistant, true, 'the chat is agent driven by default');
 });
 
 test('bootstrap returns customers, orders and materials', async () => {
@@ -4398,6 +4410,96 @@ test('the picture review is labelled by the vision model', { timeout: 240_000 },
   const request = mockProviderState.requests.at(-1).json;
   const user = request.messages.find((message) => message.role === 'user');
   assert.equal(user.content.filter((part) => part.type === 'image_url').length, 2);
+});
+
+test('the chat assistant endpoint runs a turn and returns the studio result', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  const fake = {
+    reply: 'The brochure is ready, four pages.',
+    orderId,
+    orderNo: 'JDS-2026-001',
+    render: { id: 'render-assistant', pageCount: 4, pdfUrl: '/files/render-assistant.pdf' },
+    toolCalls: [{ name: 'create_order', error: false }],
+  };
+  app.assistantRuntime.run = async (input) => {
+    assert.equal(input.attachments.length, 0);
+    assert.ok(input.messages.some((message) => message.content.includes('Wardrobe')));
+    return fake;
+  };
+  try {
+    const response = await postJson(`${baseUrl}/api/assistant`, {
+      messages: [{ role: 'user', content: 'Wardrobe for the master bedroom.' }],
+    });
+    const raw = await response.text();
+    assert.equal(response.status, 200, raw);
+    const body = JSON.parse(raw);
+    assert.equal(body.assistant, true);
+    assert.equal(body.reply, fake.reply);
+    assert.equal(body.orderNo, 'JDS-2026-001');
+    assert.equal(body.render.pageCount, 4);
+    assert.equal(body.toolCalls[0].name, 'create_order');
+    const health = await (await fetch(`${baseUrl}/health`)).json();
+    assert.equal(health.assistant, true);
+  } finally {
+    app.assistantRuntime.run = runAssistantTurn;
+  }
+});
+
+test('the Pi agent loop calls studio tools and returns the brochure', { timeout: 240_000 }, async () => {
+  const faux = fauxProvider();
+  const models = createModels();
+  models.setProvider(faux.provider);
+  faux.setResponses([
+    fauxAssistantMessage(
+      [fauxToolCall('create_order', { customerName: 'Meena', title: 'Wardrobe', room: 'Master Bedroom' })],
+      { stopReason: 'toolUse' },
+    ),
+    fauxAssistantMessage(
+      [fauxToolCall('design_brochure', { orderId: 'order-1' })],
+      { stopReason: 'toolUse' },
+    ),
+    fauxAssistantMessage([fauxText('The brochure is ready, four pages.')], { stopReason: 'stop' }),
+  ]);
+  const calls = [];
+  const json = (payload) =>
+    new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  const callApi = async (path, init) => {
+    calls.push({ path, method: init?.method ?? 'GET' });
+    if (path === '/api/customers') return json({ id: 'cust-1', name: 'Meena' });
+    if (path === '/api/orders') {
+      return json({ id: 'order-1', orderNo: 'JDS-2026-009', title: 'Wardrobe', room: 'Master Bedroom' });
+    }
+    if (path === '/api/orders/order-1/ai-brochure') {
+      return json({ render: { id: 'r1', pageCount: 4, pdfUrl: '/files/r1.pdf' } });
+    }
+    throw new Error(`Unexpected call ${path}`);
+  };
+  const result = await runAssistantTurn({
+    config: { model: 'faux', endpoint: 'http://faux.local/v1', apiKey: 'k' },
+    messages: [{ role: 'user', content: 'A wardrobe for Meena. The pictures are attached.' }],
+    attachments: [{ url: '/media/room.png', name: 'room.png', contentType: 'image/png', bytes: 12 }],
+    callApi,
+    modelsOverride: { models, model: faux.getModel(), apiKey: 'test' },
+  });
+  assert.match(result.reply, /brochure is ready/i);
+  assert.equal(result.orderNo, 'JDS-2026-009');
+  assert.equal(result.render.pageCount, 4);
+  assert.deepEqual(
+    result.toolCalls.map((call) => call.name),
+    ['create_order', 'design_brochure'],
+  );
+  assert.deepEqual(
+    calls.map((call) => `${call.method} ${call.path}`),
+    [
+      'POST /api/customers',
+      'POST /api/orders',
+      'POST /api/orders/order-1/ai-brochure',
+    ],
+  );
 });
 
 test('network egress only allows the configured model provider and loopback', async () => {

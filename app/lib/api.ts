@@ -171,6 +171,16 @@ export interface ReviewCandidate {
   name: string;
 }
 
+export interface AssistantReply {
+  assistant?: boolean;
+  reply: string;
+  order?: Order | null;
+  orderId?: string | null;
+  orderNo?: string | null;
+  render?: Render | null;
+  toolCalls?: { name: string; error?: boolean }[];
+}
+
 export interface ReviewPhoto {
   /** The uploaded file. A PDF is shown through its first page preview. */
   url: string;
@@ -272,6 +282,7 @@ export interface NewOrderInput {
 }
 
 export interface HealthResponse {
+  assistant?: boolean;
   ok: boolean;
   version: string;
 }
@@ -391,6 +402,18 @@ export const api = {
   listOrders(): Promise<Order[]> {
     return request<Order[]>('/api/orders');
   },
+  assistant(input: {
+    messages: { role: 'user' | 'assistant'; content: string }[];
+    orderId?: string;
+    attachments?: OrderAttachment[];
+  }): Promise<AssistantReply> {
+    return request<AssistantReply>('/api/assistant', {
+      method: 'POST',
+      body: input,
+      timeoutMs: 900000,
+    });
+  },
+
   analyzeImages(images: string[]): Promise<{ photos: ReviewPhoto[] }> {
     return request<{ photos: ReviewPhoto[] }>('/api/analyze-images', {
       method: 'POST',

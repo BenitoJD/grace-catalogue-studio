@@ -111,6 +111,7 @@ import { colourName, photoPalette } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
 import { detailPlatesFor } from './image-detail.mjs';
 import { readPicturesWithVision, visionEnabled } from './vision.mjs';
+import { runAssistantTurn } from './assistant.mjs';
 import {
   ensurePdfPages,
   isPdf,
@@ -640,6 +641,13 @@ export function createApp(options) {
   });
 
   const app = new Hono();
+
+  // The Pi agent loop for the studio chat. Tests replace `run` with a scripted
+  // runner; production uses the real one.
+  const assistantEnabled = String(process.env.PI_ASSISTANT ?? 'on').toLowerCase() !== 'off';
+  const assistantRuntime = { run: options.assistantRunner ?? runAssistantTurn };
+  app.assistantRuntime = assistantRuntime;
+  app.assistantEnabled = assistantEnabled;
   const lifecycle = { shuttingDown: false };
 
   /**
@@ -709,7 +717,9 @@ export function createApp(options) {
   // -------------------------------------------------------------------------
 
   // Cheap liveness check: the process is up. It touches nothing on disk.
-  app.get('/health', (c) => c.json({ ok: true, version: API_VERSION }));
+  app.get('/health', (c) =>
+    c.json({ ok: true, version: API_VERSION, assistant: assistantEnabled }),
+  );
 
   // Readiness check: the database answers and the renderer binary is usable.
   // Returns 503 with a JSON reason when either dependency is missing.
@@ -1512,6 +1522,78 @@ export function createApp(options) {
     }
   });
 
+  // One chat turn, driven by the Pi agent. The agent reads pictures, creates
+  // the order, designs the brochure and applies edits through studio tools, so
+  // the chat is conversational instead of a fixed form.
+  app.post('/api/assistant', async (c) => {
+    if (!assistantEnabled) {
+      return fail(c, 503, 'The studio assistant is switched off on this machine.');
+    }
+    const parsed = await readJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const config = resolveLlmConfig(db, llmEnv);
+    if (!config.configured) return fail(c, 400, NOT_CONFIGURED_MESSAGE);
+
+    const messages = Array.isArray(parsed.body.messages) ? parsed.body.messages : [];
+    if (messages.length === 0) return fail(c, 400, 'Field "messages" must hold the conversation.');
+    const cleanMessages = [];
+    for (const message of messages) {
+      const role = message?.role === 'assistant' ? 'assistant' : 'user';
+      const content = typeof message?.content === 'string' ? message.content.trim() : '';
+      if (content === '') continue;
+      if (content.length > 4000) return fail(c, 400, 'A chat message is too long.');
+      cleanMessages.push({ role, content });
+    }
+    if (cleanMessages.length === 0) return fail(c, 400, 'There is nothing to answer yet.');
+
+    let orderId =
+      typeof parsed.body.orderId === 'string' ? parsed.body.orderId.trim().slice(0, 100) : '';
+    if (orderId !== '' && !getOrder(db, orderId)) return fail(c, 404, 'Order not found.');
+
+    const attachments = readAttachments(parsed.body);
+    if (attachments.error) return fail(c, 400, attachments.error);
+
+    // Files sent with an existing order are attached before the agent runs.
+    if (orderId !== '' && attachments.value.length > 0) {
+      const request = new Request(`http://studio.local/api/orders/${encodeURIComponent(orderId)}/edit`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          message: 'New pictures arrived for this order. Use them in the brochure.',
+          attachments: attachments.value,
+        }),
+      });
+      const response = await app.fetch(request);
+      if (!response.ok) {
+        return fail(c, 400, 'The new files could not be attached to the order.');
+      }
+    }
+
+    const callApi = (path, init) => app.fetch(new Request(`http://studio.local${path}`, init));
+    try {
+      const result = await assistantRuntime.run({
+        config,
+        messages: cleanMessages,
+        attachments: attachments.value,
+        orderId: orderId === '' ? null : orderId,
+        callApi,
+        logger,
+      });
+      const order = result.orderId ? getOrder(db, result.orderId) : null;
+      return c.json({
+        assistant: true,
+        reply: result.reply,
+        order: order ? orderPayload(order) : null,
+        orderId: result.orderId ?? orderId ?? null,
+        orderNo: result.orderNo ?? order?.orderNo ?? null,
+        render: result.render ?? null,
+        toolCalls: Array.isArray(result.toolCalls) ? result.toolCalls : [],
+      });
+    } catch (error) {
+      return llmFailureResponse(c, error);
+    }
+  });
+
   // The model designs and typesets the brochure. No template is chosen: the
   // order, the photographs, the approved copy and the studio direction go to
   // the model, which authors the four pages itself. A chat edit carries the
@@ -1975,13 +2057,26 @@ export function createApp(options) {
       if (typeof image !== 'string' || !/^\/media\/[A-Za-z0-9._-]+$/.test(image)) {
         return fail(c, 400, 'Every picture must be an uploaded media path.');
       }
-      if (!/\.(png|jpe?g|pdf)$/i.test(image)) {
-        return fail(c, 400, 'Only PNG, JPEG and PDF pages can be reviewed.');
-      }
       const mediaFile = path.join(mediaDir, path.basename(image));
       if (!existsSync(mediaFile)) return fail(c, 404, `The picture "${image}" was not found.`);
+      // Trust the bytes, so a file sent without a useful name still works.
+      let signature = Buffer.alloc(0);
+      try {
+        signature = readFileSync(mediaFile).subarray(0, 8);
+      } catch {
+        signature = Buffer.alloc(0);
+      }
+      const isPng = signature[0] === 0x89 && signature[1] === 0x50;
+      const isJpeg = signature[0] === 0xff && signature[1] === 0xd8;
+      const isPdfFile =
+        signature.subarray(0, 4).toString('ascii') === '%PDF' || /\.pdf$/i.test(image);
+      const isImageFile =
+        isPng || isJpeg || /\.(png|jpe?g)$/i.test(image) || /^image\//i.test('');
+      if (!isPdfFile && !isImageFile) {
+        return fail(c, 400, 'Only PNG, JPEG and PDF pages can be reviewed.');
+      }
       const displayName = uploadedFileName(mediaDir, image);
-      if (/\.pdf$/i.test(image)) {
+      if (isPdfFile) {
         let pages;
         try {
           pages = await ensurePdfPages(dataDir, mediaDir, image, pdftoppmBin);

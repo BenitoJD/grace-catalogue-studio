@@ -197,6 +197,10 @@ export default function ChatScreen() {
   const [pendingFiles, setPendingFiles] = useState<OrderAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [modelReady, setModelReady] = useState<boolean | null>(null);
+  // The Pi agent drives the chat when the machine has it switched on. If a turn
+  // fails, the session falls back to the deterministic flow instead of dying.
+  const [assistantEnabled, setAssistantEnabled] = useState(false);
+  const assistantBroken = useRef(false);
   const [skipping, setSkipping] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -216,6 +220,14 @@ export default function ChatScreen() {
 
   useEffect(() => {
     let active = true;
+    api
+      .health()
+      .then((health) => {
+        if (active) setAssistantEnabled(Boolean(health.assistant) && !assistantBroken.current);
+      })
+      .catch(() => {
+        if (active) setAssistantEnabled(false);
+      });
     api
       .getLlmSettings()
       .then((settings) => {
@@ -551,10 +563,118 @@ export default function ChatScreen() {
     [history, orderFiles],
   );
 
+  // One conversational turn through the Pi agent. Everything the agent does is
+  // reflected back into the existing chat bubbles and order state.
+  const sendWithAssistant = useCallback(async () => {
+    if (assistantBroken.current) throw new Error('assistant off');
+    const content = input.trim();
+    const files = pendingFiles;
+    const history = bubbles
+      .filter((bubble) => bubble.kind === 'text')
+      .map((bubble) => ({
+        role: bubble.role,
+        content: bubble.kind === 'text' ? bubble.content : '',
+      }))
+      .filter((message) => message.content.trim() !== '');
+    const message = content !== '' ? content : `Attached: ${files.map((file) => file.name).join(', ')}`;
+    const conversation = [...history, { role: 'user' as const, content: message }];
+    const attachments = activeOrderId
+      ? files
+      : [...orderFiles.filter((file) => !files.some((next) => next.url === file.url)), ...files];
+
+    sendingRef.current = true;
+    setSending(true);
+    let result;
+    try {
+      result = await api.assistant({
+        messages: conversation,
+        ...(activeOrderId ? { orderId: activeOrderId } : {}),
+        ...(attachments.length > 0 ? { attachments } : {}),
+      });
+    } catch (error) {
+      sendingRef.current = false;
+      setSending(false);
+      throw error;
+    }
+
+    const at = stamp();
+    const reply =
+      result.reply && result.reply.trim() !== ''
+        ? result.reply.trim()
+        : result.render
+          ? 'The brochure is ready.'
+          : result.orderNo
+            ? `Order ${result.orderNo} is created.`
+            : 'Noted.';
+    const nextOrderId = result.orderId ?? result.order?.id ?? activeOrderId ?? null;
+    const nextOrderNo = result.orderNo ?? result.order?.orderNo ?? activeOrderNo;
+    const userBubble: Bubble = {
+      id: nextId(),
+      role: 'user',
+      kind: 'text',
+      content: message,
+      at,
+      ...(files.length > 0 ? { attachments: files } : {}),
+    };
+    const assistantBubble: Bubble = {
+      id: nextId(),
+      role: 'assistant',
+      kind: 'text',
+      content: reply,
+      at: stamp(),
+    };
+    const render = result.render ?? null;
+    setBubbles((current) => [
+      ...current,
+      userBubble,
+      assistantBubble,
+      ...(render && nextOrderId
+        ? [
+            {
+              id: nextId(),
+              role: 'assistant' as const,
+              kind: 'brochure' as const,
+              content: activeOrderId ? 'Updated brochure.' : 'The brochure is ready.',
+              at: stamp(),
+              orderId: nextOrderId,
+              orderNo: nextOrderNo,
+              render,
+            },
+          ]
+        : []),
+    ]);
+    setInput('');
+    setInputHeight(38);
+    setPendingFiles([]);
+    if (nextOrderId) {
+      setOrderCreated(true);
+      setActiveOrderId(nextOrderId);
+      setActiveOrderNo(nextOrderNo);
+      setOrderFiles([]);
+    } else {
+      setOrderFiles(attachments);
+    }
+    sendingRef.current = false;
+    setSending(false);
+    atBottomRef.current = true;
+    setAtBottom(true);
+  }, [activeOrderId, activeOrderNo, bubbles, input, orderFiles, pendingFiles]);
+
   const send = useCallback(async () => {
     const content = input.trim();
     if ((content === '' && pendingFiles.length === 0) || sending || cooking || skipping || uploadingFiles) return;
     if (sendingRef.current) return;
+    if (assistantEnabled && !assistantBroken.current) {
+      try {
+        await sendWithAssistant();
+        return;
+      } catch {
+        // The agent is unavailable or the model cannot call tools: keep the
+        // chat working with the fixed flow for the rest of this session.
+        assistantBroken.current = true;
+        setAssistantEnabled(false);
+      }
+    }
     // Once an order exists, the same chat edits it. Every sentence is applied to
     // that order's design or copy, then only that order is re-rendered.
     if (orderCreated && activeOrderId) {
@@ -767,7 +887,7 @@ export default function ChatScreen() {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [activeOrderId, activeOrderNo, awaitingReview, bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sending, skipping, uploadingFiles]);
+  }, [activeOrderId, activeOrderNo, assistantEnabled, awaitingReview, bubbles, cooking, createOrderFor, draft, input, inputHeight, orderCreated, orderFiles, pendingFiles, sendWithAssistant, sending, skipping, uploadingFiles]);
 
   const skipMissing = useCallback(async () => {
     if (!missing.length || sending || cooking || skipping) return;
