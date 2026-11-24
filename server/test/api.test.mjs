@@ -3593,11 +3593,10 @@ test('a longer brochure prints six pages when the content needs room', { timeout
   assert.equal(flat.includes('{{'), false, 'no token is printed');
 });
 
-test('a brochure outside four to eight pages is rejected before print', () => {
+test('a brochure under four pages is rejected before print', () => {
   const pages = (count) =>
     Array.from({ length: count }, (_, index) => `<div class="page"><p>Page ${index + 1} carries some words for the count.</p></div>`).join('\n');
-  assert.throws(() => parseDesignerReply(`<html><body>${pages(3)}</body></html>`, 2), /four to eight/);
-  assert.throws(() => parseDesignerReply(`<html><body>${pages(9)}</body></html>`, 2), /four to eight/);
+  assert.throws(() => parseDesignerReply(`<html><body>${pages(3)}</body></html>`, 2), /at least four pages/);
 });
 
 test('the designer is told the pictures are the source and must all be used', { timeout: 240_000 }, async () => {

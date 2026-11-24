@@ -128,7 +128,7 @@ const DESIGNER_SYSTEM = [
   'An A4 brochure printed on warm cream uncoated paper. The page box is 216 mm wide by 303 mm tall and includes a 3 mm bleed on every side, so the trim is 210 by 297 mm.',
   'It is picture led, quiet, warm and confident, the kind of book a customer keeps on the table. Indian taste: generous margins, large type, deep colour and muted gold against cream, Tamil and English together, ornament used like jewellery, never a poster and never a website.',
   'This brochure is about COLOUR, not measurements. There is no size, no dimension and no technical schedule in it. The photographs and their colour palettes are the subject. The model never prints a width, height, depth, shutter count or hardware list.',
-  'The brochure is as long as its content: at least four pages, at most eight. More photographs and their palettes earn more pages. Fill every page completely.',
+  'The brochure is as long as its content: at least four pages, and as many more as the content and pictures need. More photographs and their palettes earn more pages. Fill every page completely.',
   '',
   'THE PAGES, IN ORDER',
   '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
@@ -534,7 +534,7 @@ export function buildDesignerRepairMessages(messages, previous, issues) {
     content: [
       `That document was rejected by the print checks: ${problems.join('; ')}.`,
       'Reply with the complete corrected HTML document only. Keep the design and fix exactly these problems.',
-      'The body still needs four to eight <div class="page"> elements, the required tokens, and no external references.',
+      'The body still needs at least four <div class="page"> elements, as many as the content needs, the required tokens, and no external references.',
     ].join(' '),
   });
   return repaired;
@@ -648,7 +648,7 @@ function tokenList(html) {
 // up to eight. The first page is always the cover and the last always the
 // specification; everything between is story and materials.
 export const MIN_DESIGN_PAGES = 4;
-export const MAX_DESIGN_PAGES = 8;
+export const MAX_DESIGN_PAGES = 64;
 const COVER_WORD_LIMIT = 60;
 const MIDDLE_WORD_LIMIT = 280;
 const SPEC_WORD_LIMIT = 300;
@@ -680,7 +680,7 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
   const pages = pageSegments(bodyHtml);
   const issues = [];
   if (pages.length < MIN_DESIGN_PAGES || pages.length > MAX_DESIGN_PAGES) {
-    issues.push(`it has ${pages.length} pages; use four to eight pages for the content`);
+    issues.push(`it has ${pages.length} pages; use at least four pages, and as many as the content needs`);
   }
   const last = pages.length - 1;
   const middle = pages.slice(1, last);

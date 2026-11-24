@@ -62,7 +62,8 @@ export function extractLargestJpeg(buffer) {
  * Rasterise the first page of one uploaded PDF, cached by file name. Returns
  * the preview path, or throws with a readable reason when it cannot.
  */
-export const MAX_PDF_PAGES = 12;
+// No product limit on PDF pages: every page the client sends is used.
+export const MAX_PDF_PAGES = Number.POSITIVE_INFINITY;
 
 export function pdfManifestPath(dataDir, mediaUrl) {
   return path.join(pdfPreviewDir(dataDir), `${path.basename(String(mediaUrl), '.pdf')}.json`);
@@ -85,7 +86,6 @@ function listPageFiles(mediaUrl, dataDir) {
   return entries
     .filter((name) => name.startsWith(`${base}-`) && /\.(png|jpe?g)$/i.test(name))
     .sort((a, b) => pageNumber(a) - pageNumber(b))
-    .slice(0, MAX_PDF_PAGES)
     .map((name) => path.join(dir, name))
     .filter((filePath) => existsSync(filePath));
 }
@@ -113,7 +113,7 @@ export async function ensurePdfPages(dataDir, mediaDir, mediaUrl, pdftoppmBin = 
   } catch (error) {
     // No poppler on this machine: every render embedded in the PDF becomes a
     // page picture instead.
-    const embedded = extractEmbeddedJpegs(readFileSync(source)).slice(0, MAX_PDF_PAGES);
+    const embedded = extractEmbeddedJpegs(readFileSync(source));
     if (embedded.length > 0) {
       embedded.forEach((jpeg, index) => {
         writeFileSync(path.join(pdfPreviewDir(dataDir), `${base}-${index + 1}.jpg`), jpeg);

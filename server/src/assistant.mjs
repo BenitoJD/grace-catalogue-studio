@@ -153,7 +153,7 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
           return textResult({ pictures: [], note: 'No pictures are attached to this chat.' });
         }
         const review = await call('/api/analyze-images', {
-          images: pictures.slice(0, 12).map((file) => file.url),
+          images: pictures.map((file) => file.url),
         });
         state.review = review?.photos ?? [];
         return textResult({

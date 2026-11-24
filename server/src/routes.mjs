@@ -2216,7 +2216,6 @@ export function createApp(options) {
     if (!Array.isArray(images) || images.length === 0) {
       return fail(c, 400, 'Field "images" must be a list of uploaded media paths.');
     }
-    if (images.length > 12) return fail(c, 400, 'At most 12 pictures can be reviewed at once.');
     const mediaDir = path.join(dataDir, 'media');
     const config = resolveLlmConfig(db, llmEnv);
     const photos = [];
