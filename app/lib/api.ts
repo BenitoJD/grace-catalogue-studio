@@ -181,7 +181,7 @@ export interface AssistantReply {
   render?: Render | null;
   review?: ReviewPhoto[] | null;
   toolCalls?: { name: string; error?: boolean }[];
-  usage?: { input: number; output: number; totalTokens: number } | null;
+  usage?: { input: number; output: number; cacheRead?: number; totalTokens: number } | null;
   failed?: boolean;
   failure?: string | null;
 }

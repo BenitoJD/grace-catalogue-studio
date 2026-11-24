@@ -294,6 +294,27 @@ function openAiMessages(messages) {
   return list;
 }
 
+/**
+ * Cached prompt tokens are reported under different names by the providers we
+ * support: OpenAI style cached_tokens, DeepSeek prompt_cache_hit_tokens and
+ * Anthropic style cache_read_input_tokens. This normalises them into one number
+ * so the usage we return shows the real saving.
+ */
+export function cachedPromptTokens(providerUsage) {
+  if (!providerUsage || typeof providerUsage !== 'object') return 0;
+  const candidates = [
+    providerUsage.prompt_tokens_details?.cached_tokens,
+    providerUsage.prompt_cache_hit_tokens,
+    providerUsage.cache_read_input_tokens,
+    providerUsage.cached_tokens,
+  ];
+  for (const value of candidates) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
+}
+
 function assistantMessage(model, blocks, stopReason, errorMessage, providerUsage = null) {
   const input = Number(providerUsage?.prompt_tokens ?? 0) || 0;
   const output = Number(providerUsage?.completion_tokens ?? 0) || 0;
@@ -306,7 +327,7 @@ function assistantMessage(model, blocks, stopReason, errorMessage, providerUsage
     usage: {
       input,
       output,
-      cacheRead: Number(providerUsage?.prompt_tokens_details?.cached_tokens ?? 0) || 0,
+      cacheRead: cachedPromptTokens(providerUsage),
       cacheWrite: 0,
       totalTokens: Number(providerUsage?.total_tokens ?? input + output) || input + output,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
@@ -588,11 +609,12 @@ function transcriptOf(agent) {
 }
 
 function usageOf(agent) {
-  const usage = { input: 0, output: 0, totalTokens: 0 };
+  const usage = { input: 0, output: 0, cacheRead: 0, totalTokens: 0 };
   for (const message of agent.state.messages ?? []) {
     if (message.role !== 'assistant' || !message.usage) continue;
     usage.input += Number(message.usage.input ?? 0);
     usage.output += Number(message.usage.output ?? 0);
+    usage.cacheRead += Number(message.usage.cacheRead ?? 0);
     usage.totalTokens += Number(message.usage.totalTokens ?? 0);
   }
   return usage;

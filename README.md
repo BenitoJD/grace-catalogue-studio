@@ -52,7 +52,7 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 
 ## The Pi agent
 
-The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK inside the server. Pi owns the agent loop, tool calling and transcript; this app supplies the studio tools and the model transport.
+The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK inside the server. Pi owns the agent loop, tool calling and transcript; this app supplies the studio tools and the model transport. Provider prompt cache savings are normalised into the usage report, so cached input tokens from OpenAI, DeepSeek and Anthropic style APIs are visible per turn.
 
 - **Tools the agent can call**: `read_pictures` (vision reading of the attached pictures), `create_order`, `update_order`, `design_brochure` and `get_order`. Every tool calls the same validated HTTP routes the rest of the app uses, so the print contract still applies.
 - **Model transport**: one OpenAI compatible request per turn through the same provider settings as the rest of the studio, including provider headers such as the OpenCode session id. Pi's own provider SDKs are not used for requests, only its agent runtime.

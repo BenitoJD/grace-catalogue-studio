@@ -81,7 +81,7 @@ import {
 } from '../src/render.mjs';
 import { sweepRenders } from '../src/retention.mjs';
 import { createApp } from '../src/routes.mjs';
-import { runAssistantTurn } from '../src/assistant.mjs';
+import { cachedPromptTokens, runAssistantTurn } from '../src/assistant.mjs';
 import {
   createModels,
   fauxAssistantMessage,
@@ -4450,6 +4450,16 @@ test('the picture review is labelled by the vision model', { timeout: 240_000 },
   const request = mockProviderState.requests.at(-1).json;
   const user = request.messages.find((message) => message.role === 'user');
   assert.equal(user.content.filter((part) => part.type === 'image_url').length, 2);
+});
+
+test('cached prompt tokens are read from every provider shape', () => {
+  assert.equal(cachedPromptTokens({ prompt_tokens_details: { cached_tokens: 512 } }), 512);
+  assert.equal(cachedPromptTokens({ prompt_cache_hit_tokens: 1024, prompt_cache_miss_tokens: 96 }), 1024);
+  assert.equal(cachedPromptTokens({ cache_read_input_tokens: 768 }), 768);
+  assert.equal(cachedPromptTokens({ cached_tokens: 64 }), 64);
+  assert.equal(cachedPromptTokens({ prompt_tokens: 100 }), 0);
+  assert.equal(cachedPromptTokens(null), 0);
+  assert.equal(cachedPromptTokens(undefined), 0);
 });
 
 test('the chat assistant endpoint runs a turn and returns the studio result', { timeout: 240_000 }, async () => {
