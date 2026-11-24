@@ -868,15 +868,11 @@ export default function ChatScreen() {
           <View style={styles.headerBrand}>
             <Image
               source={require('@/assets/images/logo.png')}
-              style={styles.brandMark}
+              style={styles.brandMarkCompact}
               resizeMode="contain"
               accessibilityLabel="Jacob Design Studio"
             />
-            <View style={styles.headerText}>
-              <Text style={text.eyebrow}>Jacob Design Studio</Text>
-              <TamilLine />
-              <Text style={[text.screenTitle, styles.title]}>Studio chat</Text>
-            </View>
+            <Text style={styles.headerTitle}>Jacob Studio</Text>
           </View>
           <View style={styles.headerActions}>
             {modelReady === false ? (
@@ -909,21 +905,63 @@ export default function ChatScreen() {
         <ScrollView
           ref={scroll}
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            bubbles.length === 1 && !busy ? styles.scrollWelcome : null,
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           onScroll={onChatScroll}
           scrollEventThrottle={48}>
-          {bubbles.map((bubble) => (
-            <BubbleView
-              key={bubble.id}
-              bubble={bubble}
-              copied={copiedId === bubble.id}
-              onCopy={copyMessage}
-              activeOrderId={activeOrderId}
-              onMarksSaved={() => setInput("Design with my marked details.")}
-            />
-          ))}
+          {bubbles.length === 1 && !busy ? (
+            <View style={styles.welcome}>
+              <Image
+                source={require('@/assets/images/logo.png')}
+                style={styles.welcomeMark}
+                resizeMode="contain"
+                accessibilityLabel="Jacob Design Studio"
+              />
+              <Text style={styles.welcomeTitle}>How can I help with this brochure?</Text>
+              <Text style={styles.welcomeSub}>
+                Send the customer&apos;s words and pictures. I will read every picture, build the order and design the
+                pages.
+              </Text>
+              <View style={styles.welcomeChips}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Paste the customer message"
+                  onPress={() => inputRef.current?.focus()}
+                  style={({ pressed }) => [styles.welcomeChip, pressed && styles.sendPressed]}>
+                  <Text style={styles.welcomeChipLabel}>Paste a message</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Add pictures or a plan"
+                  onPress={() => void pickFiles()}
+                  style={({ pressed }) => [styles.welcomeChip, pressed && styles.sendPressed]}>
+                  <Text style={styles.welcomeChipLabel}>Add pictures</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Say what to magnify"
+                  onPress={() => inputRef.current?.focus()}
+                  style={({ pressed }) => [styles.welcomeChip, pressed && styles.sendPressed]}>
+                  <Text style={styles.welcomeChipLabel}>What to magnify</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            bubbles.map((bubble) => (
+              <BubbleView
+                key={bubble.id}
+                bubble={bubble}
+                copied={copiedId === bubble.id}
+                onCopy={copyMessage}
+                activeOrderId={activeOrderId}
+                onMarksSaved={() => setInput("Design with my marked details.")}
+              />
+            ))
+          )}
           {busy ? (
             <View style={styles.rowLeft}>
               <View style={styles.avatar}>
@@ -952,34 +990,6 @@ export default function ChatScreen() {
             </View>
           ) : null}
 
-          {bubbles.length === 1 && !busy ? (
-            <View style={styles.suggestions}>
-              <Text style={styles.suggestionsTitle}>Start with what you have</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.suggestionRow}>
-                <SuggestionCard
-                  glyph="Aa"
-                  title="Paste a WhatsApp message"
-                  body="Forward, list or rough note. The model pulls out the order."
-                  onPress={() => inputRef.current?.focus()}
-                />
-                <SuggestionCard
-                  glyph="+"
-                  title="Add photos or a plan"
-                  body="Pick photos or a plan, or drag files in. Any type, no limit."
-                  onPress={() => void pickFiles()}
-                />
-                <SuggestionCard
-                  glyph="✦"
-                  title="Say what to magnify"
-                  body="Name a detail to zoom: a handle, a grain, the colour palette."
-                  onPress={() => inputRef.current?.focus()}
-                />
-              </ScrollView>
-            </View>
-          ) : null}
 
         </ScrollView>
 
@@ -1167,7 +1177,7 @@ export default function ChatScreen() {
               placeholder={
                 orderCreated
                   ? 'Ask for a change to this order'
-                  : "Paste the customer's requirement"
+                  : 'Ask anything about this brochure'
               }
               placeholderTextColor={colors.faint}
               multiline
@@ -1665,7 +1675,7 @@ function SmallAction({ label, onPress }: { label: string; onPress: () => void })
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
   },
   frameDragging: {
     borderWidth: 2,
@@ -1673,19 +1683,82 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.copperSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
+    width: 0,
+    height: 0,
+    overflow: 'hidden',
+    opacity: 0,
+    marginTop: 0,
   },
   avatarLabel: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.4,
     color: colors.copper,
+  },
+  brandMarkCompact: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+    color: '#0D0D0D',
+  },
+  scrollWelcome: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  welcome: {
+    alignItems: 'center',
+    paddingTop: 48,
+    paddingBottom: 24,
+    paddingHorizontal: 12,
+    maxWidth: 620,
+    alignSelf: 'center',
+  },
+  welcomeMark: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+  },
+  welcomeTitle: {
+    marginTop: 18,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '600',
+    letterSpacing: -0.6,
+    color: '#0D0D0D',
+    textAlign: 'center',
+  },
+  welcomeSub: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#6E6E73',
+    textAlign: 'center',
+    maxWidth: 520,
+  },
+  welcomeChips: {
+    marginTop: 20,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  welcomeChip: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  welcomeChipLabel: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#0D0D0D',
   },
   bubbleColumn: {
     flexShrink: 1,
@@ -1903,17 +1976,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
   },
   header: {
+    width: '100%',
+    maxWidth: 860,
+    alignSelf: 'center',
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: space.md,
-    paddingTop: space.sm,
-    paddingBottom: space.sm,
+    gap: 12,
+    paddingHorizontal: 4,
+    paddingTop: 6,
+    paddingBottom: 10,
   },
   headerBrand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     flexShrink: 1,
   },
   brandMark: {
@@ -1931,10 +2008,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerAction: {
-    backgroundColor: colors.copperSoft,
+    backgroundColor: 'transparent',
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   headerActionLabel: {
     color: colors.copper,
@@ -1945,6 +2022,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    width: '100%',
+    maxWidth: 860,
+    alignSelf: 'center',
     paddingTop: space.sm,
     paddingBottom: space.md,
     gap: space.sm + 2,
@@ -1967,12 +2047,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   bubbleAssistant: {
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    borderRadius: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   bubbleUser: {
-    backgroundColor: colors.copper,
+    backgroundColor: '#F4F4F4',
+    borderWidth: 0,
+    borderRadius: 22,
   },
   bubbleFailed: {
     backgroundColor: '#FCEDEA',
@@ -1982,7 +2067,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   userText: {
-    color: colors.surface,
+    color: '#0D0D0D',
     lineHeight: 22,
   },
   typing: {
@@ -1995,8 +2080,13 @@ const styles = StyleSheet.create({
     color: colors.faint,
   },
   draftBar: {
-    paddingTop: space.sm,
-    gap: space.sm,
+    width: '100%',
+    maxWidth: 860,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 2,
+    gap: 8,
+    backgroundColor: 'transparent',
   },
   statusCard: {
     backgroundColor: colors.surface,
@@ -2240,13 +2330,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 6,
-    backgroundColor: colors.surface,
-    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 26,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
+    borderColor: '#E3E3E3',
     padding: 7,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
@@ -2263,9 +2353,8 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.copperSoft,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(166, 94, 34, 0.4)',
+    backgroundColor: '#F4F4F4',
+    borderWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 1,
@@ -2323,6 +2412,8 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
     minHeight: 34,
     maxHeight: 140,
     fontSize: 16,
@@ -2333,13 +2424,13 @@ const styles = StyleSheet.create({
     paddingBottom: 7,
   },
   send: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.copper,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#0D0D0D',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 1,
+    marginBottom: 2,
   },
   sendDisabled: {
     opacity: 0.3,
@@ -2348,10 +2439,11 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   sendLabel: {
-    color: colors.surface,
-    fontSize: 18,
-    lineHeight: 20,
+    color: '#FFFFFF',
+    fontSize: 17,
+    lineHeight: 19,
     fontWeight: '600',
+    marginTop: -1,
   },
   designPicker: {
     marginTop: space.md,

@@ -68,6 +68,7 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 - **Failures keep the work**: if a turn fails or runs long after the order is created, the order and any render are returned and saved, with a reply saying what happened. Nothing is thrown away and no duplicate order is made.
 - **Pages workspace**: a split screen with the document at 75 percent and the studio desk at 25 percent. It opens every picture and every PDF page in the app, with a page strip, zoom, marks pinned on the page, a live loupe preview, a marks panel with swatches and codes, and the same Pi conversation beside it. No external PDF viewer.
 - **Studio marks**: on any picture review the studio can tap the exact area, name the detail and its colour name and code. Marks are saved on the order and become authoritative loupe specifications for the designer, which must print their exact name and code.
+- **ChatGPT style chat**: neutral canvas, a centered welcome, quiet suggestion chips, assistant answers as plain text, user messages in a soft grey bubble, and a floating rounded composer with a circular send. The model status and New order sit quietly in the header.
 - **Live progress**: while a turn runs, the server publishes each stage. The chat shows the current step (reading the pictures, creating the order, designing the pages, checking the print) with the elapsed seconds and a trail of the steps already done.
 - **Only path**: the chat is the agent. There is no second deterministic chat flow. If a turn fails, the chat reports the failure and keeps any order or render that was already made; the next message continues the same session.
 - **Bundling**: Pi is bundled into the desktop server by esbuild, with a require shim for its dynamic imports. No Python, no sidecar, no extra runtime.
@@ -76,6 +77,8 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 - **Tests**: the browser suite runs the real Pi loop against a deterministic mock model that walks the studio tools, so the agent path itself is under test. The server suite also drives the agent offline with Pi's faux provider.
 
 ![The Pi agent chat, from picture to printed brochure](docs/screenshots/pi-chat.png)
+
+![The chat home, ChatGPT style](docs/screenshots/chat-home.png)
 
 ![The pages workspace: document, marks and chat in one screen](docs/screenshots/workspace.png)
 

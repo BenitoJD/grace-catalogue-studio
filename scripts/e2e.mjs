@@ -301,24 +301,24 @@ try {
 
   // 1. the studio opens on the chat, history lives one tab over
   await safeGoto(page, WEB, { waitUntil: "networkidle2" });
-  check("chat loads", await hasText(page, "Studio chat"));
-  check("chat explains what to paste", await hasText(page, "Paste everything the customer told you"));
-  const datedStamp = await page.evaluate(() =>
-    /\d{1,2} [A-Z][a-z]{2}, \d{1,2}:\d{2} [ap]m/.test(document.body.innerText)
+  check("chat loads", await hasText(page, "Jacob Studio"));
+  check("chat opens with a welcome", await hasText(page, "How can I help with this brochure?"));
+  check("chat offers a clean start", await hasText(page, "Paste a message"));
+  check(
+    "chat has a message box",
+    (await page.$('textarea[placeholder="Ask anything about this brochure"]')) !== null
   );
-  check("chat messages carry date and time", datedStamp);
-  check("chat has a message box", (await page.$('textarea[placeholder="Paste the customer\'s requirement"]')) !== null);
-  check("chat asks for the requirement", await hasText(page, "Paste everything the customer told you"));
-  check("chat offers starter prompts", await hasText(page, "START WITH WHAT YOU HAVE"));
+  check("chat asks for the requirement", await hasText(page, "Send the customer"));
+  check("chat offers starter prompts", await hasText(page, "Add pictures"));
   check("composer explains the keyboard and drop", await hasText(page, "Enter to send"));
-  check("chat is picture led", await hasText(page, "upload and the model designs"));
-  check("chat offers a magnifier prompt", await hasText(page, "Say what to magnify"));
+  check("chat is picture led", await hasText(page, "read every picture"));
+  check("chat offers a magnifier prompt", await hasText(page, "What to magnify"));
   await page.screenshot({ path: `${shots}/00-chat.png` });
 
   await page.click('[aria-label="History"]');
   check("the tab bar opens history", await hasText(page, "Every order the chat has made"));
   await page.click('[aria-label="Chat"]');
-  check("the tab bar returns to chat", await hasText(page, "Studio chat"));
+  check("the tab bar returns to chat", await hasText(page, "Jacob Studio"));
 
   await safeGoto(page, `${WEB}/orders`, { waitUntil: "networkidle2" });
   check("history loads", await hasText(page, "Jacob Design Studio"));
@@ -499,7 +499,7 @@ try {
   // 4c. the chat interface: dump the requirement, answer the gap, cook
   await safeGoto(page, WEB, { waitUntil: "networkidle2" });
   await sleep(2500);
-  const chatInput = "Paste the customer's requirement";
+  const chatInput = "Ask anything about this brochure";
   const attachButton = await page.$('[aria-label="Attach files"]');
   check("chat has an attach button", Boolean(attachButton));
   let attachedFile = false;
@@ -702,7 +702,9 @@ try {
   check("a new chat starts after New order", freshChat);
   const cleared = await page.evaluate(() => {
     const text = document.body.innerText;
-    return text.includes("Paste everything the customer told you") && !text.includes("I changed the shutters");
+    // The old order must be gone from the new chat; the welcome itself is
+    // replaced as soon as the new conversation has messages.
+    return !text.includes("I changed the shutters") && !text.includes("JDS-2026-0");
   });
   check("the old conversation is cleared", cleared);
 

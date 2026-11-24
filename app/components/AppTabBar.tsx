@@ -54,7 +54,7 @@ export function AppTabBar({ state, navigateToTab }: AppTabBarProps) {
       style={[
         styles.wrap,
         floating
-          ? { backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, space.md), paddingTop: space.xs ?? 6 }
+          ? { backgroundColor: '#FFFFFF', paddingBottom: Math.max(insets.bottom, space.md), paddingTop: 6 }
           : {
               backgroundColor: colors.surface,
               borderTopWidth: StyleSheet.hairlineWidth,
@@ -86,7 +86,7 @@ export function AppTabBar({ state, navigateToTab }: AppTabBarProps) {
                 !active && hovering && styles.tabHover,
                 pressed && styles.tabPressed,
               ]}>
-              <TabIcon name={tab.icon} color={active ? colors.copper : colors.muted} size={floating ? 21 : 23} />
+              <TabIcon name={tab.icon} color={active ? colors.ink : colors.muted} size={floating ? 19 : 23} />
               <Text style={[text.tabLabel, styles.label, active && styles.labelActive]}>
                 {tab.label}
               </Text>
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   dock: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 22,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.hair,
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   tabActive: {
-    backgroundColor: colors.copperSoft,
+    backgroundColor: '#F4F4F4',
   },
   tabHover: {
     backgroundColor: colors.fill,
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   labelActive: {
-    color: colors.copper,
-    fontWeight: '700',
+    color: colors.ink,
+    fontWeight: '600',
   },
 });
