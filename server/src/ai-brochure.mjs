@@ -180,7 +180,7 @@ const DESIGNER_SYSTEM = [
   'Treat typography like a brand book: one display face, one text face, real hierarchy, generous leading, ragged right body, small caps labels with wide tracking, oversized folio numbers, and no more than three type sizes on a page.',
   'Compose with negative space, hairlines and the palette. Only three colour families on a page. Gold is a one point rule, a numeral or a motif, never a fill. No gradients, no drop shadows, no rounded cards, no badges, no clip art icons, no emoji, no chevrons, no buttons.',
   'Photographs are the hero: crop with intent, let them bleed, and use a solid scrim or band for any words that sit on them. Never make a photograph small and polite unless the page is deliberately quiet.',
-  'Magnifier spread: the loupe is a designed object, not a sticker. Place it on a large photograph, align it to the grid, connect it with a hairline leader, set the caption in small caps naming the detail and its colour name and code, and leave generous space around it.',
+  'Magnifier spread: the loupe is a designed object, not a sticker. Make it large: 55 to 75 mm across, zoomed 3.5 to 5 times, with a crisp 0.5 mm ring and a 0.2 mm inner hairline, a 45 degree leader line to the caption, and a soft solid ground behind the caption. The caption names the detail and its colour and code, in 7 to 8 pt small caps with 0.2 em tracking. It must be clearly readable: light caption on a dark ground or dark caption on a light ground, never words drifting over a busy photograph.',
   'Colour page: treat the palette like paint chips in an automotive book. Strips at full measure, chips aligned in a row on the grid, names in small caps, codes small and quiet, one line of mood copy. No card frames and no shadows.',
   'The closing page is a quiet exhale: brand plate, contact plate, one line of thanks, a motif if it belongs. Nothing else.',
   '',
@@ -878,6 +878,17 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
       }
     }
   }
+
+  pages.forEach((page, index) => {
+    if (/background-image\s*:\s*url\(\s*{{\s*photo/i.test(page) && /{{\s*photo\d+detail\d+Color/i.test(page)) {
+      if (!/background\s*:\s*(?:#|rgba?\()/i.test(page)) {
+        issues.push(`page ${index + 1}: the magnifier caption needs a solid ground behind it on a photographed page`);
+      }
+      if (!/color\s*:\s*(?:#|rgba?\()/i.test(page)) {
+        issues.push(`page ${index + 1}: the magnifier caption needs an explicit contrasting text colour`);
+      }
+    }
+  });
 
   // Print documents should never carry the tells of a generated web page.
   pages.forEach((page, index) => {
