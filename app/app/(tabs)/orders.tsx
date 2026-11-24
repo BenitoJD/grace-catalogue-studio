@@ -24,10 +24,13 @@ export default function OrdersScreen() {
     }
   }, []);
 
+  // A new order can be created inside the chat while this tab is mounted, so
+  // the order book must reload on focus, not only on first mount.
   useFocusEffect(
     useCallback(() => {
+      void reload();
       void loadRenders();
-    }, [loadRenders])
+    }, [loadRenders, reload])
   );
 
   // One row per generated document kind: the latest voucher and the latest kit.
