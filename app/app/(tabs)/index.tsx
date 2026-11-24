@@ -200,7 +200,9 @@ export default function ChatScreen() {
   // The Pi agent drives the chat when the machine has it switched on. If a turn
   // fails, the session falls back to the deterministic flow instead of dying.
   const [assistantEnabled, setAssistantEnabled] = useState(false);
-  const [assistantSessionId, setAssistantSessionId] = useState<string | null>(null);
+  const [assistantSessionId, setAssistantSessionId] = useState<string>(() => `chat-${Date.now()}`);
+  const [assistantProgress, setAssistantProgress] = useState<{ label: string; elapsedMs: number; steps: string[] } | null>(null);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const assistantBroken = useRef(false);
   const [skipping, setSkipping] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -566,6 +568,30 @@ export default function ChatScreen() {
 
   // One conversational turn through the Pi agent. Everything the agent does is
   // reflected back into the existing chat bubbles and order state.
+  const startProgressPolling = useCallback((sessionId: string) => {
+    if (progressTimer.current) clearInterval(progressTimer.current);
+    progressTimer.current = setInterval(() => {
+      api
+        .assistantProgress(sessionId)
+        .then((result) => {
+          const progress = result.progress;
+          if (!progress) return;
+          setAssistantProgress({
+            label: progress.label,
+            elapsedMs: progress.elapsedMs,
+            steps: progress.steps.map((step) => step.label),
+          });
+        })
+        .catch(() => {});
+    }, 1200);
+  }, []);
+
+  const stopProgressPolling = useCallback(() => {
+    if (progressTimer.current) clearInterval(progressTimer.current);
+    progressTimer.current = null;
+    setAssistantProgress(null);
+  }, []);
+
   const sendWithAssistant = useCallback(async () => {
     if (assistantBroken.current) throw new Error('assistant off');
     const content = input.trim();
@@ -585,15 +611,17 @@ export default function ChatScreen() {
 
     sendingRef.current = true;
     setSending(true);
+    startProgressPolling(assistantSessionId);
     let result;
     try {
       result = await api.assistant({
         messages: conversation,
         ...(activeOrderId ? { orderId: activeOrderId } : {}),
-        ...(assistantSessionId ? { sessionId: assistantSessionId } : {}),
+        sessionId: assistantSessionId,
         ...(attachments.length > 0 ? { attachments } : {}),
       });
     } catch (error) {
+      stopProgressPolling();
       sendingRef.current = false;
       setSending(false);
       throw error;
@@ -672,11 +700,12 @@ export default function ChatScreen() {
       setOrderFiles(attachments);
     }
     if (result.sessionId) setAssistantSessionId(result.sessionId);
+    stopProgressPolling();
     sendingRef.current = false;
     setSending(false);
     atBottomRef.current = true;
     setAtBottom(true);
-  }, [activeOrderId, activeOrderNo, assistantSessionId, bubbles, input, orderFiles, pendingFiles]);
+  }, [activeOrderId, activeOrderNo, assistantSessionId, bubbles, input, orderFiles, pendingFiles, startProgressPolling, stopProgressPolling]);
 
   const send = useCallback(async () => {
     const content = input.trim();
@@ -842,7 +871,24 @@ export default function ChatScreen() {
                 <Text style={styles.avatarLabel}>JD</Text>
               </View>
               <View style={[styles.bubble, styles.bubbleAssistant]}>
-                <TypingDots label={sending ? 'Working on the brochure' : cooking ? 'Creating the order' : skipping ? 'Marking it to be confirmed' : 'Reading'} />
+                <TypingDots
+                  label={
+                    sending
+                      ? assistantProgress
+                        ? `${assistantProgress.label} · ${Math.floor(assistantProgress.elapsedMs / 1000)}s`
+                        : 'Working on the brochure'
+                      : cooking
+                        ? 'Creating the order'
+                        : skipping
+                          ? 'Marking it to be confirmed'
+                          : 'Reading'
+                  }
+                />
+                {sending && assistantProgress && assistantProgress.steps.length > 1 ? (
+                  <Text style={[text.caption, styles.agentSteps]}>
+                    {assistantProgress.steps.join(' · ')}
+                  </Text>
+                ) : null}
               </View>
             </View>
           ) : null}
@@ -2272,6 +2318,10 @@ const styles = StyleSheet.create({
   },
   cookHintReady: {
     color: 'rgba(255,255,255,0.78)',
+  },
+  agentSteps: {
+    marginTop: 6,
+    color: colors.muted,
   },
   reviewBubble: {
     gap: 12,

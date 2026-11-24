@@ -171,6 +171,18 @@ export interface ReviewCandidate {
   name: string;
 }
 
+export interface AssistantProgress {
+  sessionId: string;
+  stage: string;
+  label: string;
+  detail?: string;
+  startedAt: number;
+  updatedAt: number;
+  elapsedMs: number;
+  finished: boolean;
+  steps: { stage: string; label: string; at: number }[];
+}
+
 export interface AssistantReply {
   assistant?: boolean;
   sessionId?: string;
@@ -418,6 +430,12 @@ export const api = {
       body: input,
       timeoutMs: 2100000,
     });
+  },
+
+  assistantProgress(sessionId: string): Promise<{ progress: AssistantProgress | null }> {
+    return request<{ progress: AssistantProgress | null }>(
+      `/api/assistant/progress/${encodeURIComponent(sessionId)}`,
+    );
   },
 
   analyzeImages(images: string[]): Promise<{ photos: ReviewPhoto[] }> {

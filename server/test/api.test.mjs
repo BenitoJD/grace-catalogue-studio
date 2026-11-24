@@ -4635,6 +4635,41 @@ test('a second Pi turn restores the transcript and designs the same order', { ti
   assert.ok(calls.includes('/api/orders/order-1/ai-brochure'));
 });
 
+test('the chat can read the live progress of a turn', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  app.assistantRuntime.run = async (input) => {
+    input.onProgress?.({ stage: 'pictures', label: 'Reading the pictures and their colours' });
+    input.onProgress?.({ stage: 'design', label: 'Designing the brochure pages' });
+    return {
+      reply: 'Done.',
+      orderId: null,
+      orderNo: null,
+      render: null,
+      toolCalls: [],
+      transcript: [{ role: 'user', content: 'Hello', timestamp: Date.now() }],
+    };
+  };
+  try {
+    const response = await postJson(`${baseUrl}/api/assistant`, {
+      sessionId: 'progress-test',
+      messages: [{ role: 'user', content: 'Hello' }],
+    });
+    assert.equal(response.status, 200);
+    const progress = await (await fetch(`${baseUrl}/api/assistant/progress/progress-test`)).json();
+    assert.ok(progress.progress, 'progress exists for the session');
+    assert.equal(progress.progress.finished, true);
+    const stages = progress.progress.steps.map((step) => step.stage);
+    assert.ok(stages.includes('pictures'));
+    assert.ok(stages.includes('design'));
+    assert.equal(progress.progress.elapsedMs >= 0, true);
+    const missing = await (await fetch(`${baseUrl}/api/assistant/progress/no-such-session`)).json();
+    assert.equal(missing.progress, null);
+  } finally {
+    app.assistantRuntime.run = runAssistantTurn;
+  }
+});
+
 test('the Pi agent loop calls studio tools and returns the brochure', { timeout: 240_000 }, async () => {
   const faux = fauxProvider();
   const models = createModels();

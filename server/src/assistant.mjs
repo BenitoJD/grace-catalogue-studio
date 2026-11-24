@@ -113,7 +113,7 @@ function textResult(value) {
  * Turn one chat turn into Pi tool executions. `callApi` performs an internal
  * request against the studio API, so every tool reuses the validated routes.
  */
-export function createStudioTools({ callApi, attachments, state }) {
+export function createStudioTools({ callApi, attachments, state, onProgress = () => {} }) {
   const call = async (path, body, method = 'POST') => {
     const response = await callApi(path, {
       method,
@@ -138,6 +138,7 @@ export function createStudioTools({ callApi, attachments, state }) {
     {
       ...TOOL_SPECS[0],
       execute: async () => {
+        onProgress({ stage: 'pictures', label: 'Reading the pictures and their colours' });
         if (attachments.length === 0) {
           return textResult({ pictures: [], note: 'No pictures are attached to this chat.' });
         }
@@ -169,6 +170,7 @@ export function createStudioTools({ callApi, attachments, state }) {
       ...TOOL_SPECS[1],
       executionMode: 'sequential',
       execute: async (_toolCallId, params) => {
+        onProgress({ stage: 'order', label: 'Creating the order' });
         if (state.orderId) {
           return textResult({ orderId: state.orderId, orderNo: state.orderNo, note: 'Order already created.' });
         }
@@ -207,6 +209,7 @@ export function createStudioTools({ callApi, attachments, state }) {
       ...TOOL_SPECS[3],
       executionMode: 'sequential',
       execute: async (_toolCallId, params) => {
+        onProgress({ stage: 'design', label: 'Designing the brochure pages' });
         const orderId = params.orderId ?? state.orderId;
         if (!orderId) throw new Error('Create the order before designing the brochure.');
         const result = await call(`/api/orders/${encodeURIComponent(orderId)}/ai-brochure`, {
@@ -215,6 +218,7 @@ export function createStudioTools({ callApi, attachments, state }) {
             : {}),
         });
         state.render = result?.render ?? null;
+        onProgress({ stage: 'print', label: 'Checking the print and the page images' });
         state.orderId = orderId;
         return textResult({
           orderId,
@@ -466,6 +470,7 @@ export async function runAssistantTurn({
   callApi,
   logger,
   modelsOverride = null,
+  onProgress = () => {},
 }) {
   let model;
   let streamFn;
@@ -484,7 +489,7 @@ export async function runAssistantTurn({
     apiKey = runtime.apiKey;
   }
   const state = { orderId, orderNo: null, order: null, render: null, review: null, toolCalls: [] };
-  const tools = createStudioTools({ callApi, attachments, state });
+  const tools = createStudioTools({ callApi, attachments, state, onProgress });
   const history = agentHistory(messages);
   const last = history.pop();
   if (!last || last.role !== 'user') {

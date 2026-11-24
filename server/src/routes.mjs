@@ -116,6 +116,11 @@ import { detailPlatesFor } from './image-detail.mjs';
 import { readPicturesWithVision, visionEnabled } from './vision.mjs';
 import { runAssistantTurn } from './assistant.mjs';
 import {
+  finishAssistantProgress,
+  getAssistantProgress,
+  setAssistantProgress,
+} from './assistant-progress.mjs';
+import {
   ensurePdfPages,
   isPdf,
   orderPhotoPaths,
@@ -1588,6 +1593,8 @@ export function createApp(options) {
       return fail(c, 409, 'The assistant is still working on the previous message.');
     }
     assistantLocks.set(sessionId, true);
+    const progressUpdate = (update) => setAssistantProgress(sessionId, update);
+    progressUpdate({ stage: 'start', label: 'Understanding your request' });
 
     const attachments = readAttachments(parsed.body);
     if (attachments.error) return fail(c, 400, attachments.error);
@@ -1618,6 +1625,7 @@ export function createApp(options) {
         previousMessages: storedSession?.messages ?? [],
         callApi,
         logger,
+        onProgress: progressUpdate,
       });
       const finalOrderId = result.orderId ?? (orderId === '' ? null : orderId);
       const order = finalOrderId ? getOrder(db, finalOrderId) : null;
@@ -1632,6 +1640,9 @@ export function createApp(options) {
           reason: error instanceof Error ? error.message : String(error),
         });
       }
+      finishAssistantProgress(sessionId, {
+        label: result.render ? 'Brochure printed' : finalOrderId ? 'Order ready' : 'Answered',
+      });
       return c.json({
         assistant: true,
         sessionId,
@@ -1647,10 +1658,18 @@ export function createApp(options) {
         failure: result.failure ?? null,
       });
     } catch (error) {
+      finishAssistantProgress(sessionId, { label: 'The assistant stopped', stage: 'error' });
       return llmFailureResponse(c, error);
     } finally {
       assistantLocks.delete(sessionId);
     }
+  });
+
+  // The live step the chat shows while an agent turn runs.
+  app.get('/api/assistant/progress/:sessionId', (c) => {
+    const progress = getAssistantProgress(c.req.param('sessionId'));
+    if (!progress) return c.json({ progress: null });
+    return c.json({ progress });
   });
 
   // The model designs and typesets the brochure. No template is chosen: the
