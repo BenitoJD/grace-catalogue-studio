@@ -56,7 +56,10 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 - **Conversation**: the app sends the chat history as context with the new message, plus any attachments. The agent decides whether to confirm the reading, ask for the customer name, create the order or design the brochure.
 - **Safety net**: if the agent turn fails or times out, the chat falls back to the deterministic intake and design flow for the rest of the session. The app never stops working because of the agent.
 - **Bundling**: Pi is bundled into the desktop server by esbuild, with a require shim for its dynamic imports. No Python, no sidecar, no extra runtime.
+- **Time budget**: one agent turn can take several minutes because the design tool runs a full designer call with repairs. The desktop proxy allows 20 minutes, the agent allows 15, so the turn finishes instead of being cut off. The chat shows the work in progress.
 - **Switch**: `PI_ASSISTANT=off` disables the agent and uses the fixed flow. Tests use that, and the agent loop itself is covered offline with Pi's faux provider.
+
+![The Pi agent chat, from picture to printed brochure](docs/screenshots/pi-chat.png)
 
 ## Chat first
 
