@@ -33,6 +33,7 @@ import {
   listRenders,
   listRendersForOrder,
   setOrderAttachments,
+  setOrderAnnotations,
   setOrderCopy,
   setSetting,
   updateMaterial,
@@ -207,7 +208,7 @@ function fail(c, status, message) {
 // expose the parsed copy only; the raw column never leaves the server.
 function orderPayload(order) {
   if (!order) return order;
-  const { copy_json: _copyJson, attachments_json: _attachmentsJson, ...payload } = order;
+  const { copy_json: _copyJson, attachments_json: _attachmentsJson, annotations_json: _annotationsJson, ...payload } = order;
   return payload;
 }
 
@@ -1009,6 +1010,32 @@ export function createApp(options) {
         return fail(c, 400, 'Customer not found.');
       }
       patch.customerId = customerId.value;
+    }
+
+    if ('annotations' in parsed.body) {
+      const annotations = parsed.body.annotations;
+      if (!Array.isArray(annotations) || annotations.length > 40) {
+        return fail(c, 400, 'Field "annotations" must be a list of up to 40 marked areas.');
+      }
+      const clean = [];
+      for (const mark of annotations) {
+        if (!mark || typeof mark !== 'object') return fail(c, 400, 'Every mark must be an object.');
+        const photo = String(mark.photo ?? '').trim();
+        if (!/^photo\d+$/.test(photo)) return fail(c, 400, 'Every mark needs a photo token like "photo1".');
+        const x = Number(mark.x);
+        const y = Number(mark.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 100 || y < 0 || y > 100) {
+          return fail(c, 400, 'Mark positions must be percentages between 0 and 100.');
+        }
+        const label = String(mark.label ?? '').trim().slice(0, 80);
+        const colourName = String(mark.colourName ?? '').trim().slice(0, 40);
+        const colourHex = String(mark.colourHex ?? '').trim().toUpperCase();
+        if (label === '' || colourName === '') return fail(c, 400, 'A mark needs a detail label and a colour name.');
+        if (!/^#[0-9A-F]{6}$/.test(colourHex)) return fail(c, 400, 'A mark colour must look like #B98A55.');
+        clean.push({ photo, x, y, label, colourName, colourHex });
+      }
+      setOrderAnnotations(db, id, clean);
+      return c.json(orderPayload(getOrder(db, id)));
     }
 
     if ('status' in parsed.body) {
@@ -1824,6 +1851,7 @@ export function createApp(options) {
         photoPalettes,
         pictureReading: reading?.text ?? '',
         pictureAnalysis: reading?.photos ?? [],
+        annotations: order.annotations ?? [],
         previousHtml,
         editNote,
       });
@@ -1857,6 +1885,7 @@ export function createApp(options) {
             attached.length,
             palettePhotos,
             designTheme,
+            order.annotations ?? [],
           );
           acceptedReply = result.content;
           html = compileGenerativeBrochure({
@@ -1898,6 +1927,7 @@ export function createApp(options) {
             attached.length,
             palettePhotos,
             polishedTheme,
+            order.annotations ?? [],
           );
           html = compileGenerativeBrochure({
             order,
@@ -1940,6 +1970,7 @@ export function createApp(options) {
               attached.length,
               palettePhotos,
               reviewedTheme,
+              order.annotations ?? [],
             );
             html = compileGenerativeBrochure({
               order,

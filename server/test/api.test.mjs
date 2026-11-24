@@ -171,6 +171,14 @@ async function postJson(url, body) {
   });
 }
 
+async function patchJson(url, body) {
+  return fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Local OpenAI compatible mock provider
 // ---------------------------------------------------------------------------
@@ -4670,6 +4678,26 @@ test('a second Pi turn restores the transcript and designs the same order', { ti
   });
   assert.equal(second.render.pageCount, 4);
   assert.ok(calls.includes('/api/orders/order-1/ai-brochure'));
+});
+
+test('studio marks are saved on the order and validated', async () => {
+  const mark = { photo: 'photo1', x: 42.5, y: 61, label: 'Brass handle', colourName: 'Brass', colourHex: '#B98A55' };
+  const saved = await patchJson(`${baseUrl}/api/orders/${orderId}`, { annotations: [mark] });
+  assert.equal(saved.status, 200);
+  const body = await saved.json();
+  assert.equal(body.annotations.length, 1);
+  assert.equal(body.annotations[0].colourHex, '#B98A55');
+  const stored = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
+  assert.equal(stored.annotations[0].label, 'Brass handle');
+  const bad = await patchJson(`${baseUrl}/api/orders/${orderId}`, {
+    annotations: [{ ...mark, colourHex: 'brass' }],
+  });
+  assert.equal(bad.status, 400);
+  const badPhoto = await patchJson(`${baseUrl}/api/orders/${orderId}`, {
+    annotations: [{ ...mark, photo: 'image-1' }],
+  });
+  assert.equal(badPhoto.status, 400);
+  await patchJson(`${baseUrl}/api/orders/${orderId}`, { annotations: [] });
 });
 
 test('the chat can read the live progress of a turn', { timeout: 240_000 }, async () => {

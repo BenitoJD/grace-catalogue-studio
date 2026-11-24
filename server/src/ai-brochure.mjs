@@ -403,7 +403,7 @@ function copySummary(copy) {
   return `Headline ${headline.length} characters. Body ${words} words. Closing ${closing.length} characters.`;
 }
 
-function designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, previousHtml, editNote }) {
+function designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, annotations = [], previousHtml, editNote }) {
   const photoLines = photos.map((_, index) => {
     const shape = photoShapes[index] ? ` (${photoShapes[index]})` : '';
     return `photo${index + 1}${shape}`;
@@ -423,6 +423,16 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
     pictureReading && String(pictureReading).trim() !== ''
       ? String(pictureReading).trim()
       : 'No reading supplied; take the piece, the room and the colours from the order and the palettes.',
+    '',
+    'STUDIO MARKED DETAILS',
+    Array.isArray(annotations) && annotations.length > 0
+      ? annotations
+          .map(
+            (mark) =>
+              `${mark.photo}: focus ${mark.x}% across, ${mark.y}% down, detail "${mark.label}", colour ${mark.colourName} ${mark.colourHex}. Use exactly this name and code in the loupe caption.`,
+          )
+          .join('\n')
+      : 'None marked; choose details yourself.',
     '',
     'PICTURE BY PICTURE',
     Array.isArray(pictureAnalysis) && pictureAnalysis.length > 0
@@ -509,8 +519,8 @@ export function buildPolishMessages({ html }) {
   ];
 }
 
-export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], photoPalettes = {}, pictureReading = '', pictureAnalysis = [], previousHtml = '', editNote = '' }) {
-  const user = designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, previousHtml, editNote });
+export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], photoPalettes = {}, pictureReading = '', pictureAnalysis = [], annotations = [], previousHtml = '', editNote = '' }) {
+  const user = designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, annotations, previousHtml, editNote });
   const messages = [
     { role: 'system', content: DESIGNER_SYSTEM },
     { role: 'user', content: user },
@@ -659,7 +669,7 @@ const SPEC_WORD_LIMIT = 300;
  * printing. The page wrappers are removed and rebuilt by the server, so the
  * body can never end up with content beside the pages.
  */
-export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], theme = PALETTE) {
+export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], theme = PALETTE, markedDetails = []) {
   const raw = typeof content === 'string' ? content : '';
   if (raw.trim() === '') {
     throw new LlmError('The model returned an empty brochure design.', { type: 'invalid_reply' });
@@ -817,6 +827,23 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
       }
       if (countToken(whole, `photo${index}Color${chip}Name`) === 0) {
         issues.push(`{{photo${index}Color${chip}Name}} is missing; name every colour like a showroom paint card`);
+      }
+    }
+  }
+
+  // The studio marked these areas by hand: their exact labels and colour codes
+  // must appear in print, not a paraphrase.
+  if (Array.isArray(markedDetails)) {
+    for (const mark of markedDetails) {
+      if (!mark || typeof mark !== 'object') continue;
+      const hex = String(mark.colourHex ?? '').toUpperCase();
+      const name = String(mark.colourName ?? '').trim();
+      const label = String(mark.label ?? '').trim();
+      if (hex !== '' && !whole.toUpperCase().includes(hex)) {
+        issues.push(`the marked detail "${label}" must print its colour code ${hex}`);
+      }
+      if (name !== '' && !whole.toLowerCase().includes(name.toLowerCase())) {
+        issues.push(`the marked detail "${label}" must print its colour name ${name}`);
       }
     }
   }

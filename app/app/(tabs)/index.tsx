@@ -7,6 +7,7 @@ import {
   Animated,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -919,6 +920,8 @@ export default function ChatScreen() {
               bubble={bubble}
               copied={copiedId === bubble.id}
               onCopy={copyMessage}
+              activeOrderId={activeOrderId}
+              onMarksSaved={() => setInput("Design with my marked details.")}
             />
           ))}
           {busy ? (
@@ -1243,15 +1246,73 @@ export default function ChatScreen() {
   );
 }
 
-function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }) {
+function ReviewPhotoCard({
+  photo,
+  index,
+  orderId,
+  onMarksSaved,
+}: {
+  photo: ReviewPhoto;
+  index: number;
+  orderId: string | null;
+  onMarksSaved?: () => void;
+}) {
   const [frame, setFrame] = useState({ width: 0, height: 0 });
+  const [markOpen, setMarkOpen] = useState(false);
+  const [markFrame, setMarkFrame] = useState({ width: 0, height: 0 });
+  const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
+  const [markLabel, setMarkLabel] = useState('');
+  const [markName, setMarkName] = useState('');
+  const [markHex, setMarkHex] = useState('');
+  const [markNote, setMarkNote] = useState('');
+  const [marking, setMarking] = useState(false);
   const LOUPE = 96;
   const ZOOM = 4;
   const zoomWidth = frame.width * ZOOM;
   const zoomHeight = frame.height * ZOOM;
   const ready = frame.width > 0 && frame.height > 0;
+  const saveMark = async () => {
+    if (!orderId) {
+      setMarkNote('The order must exist before marks can be saved.');
+      return;
+    }
+    if (markLabel.trim() === '' || markName.trim() === '') {
+      setMarkNote('Enter the detail and the colour name.');
+      return;
+    }
+    const hex = (markHex.trim() === '' ? '#B98A55' : markHex.trim()).toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(hex)) {
+      setMarkNote('The colour code must look like #B98A55.');
+      return;
+    }
+    const position = point ?? { x: 50, y: 50 };
+    setMarking(true);
+    try {
+      const order = await api.getOrder(orderId);
+      const existing = order.annotations ?? [];
+      await api.updateAnnotations(orderId, [
+        ...existing,
+        {
+          photo: `photo${index + 1}`,
+          x: Math.round(position.x * 10) / 10,
+          y: Math.round(position.y * 10) / 10,
+          label: markLabel.trim(),
+          colourName: markName.trim(),
+          colourHex: hex,
+        },
+      ]);
+      setMarkNote('Saved. Press Send to design with your marked details.');
+      onMarksSaved?.();
+    } catch (error) {
+      setMarkNote(error instanceof Error ? error.message : 'Marks could not be saved.');
+    } finally {
+      setMarking(false);
+    }
+  };
+
   return (
-    <View style={styles.reviewPhoto}>
+    <>
+      <View style={styles.reviewPhoto}>
       <Text style={[text.caption, styles.reviewPhotoLabel]} numberOfLines={1}>
         {`${photo.label ?? `Picture ${index + 1}`} · ${photo.analysis.orientation}`}
       </Text>
@@ -1348,16 +1409,117 @@ function ReviewPhotoCard({ photo, index }: { photo: ReviewPhoto; index: number }
       </View>
     </View>
   );
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Mark an area on picture ${index + 1}`}
+        onPress={() => setMarkOpen(true)}
+        style={styles.markOpenButton}>
+        <Text style={styles.markOpenLabel}>Mark an area</Text>
+      </Pressable>
+      <Modal visible={markOpen} transparent animationType="fade" onRequestClose={() => setMarkOpen(false)}>
+        <View style={styles.markBackdrop}>
+          <View style={styles.markCard}>
+            <View style={styles.markHead}>
+              <Text style={styles.markTitle}>Mark a detail</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close marks" onPress={() => setMarkOpen(false)}>
+                <Text style={styles.markClose}>Close</Text>
+              </Pressable>
+            </View>
+            <Text style={[text.caption, styles.markHint]}>
+              Tap the exact area on the picture. It becomes a magnified detail with the colour you name.
+            </Text>
+            <View
+              style={styles.markImageBox}
+              onLayout={(event) => setMarkFrame(event.nativeEvent.layout)}>
+              <Image
+                source={{ uri: fileUrl(photo.previewUrl ?? photo.url) }}
+                style={styles.markImage}
+                resizeMode="contain"
+              />
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={(event) => {
+                  const native = event.nativeEvent as unknown as {
+                    locationX?: number;
+                    locationY?: number;
+                    offsetX?: number;
+                    offsetY?: number;
+                  };
+                  const localX = Number(native.locationX ?? native.offsetX);
+                  const localY = Number(native.locationY ?? native.offsetY);
+                  if (markFrame.width <= 0 || markFrame.height <= 0) return;
+                  setPoint({
+                    x: Number.isFinite(localX)
+                      ? Math.min(100, Math.max(0, (localX / markFrame.width) * 100))
+                      : 50,
+                    y: Number.isFinite(localY)
+                      ? Math.min(100, Math.max(0, (localY / markFrame.height) * 100))
+                      : 50,
+                  });
+                }}
+              />
+              {point ? (
+                <View style={[styles.markPoint, { left: `${point.x}%`, top: `${point.y}%` }]} />
+              ) : null}
+            </View>
+            <View style={styles.markFields}>
+              <TextInput
+                style={styles.markField}
+                placeholder="Detail, e.g. brass handle"
+                placeholderTextColor={colors.muted}
+                value={markLabel}
+                onChangeText={setMarkLabel}
+              />
+              <TextInput
+                style={styles.markField}
+                placeholder="Colour name"
+                placeholderTextColor={colors.muted}
+                value={markName}
+                onChangeText={setMarkName}
+              />
+              <TextInput
+                style={styles.markField}
+                placeholder="#B98A55"
+                placeholderTextColor={colors.muted}
+                value={markHex}
+                onChangeText={(next) => setMarkHex(next.toUpperCase().replace(/[^#0-9A-F]/g, '').slice(0, 7))}
+                autoCapitalize="characters"
+              />
+            </View>
+            {markNote ? <Text style={[text.caption, styles.markNote]}>{markNote}</Text> : null}
+            {!orderId ? (
+              <Text style={[text.caption, styles.markNote]}>
+                Marks can be saved once the order exists.
+              </Text>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save marked detail"
+              disabled={marking || !orderId}
+              onPress={() => void saveMark()}
+              style={[styles.markSave, (marking || !orderId) && styles.markSaveDisabled]}>
+              <Text style={styles.markSaveLabel}>{marking ? 'Saving' : 'Save marked detail'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
 }
+
 
 function BubbleView({
   bubble,
   copied,
   onCopy,
+  activeOrderId,
+  onMarksSaved,
 }: {
   bubble: Bubble;
   copied: boolean;
   onCopy: (bubble: Bubble) => void;
+  activeOrderId: string | null;
+  onMarksSaved: () => void;
 }) {
   if (bubble.kind === 'review') {
     return (
@@ -1369,7 +1531,13 @@ function BubbleView({
           <View style={[styles.bubble, styles.bubbleAssistant, styles.reviewBubble]}>
             <Text style={[text.body, styles.reviewTitle]}>{bubble.content}</Text>
             {bubble.photos.map((photo, photoIndex) => (
-              <ReviewPhotoCard key={photo.url} photo={photo} index={photoIndex} />
+              <ReviewPhotoCard
+                key={photo.url}
+                photo={photo}
+                index={photoIndex}
+                orderId={activeOrderId}
+                onMarksSaved={onMarksSaved}
+              />
             ))}
             <Text style={[text.caption, styles.reviewHint]}>
               Reply with the numbers you want magnified, name a detail, or say you choose.
@@ -2379,6 +2547,76 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: colors.muted,
   },
+  markOpenButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.faint,
+    backgroundColor: colors.card,
+  },
+  markOpenLabel: { color: colors.ink, fontSize: 11.5, fontWeight: '600' },
+  markBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(20,16,12,0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  markCard: {
+    width: '100%',
+    maxWidth: 640,
+    maxHeight: '92%',
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 18,
+  },
+  markHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  markTitle: { fontSize: 18, fontWeight: '700', color: colors.ink },
+  markClose: { color: colors.muted, fontSize: 13 },
+  markHint: { marginTop: 4, marginBottom: 10, color: colors.muted },
+  markImageBox: {
+    height: 320,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#141210',
+  },
+  markImage: { width: '100%', height: '100%' },
+  markPoint: {
+    position: 'absolute',
+    width: 26,
+    height: 26,
+    marginLeft: -13,
+    marginTop: -13,
+    borderRadius: 13,
+    borderWidth: 3,
+    borderColor: '#F6E7C8',
+    backgroundColor: 'rgba(166,94,34,0.45)',
+  },
+  markFields: { marginTop: 12, gap: 8 },
+  markField: {
+    borderWidth: 1,
+    borderColor: colors.faint,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    color: colors.ink,
+    backgroundColor: '#FFFFFF',
+    fontSize: 13,
+  },
+  markNote: { marginTop: 8, color: colors.muted },
+  markSave: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.ink,
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  markSaveDisabled: { opacity: 0.45 },
+  markSaveLabel: { color: colors.card, fontSize: 12.5, fontWeight: '700' },
   reviewBubble: {
     gap: 12,
     maxWidth: 720,

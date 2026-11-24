@@ -60,6 +60,15 @@ export interface Customer {
   createdAt: string;
 }
 
+export interface MarkedDetail {
+  photo: string;
+  x: number;
+  y: number;
+  label: string;
+  colourName: string;
+  colourHex: string;
+}
+
 export interface Order {
   id: string;
   orderNo: string;
@@ -92,6 +101,7 @@ export interface Order {
   copy?: BrochureCopy | null;
   attachments?: OrderAttachment[];
   createdAt: string;
+  annotations?: MarkedDetail[];
 }
 
 export interface BrochureCopy {
@@ -500,6 +510,23 @@ export const api = {
       method: 'POST',
       body: { messages, draft, attachments, skip },
       timeoutMs: 120000,
+    });
+  },
+  updateAnnotations(
+    orderId: string,
+    annotations: {
+      photo: string;
+      x: number;
+      y: number;
+      label: string;
+      colourName: string;
+      colourHex: string;
+    }[]
+  ): Promise<Order> {
+    return request(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      body: { annotations },
+      timeoutMs: 60000,
     });
   },
   editOrder(

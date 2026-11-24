@@ -58,7 +58,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -313,6 +313,15 @@ export const MIGRATIONS = Object.freeze([
     up(db) {
       // One shared copy for every preview brochure, kept with the library.
       addColumnIfMissing(db, 'design_catalog', 'sample_copy_json', 'TEXT');
+    },
+  },
+  {
+    version: 13,
+    name: 'studio marked details on orders',
+    up(db) {
+      // Areas the studio marked on the pictures, with the colour they want
+      // printed for each one.
+      addColumnIfMissing(db, 'orders', 'annotations_json', 'TEXT');
     },
   },
   {
@@ -589,6 +598,14 @@ function orderFromRow(row) {
   if (!order) return null;
   order.copy = parseOrderCopy(order.copy_json);
   order.attachments = parseOrderAttachments(order.attachments_json);
+  order.annotations = (() => {
+    try {
+      const parsed = JSON.parse(order.annotations_json ?? '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
   order.designDirection = typeof order.design_direction === 'string' ? order.design_direction : '';
   delete order.design_direction;
   return order;
@@ -605,6 +622,12 @@ export function listOrders(db) {
       delete order.copy_json;
       return order;
     });
+}
+
+export function setOrderAnnotations(db, id, annotations) {
+  const json = JSON.stringify(Array.isArray(annotations) ? annotations : []);
+  db.prepare('UPDATE orders SET annotations_json = ? WHERE id = ?').run(json, id);
+  return getOrder(db, id);
 }
 
 export function getOrder(db, id) {
