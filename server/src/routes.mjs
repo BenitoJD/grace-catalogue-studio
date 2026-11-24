@@ -327,7 +327,7 @@ async function pictureReadingFor(
     ? await readPicturesWithVision({
         config,
         requestChat,
-        filePaths: paths.slice(0, 4),
+        filePaths: paths,
         logger,
       })
     : null;
@@ -2446,7 +2446,7 @@ export function createApp(options) {
       const insights = await readPicturesWithVision({
         config,
         requestChat,
-        filePaths: prepared.slice(0, 4).map((entry) => entry.pagePath),
+        filePaths: prepared.map((entry) => entry.pagePath),
         logger,
       });
       if (insights) {

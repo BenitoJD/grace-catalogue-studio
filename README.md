@@ -28,6 +28,11 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **Fortune 500 art direction.** The designer is briefed like an art director for a luxury brand book: a real grid, one type hierarchy, varied page compositions, full bleed photography, quiet detail, and a banned list that rules out template look, badges, cards, gradients and clip art.
 - **Two print review passes.** After the art director pass, the document is reviewed again for alignment on the grid and for anything that feels AI generated: gradients, shadows, invented icons, emoji, generic stacks, uneven spacing. Only a document that still passes every print check replaces the previous one.
 - **A second art director pass.** After the designer produces a valid document, an art director prompt refines composition, hierarchy and rhythm. If the refinement breaks any print rule, the valid original is kept.
+- **No order number in print.** The order number lives in the app and the database, never on a printed page.
+- **The logo leads.** On the cover the brand plate must be 55 to 100 mm wide, prominent and given real space; the body mark stays a small quiet sign.
+- **Every picture whole.** At least one uncropped copy of every supplied picture is guaranteed in the print, on its own whole frame appendix pages added after the designed pages. The model can crop for art direction, but the complete picture always exists in the book.
+- **Paint card callouts.** Colour callouts follow the reference catalogue style: a small ring on the exact point, a thin dashed leader line, and the colour code and name at the end of the line.
+- **Every picture read.** The vision pass reads every picture in batches of four, so a hundred page PDF is analysed page by page, not just the first four.
 - **Magnifiers are print objects.** 55 to 75 mm across, 3.5 to 5 times zoom, crisp ring and inner hairline, 45 degree leader, caption in 7 to 8 pt small caps naming the detail, its colour name and code. A photographed page with a magnifier caption must carry a solid ground and an explicit contrasting text colour, and the standard contrast audit checks it.
 - **The mark stays quiet.** In the body the brand mark must be a small 8 to 14 mm sign, never a large logo, watermark or decoration over type. Large marks live only on the cover and closing plates.
 - **Contrast is enforced.** Dark text on a light ground, light text on a dark ground. Every explicit text colour is checked against the colour actually behind it, including bands and photograph scrims, before the brochure prints. A pale-on-pale or dark-on-dark page is rejected and asked for again.
@@ -73,6 +78,10 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 ![The Pi agent chat, from picture to printed brochure](docs/screenshots/pi-chat.png)
 
 ![The pages workspace: document, marks and chat in one screen](docs/screenshots/workspace.png)
+
+![A live cover: prominent logo, no order number](docs/screenshots/print-cover.png)
+
+![Every picture whole: the appendix page](docs/screenshots/print-whole.png)
 
 ## Chat first
 

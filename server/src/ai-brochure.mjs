@@ -150,7 +150,7 @@ const DESIGNER_SYSTEM = [
   'Write these tokens exactly. The renderer replaces them with the real words and files before printing. Never print a token twice, never retype its content in your own words, and never leave a token unused where the list says it is required.',
   'Copy: {{headline}}, {{body}} and {{closing}}. Set each exactly once, as given. They are the only long words in the document.',
   'The body is one piece of prose: set it in a comfortable measure, two or three columns at 8 to 9.5 pt, and let the paragraph flow. Do not cut it.',
-  'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{orderNo}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}.',
+  'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}. Never print an order number.',
   'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover.',
   'Colour: every photograph has a palette strip {{photo1Palette}}, {{photo2Palette}} and so on, a ready made image of its colours. It also has single colours {{photo1Color1}} to {{photo1Color4}}, and their showroom names {{photo1Color1Name}} to {{photo1Color4Name}}, and so on for every photograph. Use the named colours as paint card chips, with the hex value small underneath.',
   'Magnifier plates: {{photo1detail1}}, {{photo1detail2}} and {{photo1detail3}} are real enlarged crops of that photograph, taken from the joinery detail, plus the same tokens for every photograph. Each plate has its colour {{photo1detail1Color}} and its name {{photo1detail1ColorName}}. Place one on a hero photograph as a circular loupe: a thin ring, a short leader line, and the caption naming the colour and its code. These plates are already magnified, so never fake a loupe with background-size and never crop a plate again.',
@@ -165,7 +165,7 @@ const DESIGNER_SYSTEM = [
   '- Every photograph token from {{photo1}} to the last available must appear at least once.',
   '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as paint card chips, each using its colour token and its colour NAME token, with its hex value small. This is the colour options spread of the showroom book.',
   '- At least one magnifier plate {{photoNdetailM}}, inside a circular loupe on a hero photograph, with its {{photoNdetailMColorName}} and {{photoNdetailMColor}} in the caption.',
-  '- The last page: a brand plate, a contact plate and {{orderNo}}.',
+  '- The last page: a large brand plate and a contact plate. Never print an order number.',
   '- Somewhere in the document: at least one house motif token.',
   '- No dimension, size, shutter count or specification value may appear. Those tokens do not exist and naming them rejects the document.',
   '- The photographs are the design source. Mirror their colours, light and warmth. The pages must look like they belong to the same project as the pictures.',
@@ -176,6 +176,8 @@ const DESIGNER_SYSTEM = [
   'This must look like the printed book a Fortune 500 automotive or luxury interiors brand hands to a customer: art directed, composed, quiet, confident. If a page could have come from a Canva template, a restaurant menu or a website, it is wrong.',
   'Use a real editorial grid: one 12 column grid with a consistent 18 mm outer margin and an 8 mm gutter, and align every element to it. Set a type scale and keep it: cover display 44 to 64 pt, section titles 20 to 26 pt, body 8.4 to 9.5 pt with 1.55 line height, captions 6.4 to 7 pt with 0.2 em tracking, folio 6.4 pt.',
   'Give every page a clear job and a different composition. Vary full bleed photograph pages, a two thirds split page, a quiet type page, a colour plate page and the magnifier spread. Never repeat the same arrangement twice in one document.',
+  'The cover brand plate is a hero: at least 55 mm wide, preferably 60 to 100 mm, set with real space around it. A tiny corner plate is wrong.',
+  'Colour callouts on photographs follow the paint card reference: a small ring or dot on the exact point, a thin dashed leader line, and the colour code and name set at the end of the line in small caps. Keep the callout text clear of busy detail and never cover the thing it points at.',
   'The cover is a designed photograph, not a template: full bleed image or a strong 2:3 split, an oversized title reacting to the image, the brand plate placed with intent, and nothing centered by default. Use a kicker, a hairline and one line of quiet information. No logo, title, photo and footer stack.',
   'Treat typography like a brand book: one display face, one text face, real hierarchy, generous leading, ragged right body, small caps labels with wide tracking, oversized folio numbers, and no more than three type sizes on a page.',
   'Compose with negative space, hairlines and the palette. Only three colour families on a page. Gold is a one point rule, a numeral or a motif, never a fill. No gradients, no drop shadows, no rounded cards, no badges, no clip art icons, no emoji, no chevrons, no buttons.',
@@ -413,7 +415,7 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
     `Title: {{title}}`,
     `Room: {{room}}`,
     `Customer: {{customer}}`,
-    `Order number: {{orderNo}}`,
+    `Order number: not printed`,
     `Date: {{date}}`,
     '',
     'PHOTOGRAPHS AVAILABLE',
@@ -768,7 +770,6 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
     const uses = countToken(whole, token);
     if (uses !== 1) issues.push(`{{${token}}} must appear exactly once (it appears ${uses} times)`);
   }
-  if (countToken(whole, 'orderNo') === 0) issues.push('the order number token {{orderNo}} is missing');
   if (countToken(whole, 'phone') === 0) issues.push('the contact token {{phone}} is missing');
   if (!MOTIF_TOKENS.some((token) => countToken(whole, token) > 0)) {
     issues.push('no house motif is used');
@@ -848,6 +849,27 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
     }
   }
 
+  if (pages.length > 0) {
+    const plate = /<img[^>]*src="\{\{brandPlate(?:Dark|Light)\}\}"[^>]*>/i.exec(pages[0]);
+    const plateWidth = plate ? /width\s*:\s*([0-9.]+)mm/i.exec(plate[0]) : null;
+    if (plate && (!plateWidth || Number.parseFloat(plateWidth[1]) < 50)) {
+      issues.push('the cover brand plate is too small; make the logo prominent at 55 to 100 mm wide');
+    }
+  }
+
+  // The cover display type must stay in the brand book scale, so it can never
+  // be clipped by the page box (44 to 64 pt is the brief).
+  pages.forEach((page, index) => {
+    for (const size of String(page).matchAll(/font-size\s*:\s*([0-9.]+)pt/gi)) {
+      const points = Number.parseFloat(size[1]);
+      if (Number.isFinite(points) && points > 72) {
+        issues.push(
+          `page ${index + 1}: text at ${points} pt is larger than the print scale; keep display type at 44 to 64 pt so nothing clips`,
+        );
+      }
+    }
+  });
+
   const middleHtml = middle.join('\n');
   if (pages.length > 0) {
     if (!/photo\d+/.test(pages[0]) && !/\{\{photo/i.test(pages[0])) {
@@ -895,7 +917,6 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
     if (countToken(lastHtml, 'contactPlateDark') + countToken(lastHtml, 'contactPlateLight') === 0) {
       issues.push('the closing page is missing a contact plate; company details must stay readable');
     }
-    if (countToken(lastHtml, 'orderNo') === 0) issues.push('the last page is missing {{orderNo}}');
     for (const token of COPY_TOKENS) {
       if (countToken(lastHtml, token) > 0) issues.push(`{{${token}}} belongs in the story, not the closing page`);
     }
@@ -933,6 +954,24 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
     }
   });
 
+  // Any use of the plain mark must be a small sign inside an image tag. A logo
+  // stretched as decoration, a background or a class sized graphic is rejected.
+  pages.forEach((page, index) => {
+    const pageHtml = String(page);
+    const refs = [...pageHtml.matchAll(/\{\{\s*logo(?:White)?\s*\}\}/g)];
+    for (const ref of refs) {
+      const open = pageHtml.lastIndexOf('<', ref.index);
+      const close = pageHtml.indexOf('>', ref.index);
+      const tag = open >= 0 && close > open ? pageHtml.slice(open, close + 1) : '';
+      const width = /width\s*:\s*([0-9.]+)mm/i.exec(tag) ?? /width="([0-9.]+)mm"/i.exec(tag);
+      if (!/^<img/i.test(tag) || !width || Number.parseFloat(width[1]) > 20) {
+        issues.push(
+          `page ${index + 1}: the brand logo must be a small 8 to 14 mm image sign, never a large decorative graphic`,
+        );
+      }
+    }
+  });
+
   // The body mark is a small quiet sign, never a giant logo behind the type.
   for (const [index, page] of pages.entries()) {
     for (const match of page.matchAll(/<img[^>]*src="\{\{logo(?:White)?\}\}"[^>]*>/gi)) {
@@ -944,7 +983,7 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
         );
       }
     }
-    if (/background-image\s*:\s*url\(\s*['"]?\{\{logo(?:White)?\}\}/i.test(page)) {
+    if (/background(?:-image)?\s*:[^;{}]*url\(\s*['"]?\{\{\s*logo(?:White)?\s*\}\}/i.test(page)) {
       issues.push(`page ${index + 1}: the brand mark must not be used as a background or watermark`);
     }
   }
@@ -983,7 +1022,7 @@ function buildTokenValues({ values, photos, copy, photoPalettes = {}, photoDetai
     phone: BRAND.phone,
     email: BRAND.email,
     address: BRAND.address,
-    orderNo: valueOr(values.orderNo, 'Order number to follow'),
+    orderNo: '',
     date: valueOr(values.date, ''),
     title: valueOr(values.title, 'Custom wardrobe'),
     room: valueOr(values.room, 'Room to confirm'),
@@ -1240,13 +1279,43 @@ export function compileGenerativeBrochure({
   const noDashes = (value) => value.replace(/[\u2013\u2014]/g, '-');
   const docStyles = noDashes(filledStyles);
   const docPages = filledPages.map(noDashes);
+
+  // Contract: at least one whole, uncropped copy of every supplied picture is
+  // printed. These pages are added after the authored ones so the model can
+  // never crop a picture out of the book.
+  const wholeFrames = [];
+  for (let index = 0; index < photoTokens.length; index += 6) {
+    const chunk = photoTokens.slice(index, index + 6);
+    wholeFrames.push(
+      `<div style="position:relative;width:100%;height:100%;background:#F7F2E9;color:#2E2A24;font-family:var(--body);">` +
+        `<div style="position:absolute;left:18mm;top:14mm;font-size:6.4pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Every picture, whole frame</div>` +
+        `<div style="position:absolute;left:18mm;top:22mm;width:180mm;display:grid;grid-template-columns:1fr 1fr;gap:6mm;">` +
+        chunk
+          .map((uri, offset) => {
+            const number = index + offset + 1;
+            return (
+              `<div>` +
+              `<div style="height:66mm;background:#EFE7D8;display:flex;align-items:center;justify-content:center;padding:2mm;">` +
+              `<img src="${uri}" style="max-width:100%;max-height:62mm;width:auto;height:auto;object-fit:contain;">` +
+              `</div>` +
+              `<div style="margin-top:2mm;font-size:6.2pt;letter-spacing:0.16em;text-transform:uppercase;color:#6E6152;">Whole picture ${number}</div>` +
+              `</div>`
+            );
+          })
+          .join('') +
+        `</div>` +
+        `<div style="position:absolute;left:18mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO</div>` +
+        `</div>`,
+    );
+  }
+  const allPages = [...docPages, ...wholeFrames.map(noDashes)];
   return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)} · ${escapeHtml(values.orderNo)}</title>
+<html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
 <style>${pageCss(themeFromPalettes(photoPalettes))}</style>
 ${docStyles ? `<style>${docStyles}</style>` : ''}
 </head><body>
-${docPages.map((page) => `<div class="page">${page}</div>`).join('\n')}
+${allPages.map((page) => `<div class="page">${page}</div>`).join('\n')}
 </body></html>`;
 }
 

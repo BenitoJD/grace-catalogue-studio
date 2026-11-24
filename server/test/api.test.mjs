@@ -3529,7 +3529,7 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
   const body = JSON.parse(raw);
   assert.equal(body.render.kind, 'ai');
   assert.equal(body.render.templateId, null);
-  assert.equal(body.render.pageCount, 4);
+  assert.equal(body.render.pageCount, 5, 'four designed pages plus the whole picture page');
   assert.equal(body.render.design.designed, true);
   assert.match(body.render.design.label, /Designed by the model/i);
   assert.deepEqual(body.copy, BROCHURE_COPY);
@@ -3537,6 +3537,8 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
   const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
   const flat = normaliseText(text);
   assert.ok(flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()), 'the headline is printed');
+  assert.equal(flat.includes('JDS-'), false, 'the order number is never printed');
+  assert.ok(flat.toLowerCase().includes('whole picture'), 'every picture is printed whole in the appendix');
   assert.ok(flat.includes(BROCHURE_COPY.closing), 'the closing is printed');
   assert.ok(flat.includes('Master Bedroom Wardrobe'), 'the title is printed');
   assert.ok(
@@ -3591,8 +3593,8 @@ test('a longer brochure prints six pages when the content needs room', { timeout
   assert.equal(response.status, 201, raw);
   const body = JSON.parse(raw);
   assert.equal(body.render.kind, 'ai');
-  assert.equal(body.render.pageCount, 6);
-  assert.equal(body.render.pageUrls.length, 6);
+  assert.equal(body.render.pageCount, 7, 'six designed pages plus the whole picture page');
+  assert.equal(body.render.pageUrls.length, 7);
 
   const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
   const flat = normaliseText(text);
@@ -3727,6 +3729,33 @@ test('a giant body logo is rejected as decoration', { timeout: 240_000 }, async 
   const body = await response.json();
   assert.match(body.error.message, /brand mark in the body/i);
   assert.match(body.error.message, /8 to 14 mm/i);
+});
+
+test('a giant decorative logo is rejected', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const giant = DESIGNER_HTML.replace(
+    '{{brandPlateDark}}',
+    '{{brandPlateDark}}',
+  ).replace('</body>', '<div class="page"><img src="{{logo}}" style="width:80mm;"></div></body>');
+  resetMockProvider({ reply: giant });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /brand logo must be a small/i);
+});
+
+test('oversized display type is rejected before it clips', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const huge = DESIGNER_HTML.replace('font-size:42pt', 'font-size:110pt');
+  resetMockProvider({ reply: huge });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /larger than the print scale/i);
 });
 
 test('a gradient is rejected as an AI tell', { timeout: 240_000 }, async () => {

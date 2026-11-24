@@ -109,12 +109,12 @@ function cacheKey(config, filePaths) {
   return `${config?.model ?? ''}|${filePaths.join('|')}`;
 }
 
-/**
- * Read up to four pictures in one call. Resolves with one insight per picture,
- * or null when the model cannot see or the reply is unusable.
- */
-export async function readPicturesWithVision({ config, requestChat, filePaths, logger }) {
-  const paths = (Array.isArray(filePaths) ? filePaths : []).slice(0, 4);
+// Every picture is read, in batches of four per model call, so a project with
+// one hundred pages is analysed page by page instead of only the first four.
+const VISION_BATCH = 4;
+
+async function readBatch({ config, requestChat, filePaths, logger }) {
+  const paths = filePaths;
   if (paths.length === 0) return null;
   if (unsupportedModels.has(String(config?.model ?? ''))) return null;
   const key = cacheKey(config, paths);
@@ -139,15 +139,13 @@ export async function readPicturesWithVision({ config, requestChat, filePaths, l
             ],
           },
         ],
-        maxTokens: 900,
+        maxTokens: Math.min(4000, 900 * images.length),
         temperature: 0.2,
-        timeoutMs: 60_000,
+        timeoutMs: 120_000,
       });
       return parseBatch(result.content, images.length);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      // A model that cannot take image content is remembered, so the rest of
-      // the session falls back to the deterministic reading without cost.
       if (/image|vision|multimodal|content|unsupported/i.test(message)) {
         unsupportedModels.add(String(config?.model ?? ''));
       }
@@ -162,6 +160,28 @@ export async function readPicturesWithVision({ config, requestChat, filePaths, l
     cache.delete(oldest);
   }
   return promise;
+}
+
+/** Read every picture, batching four per call. Returns one insight per picture. */
+export async function readPicturesWithVision({ config, requestChat, filePaths, logger }) {
+  const all = Array.isArray(filePaths) ? filePaths.filter(Boolean) : [];
+  if (all.length === 0) return null;
+  if (unsupportedModels.has(String(config?.model ?? ''))) return null;
+  const batches = [];
+  for (let index = 0; index < all.length; index += VISION_BATCH) {
+    batches.push(all.slice(index, index + VISION_BATCH));
+  }
+  const results = await Promise.all(
+    batches.map((batch) => readBatch({ config, requestChat, filePaths: batch, logger })),
+  );
+  const flat = [];
+  batches.forEach((batch, index) => {
+    const found = results[index];
+    for (let offset = 0; offset < batch.length; offset += 1) {
+      flat.push(found?.[offset] ?? null);
+    }
+  });
+  return flat;
 }
 
 /** One picture, for callers that only need the first. */
