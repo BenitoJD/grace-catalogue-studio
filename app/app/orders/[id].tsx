@@ -297,6 +297,13 @@ export default function OrderDetailScreen() {
                     loadingLabel="Designing and printing"
                     onPress={() => void designBrochure()}
                   />
+                  <Button
+                    label="Continue chat"
+                    variant="secondary"
+                    onPress={() =>
+                      router.push({ pathname: '/', params: { orderId: orderId ?? '' } })
+                    }
+                  />
                 </View>
 
                 {render ? (

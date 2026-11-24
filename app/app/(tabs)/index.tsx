@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
@@ -165,6 +165,7 @@ function TypingDots({ label }: { label: string }) {
 }
 
 export default function ChatScreen() {
+  const params = useLocalSearchParams<{ orderId?: string }>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const compact = width < 560;
@@ -220,6 +221,60 @@ export default function ChatScreen() {
     const timer = setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 80);
     return () => clearTimeout(timer);
   }, [bubbles.length, sending, cooking]);
+
+  // Coming from History: reopen the order and its Pi conversation, so the
+  // studio can carry on editing in the same chat instead of starting over.
+  useEffect(() => {
+    const orderId = typeof params.orderId === 'string' ? params.orderId : '';
+    if (orderId === '') return;
+    let active = true;
+    Promise.all([api.getOrder(orderId), api.assistantSession(orderId), api.listRenders()])
+      .then(([order, session, renders]) => {
+        if (!active) return;
+        const latest = renders
+          .filter((render) => render.orderId === orderId && render.kind === 'ai')
+          .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))[0];
+        const rendered = session.messages.map((message) => ({
+          id: nextId(),
+          role: message.role,
+          kind: 'text' as const,
+          content: message.content,
+          at: stamp(),
+        }));
+        setBubbles(
+          rendered.length > 0
+            ? rendered
+            : [{ id: nextId(), role: 'assistant', kind: 'text', content: WELCOME, at: stamp() }],
+        );
+        if (latest) {
+          setBubbles((current) => [
+            ...current,
+            {
+              id: nextId(),
+              role: 'assistant',
+              kind: 'brochure',
+              content: 'The brochure for this order.',
+              at: stamp(),
+              orderId,
+              orderNo: order.orderNo,
+              render: latest,
+            },
+          ]);
+        }
+        setActiveOrderId(orderId);
+        setActiveOrderNo(order.orderNo);
+        setOrderCreated(true);
+        setOrderFiles(order.attachments ?? []);
+        setAssistantSessionId(session.sessionId ?? `chat-${Date.now()}`);
+        previousBubbleCount.current = Math.max(1, rendered.length);
+        atBottomRef.current = true;
+        setAtBottom(true);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [params.orderId]);
 
   useEffect(() => {
     let active = true;
@@ -285,6 +340,7 @@ export default function ChatScreen() {
 
   const startNewChat = useCallback(() => {
     if (sending || cooking) return;
+    router.setParams({ orderId: undefined });
     setBubbles([
       { id: nextId(), role: 'assistant', kind: 'text', content: WELCOME, at: stamp() },
     ]);

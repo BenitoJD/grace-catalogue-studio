@@ -432,6 +432,14 @@ export const api = {
     });
   },
 
+  assistantSession(orderId: string): Promise<{
+    sessionId: string | null;
+    messages: { role: 'user' | 'assistant'; content: string }[];
+    updatedAt: string | null;
+  }> {
+    return request(`/api/orders/${encodeId(orderId)}/assistant-session`);
+  },
+
   assistantProgress(sessionId: string): Promise<{ progress: AssistantProgress | null }> {
     return request<{ progress: AssistantProgress | null }>(
       `/api/assistant/progress/${encodeURIComponent(sessionId)}`,

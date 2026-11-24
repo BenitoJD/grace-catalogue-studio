@@ -187,6 +187,16 @@ function OrderCard({ order, documents }: { order: Order; documents: Render[] }) 
 
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={`Continue the chat for ${order.orderNo}`}
+        onPress={() =>
+          router.push({ pathname: '/', params: { orderId: order.id, orderNo: order.orderNo } })
+        }
+        style={({ pressed }) => [styles.openRow, pressed && styles.openRowPressed]}>
+        <Text style={styles.openRowLabel}>Continue chat</Text>
+        <Text style={styles.openRowChevron}>›</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
         accessibilityLabel={`Open order ${order.orderNo}`}
         onPress={() => router.push({ pathname: '/orders/[id]', params: { id: order.id } })}
         style={({ pressed }) => [styles.openRow, pressed && styles.openRowPressed]}>

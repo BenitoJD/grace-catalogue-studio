@@ -1666,6 +1666,38 @@ export function createApp(options) {
     }
   });
 
+  // Reopen the conversation for an order in History. Returns the stored Pi
+  // session and the plain text messages, so the chat can be rehydrated.
+  app.get('/api/orders/:id/assistant-session', (c) => {
+    const order = getOrder(db, c.req.param('id'));
+    if (!order) return fail(c, 404, 'Order not found.');
+    const row = db
+      .prepare('SELECT id, messages_json, updated_at FROM assistant_sessions WHERE order_id = ? ORDER BY updated_at DESC LIMIT 1')
+      .get(order.id);
+    if (!row) return c.json({ sessionId: null, messages: [], updatedAt: null });
+    let stored = [];
+    try {
+      stored = JSON.parse(row.messages_json);
+    } catch {
+      stored = [];
+    }
+    const text = (content) =>
+      typeof content === 'string'
+        ? content
+        : Array.isArray(content)
+          ? content
+              .filter((block) => block && block.type === 'text' && typeof block.text === 'string')
+              .map((block) => block.text)
+              .join(' ')
+          : '';
+    const messages = (Array.isArray(stored) ? stored : [])
+      .filter((message) => message.role === 'user' || message.role === 'assistant')
+      .map((message) => ({ role: message.role, content: text(message.content) }))
+      .filter((message) => message.content.trim() !== '')
+      .slice(-40);
+    return c.json({ sessionId: row.id, messages, updatedAt: row.updated_at });
+  });
+
   // The live step the chat shows while an agent turn runs.
   app.get('/api/assistant/progress/:sessionId', (c) => {
     const progress = getAssistantProgress(c.req.param('sessionId'));
