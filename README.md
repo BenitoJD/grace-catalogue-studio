@@ -85,7 +85,7 @@ Files can join late: attach a photograph with the next sentence and it is saved 
 
 ## Generated design
 
-Quality is preferred over speed: the designer has 32,000 output tokens, four repair attempts and an art director pass, and the agent has no tight budget either.
+Quality is preferred over speed: no output token cap on the designer or the agent, four repair attempts and an art director pass, so the provider uses the model's own maximum.
 
 The model writes the words and authors the pages itself as HTML and CSS in one reply: four pages for a quiet order, up to eight when the photographs and their palettes need the room. The server supplies the print box, fonts, brand assets, the picture palettes and the words through tokens, then checks the document before printing.
 

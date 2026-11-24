@@ -554,7 +554,9 @@ export async function requestChat({
   const body = {
     model: clean(model),
     messages,
-    max_tokens: maxTokens,
+    // No artificial output cap: when maxTokens is undefined the provider uses
+    // the model's own maximum, which is what the quality first mode wants.
+    ...(maxTokens === undefined ? {} : { max_tokens: maxTokens }),
     temperature,
     ...providerBodyExtras(base, providerId),
   };

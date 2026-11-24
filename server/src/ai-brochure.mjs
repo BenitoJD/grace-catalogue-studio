@@ -20,7 +20,9 @@ import { colourName } from './image-palette.mjs';
 import { brandPlateTokens } from './brand-lockup.mjs';
 import { contrastIssues as pageContrastIssues } from './contrast.mjs';
 
-export const DESIGNER_MAX_TOKENS = 32000;
+// Quality first: no output token cap for the designer or the art director.
+// Undefined means the provider uses the model's own maximum.
+export const DESIGNER_MAX_TOKENS = undefined;
 export const DESIGNER_TEMPERATURE = 0.85;
 export const DESIGNER_TRIES = 4;
 export const DESIGNER_MAX_CHARS = 90_000;
