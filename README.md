@@ -85,6 +85,8 @@ Files can join late: attach a photograph with the next sentence and it is saved 
 
 ## Generated design
 
+Quality is preferred over speed: the designer has 32,000 output tokens, four repair attempts and an art director pass, and the agent has no tight budget either.
+
 The model writes the words and authors the pages itself as HTML and CSS in one reply: four pages for a quiet order, up to eight when the photographs and their palettes need the room. The server supplies the print box, fonts, brand assets, the picture palettes and the words through tokens, then checks the document before printing.
 
 The checks cover the page count, per page word limits, the copy printed once, every photograph used, every palette strip with its four named chips, a real magnifier plate with its colour name and code, a brand plate on the cover, a brand plate and contact plate on the closing page, a house motif, no external URL, and no unfilled token. A failure is asked for again with the exact problems; two failures print nothing.

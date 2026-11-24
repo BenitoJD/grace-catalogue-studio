@@ -42,7 +42,7 @@ import {
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { parseDesignerReply, themeFromPalettes } from '../src/ai-brochure.mjs';
+import { DESIGNER_TRIES, parseDesignerReply, themeFromPalettes } from '../src/ai-brochure.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -3802,7 +3802,7 @@ test('the art director pass refines a valid brochure', { timeout: 240_000 }, asy
   }
 });
 
-test('an unusable design is retried once and then fails cleanly', { timeout: 120_000 }, async () => {
+test('an unusable design is retried to the limit and then fails cleanly', { timeout: 120_000 }, async () => {
   resetLlmState();
   await configureLlm();
   setOrderCopyForTest();
@@ -3811,7 +3811,11 @@ test('an unusable design is retried once and then fails cleanly', { timeout: 120
   assert.equal(response.status, 502);
   const body = await response.json();
   assert.equal(body.error.type, 'invalid_reply');
-  assert.equal(mockProviderState.requests.length, 2, 'one retry, then the failure is surfaced');
+  assert.equal(
+    mockProviderState.requests.length,
+    DESIGNER_TRIES,
+    'every repair attempt is made, then the failure is surfaced',
+  );
 });
 
 test('a chat sentence edits the order and the page it already has', { timeout: 300_000 }, async () => {

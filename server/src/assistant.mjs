@@ -386,7 +386,7 @@ export function createStudioStreamFn(config, fetchImpl = globalThis.fetch) {
     const body = {
       model: requestModel.id,
       messages: openAiMessages(context.messages),
-      max_tokens: 8000,
+      max_tokens: 16000,
       temperature: 0.2,
       ...(tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
     };

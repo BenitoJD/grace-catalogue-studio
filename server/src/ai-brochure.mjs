@@ -20,9 +20,9 @@ import { colourName } from './image-palette.mjs';
 import { brandPlateTokens } from './brand-lockup.mjs';
 import { contrastIssues as pageContrastIssues } from './contrast.mjs';
 
-export const DESIGNER_MAX_TOKENS = 12000;
+export const DESIGNER_MAX_TOKENS = 32000;
 export const DESIGNER_TEMPERATURE = 0.85;
-export const DESIGNER_TRIES = 2;
+export const DESIGNER_TRIES = 4;
 export const DESIGNER_MAX_CHARS = 90_000;
 
 const BRAND = {
