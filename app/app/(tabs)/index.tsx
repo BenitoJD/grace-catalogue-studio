@@ -200,6 +200,7 @@ export default function ChatScreen() {
   // The Pi agent drives the chat when the machine has it switched on. If a turn
   // fails, the session falls back to the deterministic flow instead of dying.
   const [assistantEnabled, setAssistantEnabled] = useState(false);
+  const [assistantSessionId, setAssistantSessionId] = useState<string | null>(null);
   const assistantBroken = useRef(false);
   const [skipping, setSkipping] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -589,6 +590,7 @@ export default function ChatScreen() {
       result = await api.assistant({
         messages: conversation,
         ...(activeOrderId ? { orderId: activeOrderId } : {}),
+        ...(assistantSessionId ? { sessionId: assistantSessionId } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
       });
     } catch (error) {
@@ -654,11 +656,12 @@ export default function ChatScreen() {
     } else {
       setOrderFiles(attachments);
     }
+    if (result.sessionId) setAssistantSessionId(result.sessionId);
     sendingRef.current = false;
     setSending(false);
     atBottomRef.current = true;
     setAtBottom(true);
-  }, [activeOrderId, activeOrderNo, bubbles, input, orderFiles, pendingFiles]);
+  }, [activeOrderId, activeOrderNo, assistantSessionId, bubbles, input, orderFiles, pendingFiles]);
 
   const send = useCallback(async () => {
     const content = input.trim();
@@ -781,6 +784,7 @@ export default function ChatScreen() {
       setReady(false);
       setOrderCreated(false);
     setAwaitingReview(false);
+    setAssistantSessionId(null);
     reviewDraft.current = null;
       setCreateFailed(false);
     }
@@ -1029,7 +1033,7 @@ export default function ChatScreen() {
                 <Text style={styles.avatarLabel}>JD</Text>
               </View>
               <View style={[styles.bubble, styles.bubbleAssistant]}>
-                <TypingDots label={cooking ? 'Creating the order' : skipping ? 'Marking it to be confirmed' : 'Reading'} />
+                <TypingDots label={assistantEnabled && sending ? 'Working on the brochure' : cooking ? 'Creating the order' : skipping ? 'Marking it to be confirmed' : 'Reading'} />
               </View>
             </View>
           ) : null}

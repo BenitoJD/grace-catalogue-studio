@@ -29,6 +29,8 @@ import {
   createOrder,
   createRender,
   deleteCustomer,
+  deleteAssistantSession,
+  getAssistantSession,
   getOrder,
   getSetting,
   llmCacheStats,
@@ -36,6 +38,7 @@ import {
   listRenders,
   listSettings,
   openDb,
+  putAssistantSession,
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
@@ -4422,14 +4425,23 @@ test('the chat assistant endpoint runs a turn and returns the studio result', { 
     render: { id: 'render-assistant', pageCount: 4, pdfUrl: '/files/render-assistant.pdf' },
     toolCalls: [{ name: 'create_order', error: false }],
   };
+  const seen = [];
   app.assistantRuntime.run = async (input) => {
+    seen.push(input);
     assert.equal(input.attachments.length, 0);
     assert.ok(input.messages.some((message) => message.content.includes('Wardrobe')));
-    return fake;
+    return {
+      ...fake,
+      transcript: [
+        { role: 'user', content: 'Wardrobe for the master bedroom.', timestamp: Date.now() },
+        { role: 'assistant', content: [{ type: 'text', text: fake.reply }], timestamp: Date.now() },
+      ],
+    };
   };
   try {
     const response = await postJson(`${baseUrl}/api/assistant`, {
       messages: [{ role: 'user', content: 'Wardrobe for the master bedroom.' }],
+      sessionId: 'chat-test-1',
     });
     const raw = await response.text();
     assert.equal(response.status, 200, raw);
@@ -4439,11 +4451,137 @@ test('the chat assistant endpoint runs a turn and returns the studio result', { 
     assert.equal(body.orderNo, 'JDS-2026-001');
     assert.equal(body.render.pageCount, 4);
     assert.equal(body.toolCalls[0].name, 'create_order');
+    assert.equal(body.sessionId, 'chat-test-1');
     const health = await (await fetch(`${baseUrl}/health`)).json();
     assert.equal(health.assistant, true);
+
+    // The second turn on the same session gets the saved transcript.
+    const secondResponse = await postJson(`${baseUrl}/api/assistant`, {
+      messages: [
+        { role: 'user', content: 'Wardrobe for the master bedroom.' },
+        { role: 'assistant', content: fake.reply },
+        { role: 'user', content: 'Make the shutters walnut.' },
+      ],
+      sessionId: 'chat-test-1',
+      orderId,
+    });
+    const secondRaw = await secondResponse.text();
+    assert.equal(secondResponse.status, 200, secondRaw);
+    assert.equal(seen.length, 2);
+    assert.equal(seen[1].previousMessages.length, 2, 'the stored transcript is restored');
+    assert.equal(seen[1].previousMessages[0].role, 'user');
+    const stored = getAssistantSession(db, 'chat-test-1');
+    assert.equal(stored.orderId, orderId, 'the session is linked to the order');
+    assert.equal(stored.messages.length, 2);
   } finally {
     app.assistantRuntime.run = runAssistantTurn;
   }
+});
+
+test('assistant sessions are stored, restored and deleted', () => {
+  const session = putAssistantSession(db, {
+    id: 'session-store-test',
+    orderId,
+    messages: [{ role: 'user', content: 'Hello', timestamp: 1 }],
+  });
+  assert.equal(session.id, 'session-store-test');
+  assert.equal(session.orderId, orderId);
+  assert.equal(getAssistantSession(db, 'session-store-test').messages.length, 1);
+  putAssistantSession(db, {
+    id: 'session-store-test',
+    orderId,
+    messages: [{ role: 'user', content: 'Again', timestamp: 2 }],
+  });
+  assert.equal(getAssistantSession(db, 'session-store-test').messages[0].content, 'Again');
+  assert.equal(deleteAssistantSession(db, 'session-store-test'), true);
+  assert.equal(getAssistantSession(db, 'session-store-test'), null);
+});
+
+test('a second create_order in one turn is blocked', { timeout: 240_000 }, async () => {
+  const faux = fauxProvider();
+  const models = createModels();
+  models.setProvider(faux.provider);
+  faux.setResponses([
+    fauxAssistantMessage(
+      [
+        fauxToolCall('create_order', { customerName: 'Meena', title: 'Wardrobe', room: 'Master Bedroom' }),
+        fauxToolCall('create_order', { customerName: 'Meena', title: 'Wardrobe', room: 'Master Bedroom' }),
+      ],
+      { stopReason: 'toolUse' },
+    ),
+    fauxAssistantMessage([fauxText('The order is created once.')], { stopReason: 'stop' }),
+  ]);
+  const calls = [];
+  const json = (payload) =>
+    new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } });
+  const callApi = async (path, init) => {
+    calls.push(path);
+    if (path === '/api/customers') return json({ id: 'cust-1' });
+    if (path === '/api/orders') return json({ id: 'order-1', orderNo: 'JDS-2026-011' });
+    throw new Error(`Unexpected ${path}`);
+  };
+  const result = await runAssistantTurn({
+    config: { model: 'faux', endpoint: 'http://faux.local/v1', apiKey: 'k' },
+    messages: [{ role: 'user', content: 'A wardrobe for Meena.' }],
+    callApi,
+    modelsOverride: { models, model: faux.getModel(), apiKey: 'test' },
+  });
+  assert.equal(calls.filter((path) => path === '/api/orders').length, 1, 'one order is created');
+  assert.match(result.reply, /created once/i);
+});
+
+test('a second Pi turn restores the transcript and designs the same order', { timeout: 240_000 }, async () => {
+  const faux = fauxProvider();
+  const models = createModels();
+  models.setProvider(faux.provider);
+  const json = (payload) =>
+    new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } });
+  const calls = [];
+  const callApi = async (path) => {
+    calls.push(path);
+    if (path === '/api/customers') return json({ id: 'cust-1' });
+    if (path === '/api/orders') return json({ id: 'order-1', orderNo: 'JDS-2026-012' });
+    if (path === '/api/orders/order-1/ai-brochure') return json({ render: { pageCount: 4 } });
+    throw new Error(`Unexpected ${path}`);
+  };
+
+  faux.setResponses([
+    fauxAssistantMessage(
+      [fauxToolCall('create_order', { customerName: 'Meena', title: 'Wardrobe', room: 'Master Bedroom' })],
+      { stopReason: 'toolUse' },
+    ),
+    fauxAssistantMessage([fauxText('The order is created.')], { stopReason: 'stop' }),
+  ]);
+  const first = await runAssistantTurn({
+    config: { model: 'faux', endpoint: 'http://faux.local/v1', apiKey: 'k' },
+    messages: [{ role: 'user', content: 'A wardrobe for Meena.' }],
+    callApi,
+    modelsOverride: { models, model: faux.getModel(), apiKey: 'test' },
+  });
+  assert.equal(first.orderNo, 'JDS-2026-012');
+  assert.ok(first.transcript.length >= 2);
+
+  faux.setResponses([
+    fauxAssistantMessage(
+      [fauxToolCall('design_brochure', { orderId: 'order-1', direction: 'magnify the handle' })],
+      { stopReason: 'toolUse' },
+    ),
+    fauxAssistantMessage([fauxText('The brochure is ready.')], { stopReason: 'stop' }),
+  ]);
+  const second = await runAssistantTurn({
+    config: { model: 'faux', endpoint: 'http://faux.local/v1', apiKey: 'k' },
+    messages: [
+      { role: 'user', content: 'A wardrobe for Meena.' },
+      { role: 'assistant', content: 'The order is created.' },
+      { role: 'user', content: 'Design the brochure and magnify the handle.' },
+    ],
+    previousMessages: first.transcript,
+    orderId: 'order-1',
+    callApi,
+    modelsOverride: { models, model: faux.getModel(), apiKey: 'test' },
+  });
+  assert.equal(second.render.pageCount, 4);
+  assert.ok(calls.includes('/api/orders/order-1/ai-brochure'));
 });
 
 test('the Pi agent loop calls studio tools and returns the brochure', { timeout: 240_000 }, async () => {

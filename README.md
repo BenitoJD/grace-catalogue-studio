@@ -53,7 +53,9 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 
 - **Tools the agent can call**: `read_pictures` (vision reading of the attached pictures), `create_order`, `update_order`, `design_brochure` and `get_order`. Every tool calls the same validated HTTP routes the rest of the app uses, so the print contract still applies.
 - **Model transport**: one OpenAI compatible request per turn through the same provider settings as the rest of the studio, including provider headers such as the OpenCode session id. Pi's own provider SDKs are not used for requests, only its agent runtime.
-- **Conversation**: the app sends the chat history as context with the new message, plus any attachments. The agent decides whether to confirm the reading, ask for the customer name, create the order or design the brochure.
+- **Conversation state**: every chat has a Pi session stored in SQLite. The full transcript, including tool calls and tool results, is restored on the next turn and across restarts, so edits continue the same order instead of starting over.
+- **Guards**: one turn at a time per chat, one order per chat, the designer can only run for an existing order, and the model cannot create a second order by accident.
+- **Failures keep the work**: if a turn fails or runs long after the order is created, the order and any render are returned and saved, with a reply saying what happened. Nothing is thrown away and no duplicate order is made.
 - **Safety net**: if the agent turn fails or times out, the chat falls back to the deterministic intake and design flow for the rest of the session. The app never stops working because of the agent.
 - **Bundling**: Pi is bundled into the desktop server by esbuild, with a require shim for its dynamic imports. No Python, no sidecar, no extra runtime.
 - **Time budget**: one agent turn can take several minutes because the design tool runs a full designer call with repairs. The desktop proxy allows 20 minutes, the agent allows 15, so the turn finishes instead of being cut off. The chat shows the work in progress.
@@ -161,7 +163,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ## Tests
 
 ```bash
-npm test          # 127 server tests
+npm test          # 130 server tests
 npm run verify    # black box smoke test
 npm run e2e       # 97 browser checks
 npm run typecheck

@@ -58,7 +58,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -315,7 +315,62 @@ export const MIGRATIONS = Object.freeze([
       addColumnIfMissing(db, 'design_catalog', 'sample_copy_json', 'TEXT');
     },
   },
+  {
+    version: 12,
+    name: 'pi assistant sessions',
+    up(db) {
+      // One Pi transcript per chat session, so the agent keeps the order, the
+      // tool results and the decisions across turns and restarts.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS assistant_sessions (
+          id TEXT PRIMARY KEY,
+          order_id TEXT REFERENCES orders(id) ON DELETE SET NULL,
+          messages_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS assistant_sessions_order ON assistant_sessions(order_id);');
+    },
+  },
 ]);
+
+function assistantSessionFromRow(row) {
+  if (!row) return null;
+  let messages = [];
+  try {
+    const parsed = JSON.parse(row.messages_json);
+    messages = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    messages = [];
+  }
+  return { id: row.id, orderId: row.order_id ?? null, messages, updatedAt: row.updated_at };
+}
+
+export function getAssistantSession(db, id) {
+  return assistantSessionFromRow(
+    db.prepare('SELECT * FROM assistant_sessions WHERE id = ?').get(String(id ?? '')),
+  );
+}
+
+export function putAssistantSession(db, { id, orderId = null, messages = [] }) {
+  const safeId = String(id ?? '').trim().slice(0, 120);
+  if (safeId === '') throw new Error('An assistant session needs an id.');
+  const payload = JSON.stringify(Array.isArray(messages) ? messages : []).slice(0, 2_000_000);
+  db.prepare(
+    `INSERT INTO assistant_sessions (id, order_id, messages_json, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       order_id = excluded.order_id,
+       messages_json = excluded.messages_json,
+       updated_at = excluded.updated_at`,
+  ).run(safeId, orderId, payload, now());
+  return getAssistantSession(db, safeId);
+}
+
+export function deleteAssistantSession(db, id) {
+  const result = db.prepare('DELETE FROM assistant_sessions WHERE id = ?').run(String(id ?? ''));
+  return Number(result.changes) > 0;
+}
 
 export function getLlmCache(db, key, expiryCutoffIso = null) {
   const row = db.prepare('SELECT * FROM llm_cache WHERE key = ?').get(key);

@@ -19,11 +19,13 @@ import {
   getCustomer,
   getLlmCache,
   getMaterial,
+  getAssistantSession,
   getOrder,
   getRender,
   getRenderHtml,
   llmCacheStats,
   pruneLlmCache,
+  putAssistantSession,
   putLlmCache,
   listCustomers,
   listMaterials,
@@ -647,6 +649,9 @@ export function createApp(options) {
   const assistantEnabled = String(process.env.PI_ASSISTANT ?? 'on').toLowerCase() !== 'off';
   const assistantRuntime = { run: options.assistantRunner ?? runAssistantTurn };
   app.assistantRuntime = assistantRuntime;
+  // One turn at a time per chat session, so two sends cannot fight over the
+  // same transcript or create two orders.
+  const assistantLocks = new Map();
   app.assistantEnabled = assistantEnabled;
   const lifecycle = { shuttingDown: false };
 
@@ -1550,6 +1555,16 @@ export function createApp(options) {
       typeof parsed.body.orderId === 'string' ? parsed.body.orderId.trim().slice(0, 100) : '';
     if (orderId !== '' && !getOrder(db, orderId)) return fail(c, 404, 'Order not found.');
 
+    const requestedSession =
+      typeof parsed.body.sessionId === 'string' ? parsed.body.sessionId.trim().slice(0, 120) : '';
+    const sessionId = requestedSession !== '' ? requestedSession : randomUUID();
+    const storedSession = getAssistantSession(db, sessionId);
+    if (orderId === '' && storedSession?.orderId) orderId = storedSession.orderId;
+    if (assistantLocks.has(sessionId)) {
+      return fail(c, 409, 'The assistant is still working on the previous message.');
+    }
+    assistantLocks.set(sessionId, true);
+
     const attachments = readAttachments(parsed.body);
     if (attachments.error) return fail(c, 400, attachments.error);
 
@@ -1576,21 +1591,40 @@ export function createApp(options) {
         messages: cleanMessages,
         attachments: attachments.value,
         orderId: orderId === '' ? null : orderId,
+        previousMessages: storedSession?.messages ?? [],
         callApi,
         logger,
       });
-      const order = result.orderId ? getOrder(db, result.orderId) : null;
+      const finalOrderId = result.orderId ?? (orderId === '' ? null : orderId);
+      const order = finalOrderId ? getOrder(db, finalOrderId) : null;
+      try {
+        putAssistantSession(db, {
+          id: sessionId,
+          orderId: finalOrderId ?? null,
+          messages: result.transcript ?? storedSession?.messages ?? [],
+        });
+      } catch (error) {
+        logger.warn('The assistant session could not be saved.', {
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
       return c.json({
         assistant: true,
+        sessionId,
         reply: result.reply,
         order: order ? orderPayload(order) : null,
-        orderId: result.orderId ?? orderId ?? null,
+        orderId: finalOrderId,
         orderNo: result.orderNo ?? order?.orderNo ?? null,
         render: result.render ?? null,
         toolCalls: Array.isArray(result.toolCalls) ? result.toolCalls : [],
+        usage: result.usage ?? null,
+        failed: result.failed === true,
+        failure: result.failure ?? null,
       });
     } catch (error) {
       return llmFailureResponse(c, error);
+    } finally {
+      assistantLocks.delete(sessionId);
     }
   });
 

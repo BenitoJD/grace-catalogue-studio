@@ -173,12 +173,16 @@ export interface ReviewCandidate {
 
 export interface AssistantReply {
   assistant?: boolean;
+  sessionId?: string;
   reply: string;
   order?: Order | null;
   orderId?: string | null;
   orderNo?: string | null;
   render?: Render | null;
   toolCalls?: { name: string; error?: boolean }[];
+  usage?: { input: number; output: number; totalTokens: number } | null;
+  failed?: boolean;
+  failure?: string | null;
 }
 
 export interface ReviewPhoto {
@@ -405,6 +409,7 @@ export const api = {
   assistant(input: {
     messages: { role: 'user' | 'assistant'; content: string }[];
     orderId?: string;
+    sessionId?: string;
     attachments?: OrderAttachment[];
   }): Promise<AssistantReply> {
     return request<AssistantReply>('/api/assistant', {

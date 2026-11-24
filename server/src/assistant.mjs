@@ -151,6 +151,7 @@ export function createStudioTools({ callApi, attachments, state }) {
     },
     {
       ...TOOL_SPECS[1],
+      executionMode: 'sequential',
       execute: async (_toolCallId, params) => {
         if (state.orderId) {
           return textResult({ orderId: state.orderId, orderNo: state.orderNo, note: 'Order already created.' });
@@ -185,6 +186,7 @@ export function createStudioTools({ callApi, attachments, state }) {
     },
     {
       ...TOOL_SPECS[3],
+      executionMode: 'sequential',
       execute: async (_toolCallId, params) => {
         const orderId = params.orderId ?? state.orderId;
         if (!orderId) throw new Error('Create the order before designing the brochure.');
@@ -273,7 +275,9 @@ function openAiMessages(messages) {
   return list;
 }
 
-function assistantMessage(model, blocks, stopReason, errorMessage) {
+function assistantMessage(model, blocks, stopReason, errorMessage, providerUsage = null) {
+  const input = Number(providerUsage?.prompt_tokens ?? 0) || 0;
+  const output = Number(providerUsage?.completion_tokens ?? 0) || 0;
   return {
     role: 'assistant',
     content: blocks,
@@ -281,11 +285,11 @@ function assistantMessage(model, blocks, stopReason, errorMessage) {
     provider: 'studio',
     model: model.id,
     usage: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
+      input,
+      output,
+      cacheRead: Number(providerUsage?.prompt_tokens_details?.cached_tokens ?? 0) || 0,
       cacheWrite: 0,
-      totalTokens: 0,
+      totalTokens: Number(providerUsage?.total_tokens ?? input + output) || input + output,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     },
     ...(errorMessage ? { errorMessage } : {}),
@@ -385,7 +389,7 @@ export function createStudioStreamFn(config, fetchImpl = globalThis.fetch) {
       blocks.push({ type: 'text', text: 'Noted.' });
     }
     const stopReason = calls.length > 0 ? 'toolUse' : 'stop';
-    return streamFrom(assistantMessage(requestModel, blocks, stopReason));
+    return streamFrom(assistantMessage(requestModel, blocks, stopReason, null, payload?.usage));
   }
 
   return { model, streamFn, apiKey };
@@ -419,6 +423,7 @@ export async function runAssistantTurn({
   messages,
   attachments = [],
   orderId = null,
+  previousMessages = [],
   callApi,
   logger,
   modelsOverride = null,
@@ -449,13 +454,31 @@ export async function runAssistantTurn({
   const context = contextLine(history, state.orderId);
   const prompt = context === '' ? last.content : `${context}\n\nStudio: ${last.content}`;
 
+  const restored = (Array.isArray(previousMessages) ? previousMessages : [])
+    .filter(
+      (message) =>
+        message &&
+        (message.role === 'user' || message.role === 'assistant' || message.role === 'toolResult') &&
+        message.role !== 'system',
+    )
+    .slice(-60);
   const agent = new Agent({
     initialState: {
       systemPrompt: SYSTEM_PROMPT,
       model,
       tools,
+      messages: restored,
     },
     streamFn,
+    beforeToolCall: async ({ toolCall }) => {
+      if (toolCall.name === 'create_order' && state.orderId) {
+        return { block: true, reason: 'The order already exists; edit it instead of creating another.' };
+      }
+      if (toolCall.name === 'design_brochure' && !state.orderId) {
+        return { block: true, reason: 'Create the order before designing the brochure.' };
+      }
+      return undefined;
+    },
     getApiKey: async () => apiKey,
   });
   agent.subscribe((event) => {
@@ -472,16 +495,24 @@ export async function runAssistantTurn({
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     logger?.warn?.('The studio assistant turn failed.', { reason });
-    // The order is real work that already completed; never throw it away just
-    // because the design step ran long.
+    agent.abort();
+    // The order is real work that already completed; never throw it away.
     if (state.orderId) {
+      const transcript = transcriptOf(agent);
       return {
-        reply: 'The order is created. The brochure design did not finish in time; ask me to design it again and I will retry.',
+        reply:
+          state.render
+            ? 'The brochure is ready.'
+            : 'The order is saved. The brochure did not finish this time; ask me to design it again and I will retry.',
         orderId: state.orderId,
         orderNo: state.orderNo,
         order: state.order,
         render: state.render,
         toolCalls: state.toolCalls,
+        transcript,
+        usage: usageOf(agent),
+        failed: true,
+        failure: reason,
       };
     }
     throw error;
@@ -514,7 +545,36 @@ export async function runAssistantTurn({
     order: state.order,
     render: state.render,
     toolCalls: state.toolCalls,
+    transcript: transcriptOf(agent),
+    usage: usageOf(agent),
   };
+}
+
+// The transcript is stored as plain JSON, one Pi message per entry, so the
+// next turn restores the real conversation including the tool calls.
+function transcriptOf(agent) {
+  return (agent.state.messages ?? [])
+    .filter((message) => message && message.role !== 'system')
+    .slice(-80)
+    .map((message) => {
+      try {
+        return JSON.parse(JSON.stringify(message));
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function usageOf(agent) {
+  const usage = { input: 0, output: 0, totalTokens: 0 };
+  for (const message of agent.state.messages ?? []) {
+    if (message.role !== 'assistant' || !message.usage) continue;
+    usage.input += Number(message.usage.input ?? 0);
+    usage.output += Number(message.usage.output ?? 0);
+    usage.totalTokens += Number(message.usage.totalTokens ?? 0);
+  }
+  return usage;
 }
 
 export { SYSTEM_PROMPT, TOOL_SPECS };
