@@ -481,6 +481,24 @@ export const POLISH_SYSTEM = [
 ].join(' ');
 
 /** Messages for the art direction pass over the designer's own document. */
+export const QA_SYSTEM = [
+  'You are the print production director and art director checking one brochure before it goes to press.',
+  'Check the document twice mentally: first for alignment and geometry, second for anything that feels AI generated or template made.',
+  'Alignment: every element sits on one grid, the outer 18 mm margins are respected, left and right edges align across a spread, captions align to their photographs, gutters are equal, spacing follows one scale, nothing sits within 12 mm of the trim, folios sit at the same place on every page.',
+  'AI tells to remove: centered generic stacks, repeated equal blocks, gradients, drop shadows, rounded cards, emoji, invented icons or inline SVG, clip art, filler motifs, uneven spacing, mixed type sizes, decorative labels with no meaning, generic marketing sentences.',
+  'Fix every issue you find. Keep all tokens, the page count and every print rule exactly. Do not add tokens or external assets. Return the complete revised HTML only, no prose and no code fences.',
+].join(' ');
+
+export function buildQaMessages({ html, pass = 1 }) {
+  return [
+    { role: 'system', content: QA_SYSTEM },
+    {
+      role: 'user',
+      content: `Pass ${pass}: check alignment and remove any AI generated feel. Return the complete revised HTML only.\n\n${html}`,
+    },
+  ];
+}
+
 export function buildPolishMessages({ html }) {
   return [
     { role: 'system', content: POLISH_SYSTEM },
@@ -860,6 +878,22 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
       }
     }
   }
+
+  // Print documents should never carry the tells of a generated web page.
+  pages.forEach((page, index) => {
+    if (/linear-gradient|radial-gradient/i.test(page)) {
+      issues.push(`page ${index + 1}: gradients are not allowed; use a solid colour or a scrim`);
+    }
+    if (/box-shadow/i.test(page)) {
+      issues.push(`page ${index + 1}: drop shadows are not allowed in print`);
+    }
+    if (/<svg[\s>]/i.test(page)) {
+      issues.push(`page ${index + 1}: inline SVG is not allowed; use the supplied motif assets`);
+    }
+    if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(page)) {
+      issues.push(`page ${index + 1}: emoji are not allowed in a printed brochure`);
+    }
+  });
 
   // The body mark is a small quiet sign, never a giant logo behind the type.
   for (const [index, page] of pages.entries()) {

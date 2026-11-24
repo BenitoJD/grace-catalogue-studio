@@ -55,6 +55,7 @@ import {
   buildDesignerMessages,
   buildDesignerRepairMessages,
   buildPolishMessages,
+  buildQaMessages,
   compileGenerativeBrochure,
   samplePhotoPlates,
   designLabel,
@@ -1884,6 +1885,51 @@ export function createApp(options) {
           logger.warn('The art director pass was skipped.', {
             reason: error instanceof Error ? error.message : String(error),
           });
+        }
+      }
+
+      const qaPasses = Number.parseInt(process.env.DESIGN_QA_PASSES ?? '2', 10);
+      if (html && acceptedReply !== '' && Number.isFinite(qaPasses) && qaPasses > 0) {
+        let reviewed = acceptedReply;
+        for (let pass = 1; pass <= Math.min(qaPasses, 4); pass += 1) {
+          try {
+            const result = await requestChat({
+              provider: config.provider,
+              endpoint: config.endpoint,
+              model: config.model,
+              apiKey: config.apiKey,
+              messages: buildQaMessages({ html: reviewed, pass }),
+              temperature: 0.35,
+              timeoutMs: 300_000,
+            });
+            const reviewedTheme = themeFromPalettes(photoPalettes);
+            const document = parseDesignerReply(
+              result.content,
+              attached.length,
+              palettePhotos,
+              reviewedTheme,
+            );
+            html = compileGenerativeBrochure({
+              order,
+              materials: listMaterials(db),
+              templatesDir,
+              dataDir,
+              attachmentImages: attached,
+              photoPalettes,
+              photoDetails,
+              copy,
+              pages: document.pages,
+              styles: document.styles,
+            });
+            reviewed = result.content;
+            logger.info('The print review pass refined the brochure.', { pass });
+          } catch (error) {
+            logger.warn('The print review pass was skipped.', {
+              pass,
+              reason: error instanceof Error ? error.message : String(error),
+            });
+            break;
+          }
         }
       }
 

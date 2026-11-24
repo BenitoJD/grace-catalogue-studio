@@ -99,6 +99,7 @@ process.env.NOTE_LIMIT_PER_MIN = '100000';
 // Vision only runs for models known to see; individual tests opt in.
 process.env.LLM_VISION_MODE = 'auto';
 process.env.DESIGN_POLISH = 'off';
+process.env.DESIGN_QA_PASSES = '0';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
@@ -3721,6 +3722,42 @@ test('a giant body logo is rejected as decoration', { timeout: 240_000 }, async 
   assert.match(body.error.message, /8 to 14 mm/i);
 });
 
+test('a gradient is rejected as an AI tell', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const gradient = DESIGNER_HTML.replace(
+    'background:rgba(23,59,68,0.90);',
+    'background:linear-gradient(#173B44,#2a5c66);',
+  );
+  resetMockProvider({ reply: gradient });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /gradients are not allowed/i);
+});
+
+test('the print review pass checks alignment after the design', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  resetMockProvider({ replies: [DESIGNER_HTML, DESIGNER_HTML] });
+  const before = mockProviderState.requests.length;
+  process.env.DESIGN_QA_PASSES = '1';
+  try {
+    const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+    assert.equal(response.status, 201, await response.clone().text());
+    assert.equal(mockProviderState.requests.length, before + 2, 'designer plus one print review');
+    const prompt = mockProviderState.requests.at(-1).json.messages
+      .map((message) => String(message.content ?? ''))
+      .join('\n');
+    assert.match(prompt, /alignment/i);
+    assert.match(prompt, /AI generated/i);
+  } finally {
+    process.env.DESIGN_QA_PASSES = '0';
+  }
+});
+
 test('a brochure without the brand mark is rejected', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();
@@ -3799,6 +3836,7 @@ test('the art director pass refines a valid brochure', { timeout: 240_000 }, asy
     assert.match(prompt, /Fortune 500 showroom quality/i, 'the polish pass asks for the top tier');
   } finally {
     process.env.DESIGN_POLISH = 'off';
+process.env.DESIGN_QA_PASSES = '0';
   }
 });
 
