@@ -62,8 +62,7 @@ type Bubble =
       photos: ReviewPhoto[];
     };
 
-const WELCOME =
-  'Paste everything the customer told you. A WhatsApp forward, a list, a rough note, all of it. I will pull out the order, ask only for what is missing, then design the brochure from the pictures you upload and the model designs every page for this project.\n\nIf a detail is not known yet, say so and I will mark it to be confirmed.\n\nName the detail you want magnified, such as a handle, an edge, a grain or the colour palette, and I will print it as a loupe callout. If you do not say, I will ask.';
+
 
 
 let counter = 0;
@@ -176,11 +175,9 @@ export default function ChatScreen() {
   const anim = useRef(new Animated.Value(0)).current;
   const sendingRef = useRef(false);
   const atBottomRef = useRef(true);
-  const previousBubbleCount = useRef(1);
+  const previousBubbleCount = useRef(0);
 
-  const [bubbles, setBubbles] = useState<Bubble[]>([
-    { id: nextId(), role: 'assistant', kind: 'text', content: WELCOME, at: stamp() },
-  ]);
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [missing, setMissing] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
@@ -242,11 +239,7 @@ export default function ChatScreen() {
           content: message.content,
           at: stamp(),
         }));
-        setBubbles(
-          rendered.length > 0
-            ? rendered
-            : [{ id: nextId(), role: 'assistant', kind: 'text', content: WELCOME, at: stamp() }],
-        );
+        setBubbles(rendered);
         if (latest) {
           setBubbles((current) => [
             ...current,
@@ -343,7 +336,6 @@ export default function ChatScreen() {
     if (sending || cooking) return;
     router.setParams({ orderId: undefined });
     setBubbles([
-      { id: nextId(), role: 'assistant', kind: 'text', content: WELCOME, at: stamp() },
     ]);
     setDraft({});
     setMissing([]);
@@ -907,13 +899,13 @@ export default function ChatScreen() {
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
-            bubbles.length === 1 && !busy ? styles.scrollWelcome : null,
+            bubbles.length === 0 && !busy ? styles.scrollWelcome : null,
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           onScroll={onChatScroll}
           scrollEventThrottle={48}>
-          {bubbles.length === 1 && !busy ? (
+          {bubbles.length === 0 && !busy ? (
             <View style={styles.welcome}>
               <Image
                 source={require('@/assets/images/logo.png')}
