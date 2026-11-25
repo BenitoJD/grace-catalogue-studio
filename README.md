@@ -26,6 +26,7 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 
 - **Every uploaded picture is printed.** A document that leaves a picture out is rejected and asked for again. PDF sheets count as pictures too, through their first page.
 - **Fortune 500 art direction.** The designer is briefed like an art director for a luxury brand book: a real grid, one type hierarchy, varied page compositions, full bleed photography, quiet detail, and a banned list that rules out template look, badges, cards, gradients and clip art.
+- **World class gate.** Every design is scored 1 to 10 by an art director against a strict rubric. Below 8 it goes back with concrete fixes for another full design round, up to six rounds. The best scored round is kept and polished rather than failing, so the studio always receives the strongest version from that turn.
 - **Two print review passes.** After the art director pass, the document is reviewed again for alignment on the grid and for anything that feels AI generated: gradients, shadows, invented icons, emoji, generic stacks, uneven spacing. Only a document that still passes every print check replaces the previous one.
 - **A second art director pass.** After the designer produces a valid document, an art director prompt refines composition, hierarchy and rhythm. If the refinement breaks any print rule, the valid original is kept.
 - **No order number in print.** The order number lives in the app and the database, never on a printed page.

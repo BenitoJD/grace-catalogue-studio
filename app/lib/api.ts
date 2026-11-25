@@ -438,7 +438,7 @@ export const api = {
     return request<AssistantReply>('/api/assistant', {
       method: 'POST',
       body: input,
-      timeoutMs: 2100000,
+      timeoutMs: 6000000,
     });
   },
 

@@ -206,7 +206,8 @@ const api = startProcess("node", ["server/src/index.mjs"], {
   NOTE_LIMIT_PER_MIN: "10000",
   LLM_VISION_MODE: "auto",
   DESIGN_POLISH: "off",
-  DESIGN_QA_PASSES: "0"
+  DESIGN_QA_PASSES: "0",
+  DESIGN_QUALITY: "off"
 });
 const web = startProcess("node", ["scripts/serve-web.mjs", "8081"]);
 const mock = startProcess("node", ["scripts/mock-llm.mjs", "8793"]);

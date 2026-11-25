@@ -45,7 +45,7 @@ const MIN_WIDTH = 900;
 const MIN_HEIGHT = 700;
 // A full art direction pass can take a long while, so the proxy allows a
 // complete turn instead of cutting it off.
-const PROXY_TIMEOUT_MS = 35 * 60 * 1000;
+const PROXY_TIMEOUT_MS = 100 * 60 * 1000;
 
 // Any path starting with one of these is sent to the catalogue API.
 const PROXY_PREFIXES = Object.freeze([

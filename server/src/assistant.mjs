@@ -6,7 +6,7 @@ import { Agent } from '@earendil-works/pi-agent-core';
 import { getCurrentTools } from '@earendil-works/pi-ai';
 import { providerHeaders } from './llm.mjs';
 
-const ASSISTANT_TIMEOUT_MS = 30 * 60 * 1000;
+const ASSISTANT_TIMEOUT_MS = 90 * 60 * 1000;
 
 const SYSTEM_PROMPT = [
   'You are the studio assistant for Jacob Design Studio, an interior and joinery workshop in Nagercoil.',
@@ -21,6 +21,7 @@ const SYSTEM_PROMPT = [
   '',
   'RULES',
   '- Keep replies to one or two short sentences. Warm, plain British Indian English. No em dashes and no en dashes.',
+  '- The design tool has a world class gate with print checks, an art director judgement and a scoring loop. If it fails or the art director sends fixes back, read the exact problems, change the direction and call design_brochure again. Do not settle for a failed design.',
   '- Never invent a customer name, a price, a date, a dimension or a material.',
   '- Do not describe how the software works. Talk about the project.',
   '- Use tools instead of saying you cannot do something.',

@@ -57,6 +57,9 @@ import {
   buildDesignerRepairMessages,
   buildPolishMessages,
   buildQaMessages,
+  buildQualityMessages,
+  parseQualityReview,
+  QUALITY_THRESHOLD,
   compileGenerativeBrochure,
   samplePhotoPlates,
   designLabel,
@@ -1940,6 +1943,9 @@ export function createApp(options) {
         .filter((index) => Number.isInteger(index));
       let html = null;
       let acceptedReply = '';
+      let bestHtml = null;
+      let bestReply = '';
+      let bestScore = 0;
       let previousReply = '';
       let lastIssues = '';
       for (let attempt = 1; attempt <= DESIGNER_TRIES && !html; attempt += 1) {
@@ -1981,6 +1987,45 @@ export function createApp(options) {
             pages: document.pages,
             styles: document.styles,
           });
+          if (html && String(process.env.DESIGN_QUALITY ?? 'on').toLowerCase() !== 'off') {
+            try {
+              const judged = await requestChat({
+                provider: config.provider,
+                endpoint: config.endpoint,
+                model: config.model,
+                apiKey: config.apiKey,
+                messages: buildQualityMessages({ html: result.content, round: attempt }),
+                maxTokens: 1200,
+                temperature: 0.2,
+                timeoutMs: 180_000,
+              });
+              const verdict = parseQualityReview(judged.content);
+              if (verdict) {
+                logger.info('The art director judged the pamphlet.', {
+                  attempt,
+                  score: verdict.score,
+                });
+                if (verdict.score > bestScore) {
+                  bestScore = verdict.score;
+                  bestHtml = html;
+                  bestReply = result.content;
+                }
+                if (verdict.score < QUALITY_THRESHOLD) {
+                  lastIssues = `The art director scored this ${verdict.score}/10, below the ${QUALITY_THRESHOLD}/10 world class gate. Apply these fixes: ${verdict.fixes.join('; ') || 'raise the art direction and composition'}`;
+                  logger.info('The art director asked for another design round.', {
+                    attempt,
+                    score: verdict.score,
+                  });
+                  html = null;
+                  continue;
+                }
+              }
+            } catch (error) {
+              logger.warn('The quality review could not run; accepting the valid design.', {
+                reason: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }
         } catch (error) {
           if (error?.type !== 'invalid_reply') throw error;
           lastIssues = error.message;
@@ -1989,6 +2034,14 @@ export function createApp(options) {
             reason: capText(lastIssues, 240),
           });
         }
+      }
+      if (!html && bestHtml) {
+        html = bestHtml;
+        acceptedReply = bestReply;
+        logger.info('Accepting the best art directed round after the quality loop.', {
+          score: bestScore,
+          threshold: QUALITY_THRESHOLD,
+        });
       }
       if (html && acceptedReply !== '' && String(process.env.DESIGN_POLISH ?? 'on').toLowerCase() !== 'off') {
         try {

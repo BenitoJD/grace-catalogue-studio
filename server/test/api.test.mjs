@@ -42,7 +42,7 @@ import {
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { DESIGNER_TRIES, artDirectionFor, buildDesignerMessages, parseDesignerReply, pictureTaste, themeFromPalettes } from '../src/ai-brochure.mjs';
+import { DESIGNER_TRIES, artDirectionFor, buildDesignerMessages, parseDesignerReply, parseQualityReview, pictureTaste, themeFromPalettes } from '../src/ai-brochure.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -100,6 +100,7 @@ process.env.NOTE_LIMIT_PER_MIN = '100000';
 process.env.LLM_VISION_MODE = 'auto';
 process.env.DESIGN_POLISH = 'off';
 process.env.DESIGN_QA_PASSES = '0';
+process.env.DESIGN_QUALITY = 'off';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
@@ -3642,6 +3643,62 @@ test('each picture set gets its own art direction and the client can override it
   assert.match(prompt, /dark, cinematic/i);
 });
 
+test('the art director score is read strictly', () => {
+  const verdict = parseQualityReview('```json\n{"score": 9, "fixes": ["tighten the cover", "raise the whitespace"]}\n```');
+  assert.equal(verdict.score, 9);
+  assert.deepEqual(verdict.fixes, ['tighten the cover', 'raise the whitespace']);
+  assert.equal(parseQualityReview('{"score": 22}').score, 10);
+  assert.equal(parseQualityReview('not json'), null);
+  assert.equal(parseQualityReview('{"fixes":["x"]}'), null);
+});
+
+test('a low art director score sends the pamphlet back for another round', { timeout: 300_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  resetMockProvider({
+    replies: [
+      DESIGNER_HTML,
+      JSON.stringify({ score: 4, fixes: ['the cover is generic, make the picture the hero'] }),
+      DESIGNER_HTML,
+      JSON.stringify({ score: 9, fixes: [] }),
+    ],
+  });
+  const before = mockProviderState.requests.length;
+  process.env.DESIGN_QUALITY = 'on';
+  try {
+    const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+    const raw = await response.text();
+    assert.equal(response.status, 201, raw);
+    assert.equal(mockProviderState.requests.length, before + 4, 'two designs and two judgements');
+    const prompts = mockProviderState.requests.map((request) =>
+      request.json.messages.map((message) => String(message.content ?? '')).join('\n'),
+    );
+    assert.ok(prompts.some((prompt) => /creative director/i.test(prompt)), 'the judge runs');
+    assert.ok(prompts.some((prompt) => /below the 8\/10 world class gate/i.test(prompt)), 'the fixes go back to the designer');
+  } finally {
+    process.env.DESIGN_QUALITY = 'off';
+  }
+});
+
+test('the best art directed round is kept when no round reaches the gate', { timeout: 300_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const low = JSON.stringify({ score: 5, fixes: ['more air'] });
+  resetMockProvider({ replies: Array.from({ length: 12 }, (_, index) => (index % 2 === 0 ? DESIGNER_HTML : low)) });
+  process.env.DESIGN_QUALITY = 'on';
+  try {
+    const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+    const raw = await response.text();
+    assert.equal(response.status, 201, raw);
+    const body = JSON.parse(raw);
+    assert.ok(body.render.pageCount >= 4, 'the best round is still printed');
+  } finally {
+    process.env.DESIGN_QUALITY = 'off';
+  }
+});
+
 test('the visual taste is read from the supplied pictures', () => {
   const light = pictureTaste({ photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] });
   assert.equal(light.tone, 'light and airy');
@@ -3857,6 +3914,7 @@ test('the print review pass checks alignment after the design', { timeout: 240_0
     assert.match(prompt, /AI generated/i);
   } finally {
     process.env.DESIGN_QA_PASSES = '0';
+process.env.DESIGN_QUALITY = 'off';
   }
 });
 
@@ -3939,6 +3997,7 @@ test('the art director pass refines a valid brochure', { timeout: 240_000 }, asy
   } finally {
     process.env.DESIGN_POLISH = 'off';
 process.env.DESIGN_QA_PASSES = '0';
+process.env.DESIGN_QUALITY = 'off';
   }
 });
 

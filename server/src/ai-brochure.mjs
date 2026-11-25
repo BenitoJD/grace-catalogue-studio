@@ -24,7 +24,7 @@ import { contrastIssues as pageContrastIssues } from './contrast.mjs';
 // providers fall back to a small default and truncate the HTML.
 export const DESIGNER_MAX_TOKENS = 32000;
 export const DESIGNER_TEMPERATURE = 0.85;
-export const DESIGNER_TRIES = 4;
+export const DESIGNER_TRIES = 6;
 export const DESIGNER_MAX_CHARS = 90_000;
 
 const BRAND = {
@@ -510,6 +510,55 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
     parts.push('', 'Design this brochure now. Reply with the complete HTML document only.');
   }
   return parts.join('\n');
+}
+
+// The world class gate. Every candidate is scored by an art director; below
+// the threshold it goes back for another design round with concrete fixes.
+export const QUALITY_THRESHOLD = 8;
+
+export const QUALITY_SYSTEM = [
+  'You are the creative director of a premium print studio, judging a take home pamphlet before it is sent to a client.',
+  'Score it from 1 to 10 against this rubric, strictly:',
+  '10 is world class, the best printed pamphlet a design studio could hand over.',
+  '9 is excellent, distinctive and print ready.',
+  '8 is strong professional work, safe to send to a client.',
+  '7 and below is not ready: generic, crowded, weak hierarchy, template feel, timid photography, poor typography, or a layout that does not come from the pictures.',
+  'Judge: is the photograph the hero and printed whole; is the composition fresh for this picture set; is there one clear idea; is the type hierarchy confident and quiet; is the whitespace generous; does the palette come from the photographs; does it feel hand art directed rather than generated; does anything look like a template, a website or an AI image.',
+  'Reply with strict JSON only: {"score": 8, "fixes": ["one concrete instruction", "another"]}.',
+  'The fixes must be concrete art direction that the designer can apply to the document, not general praise.',
+].join(' ');
+
+export function buildQualityMessages({ html, round = 1 }) {
+  return [
+    { role: 'system', content: QUALITY_SYSTEM },
+    {
+      role: 'user',
+      content: `Round ${round}. Judge this pamphlet and reply with the JSON only.\n\n${html}`,
+    },
+  ];
+}
+
+export function parseQualityReview(content) {
+  const text = String(content ?? '').trim();
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  const score = Number(parsed?.score);
+  if (!Number.isFinite(score)) return null;
+  const fixes = Array.isArray(parsed?.fixes)
+    ? parsed.fixes
+        .filter((fix) => typeof fix === 'string')
+        .map((fix) => fix.replace(/\s+/g, ' ').trim().slice(0, 220))
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+  return { score: Math.min(10, Math.max(1, score)), fixes };
 }
 
 export const POLISH_SYSTEM = [
