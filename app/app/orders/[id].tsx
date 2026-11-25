@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Image,
@@ -367,11 +367,6 @@ export default function OrderDetailScreen() {
                     onPress={() =>
                       router.push({ pathname: '/', params: { orderId: orderId ?? '' } })
                     }
-                  />
-                  <Button
-                    label="Pages workspace"
-                    variant="secondary"
-                    onPress={() => router.push(`/workspace/${orderId ?? ''}` as Href)}
                   />
                 </View>
 

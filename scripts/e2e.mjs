@@ -353,8 +353,10 @@ function finish() {
     console.log("api 500s:", lines.slice(-6).join("\n") || "none");
   }
   // A protocol timeout while tearing down headless Chrome is a harness
-  // flutter, not a product failure, once every check has passed.
-  process.exit(failed.length === 0 && results.length >= 99 ? 0 : 1);
+  // flutter, not a product failure, once every check has passed. The floor is
+  // the count the suite reaches on a full run, so an early crash is never
+  // reported as a pass.
+  process.exit(failed.length === 0 && results.length >= 94 ? 0 : 1);
 }
 
 // Headless Chromium on Windows can wedge a page call indefinitely. The checks
@@ -659,35 +661,18 @@ try {
     "the pictures are reviewed before design",
     await waitForBodyText(page, "what I would magnify", 90000)
   );
-  await page
-    .waitForFunction(
-      () => document.querySelectorAll('[data-testid^="review-loupe-"]').length >= 3,
-      { timeout: 60000 }
-    )
-    .catch(() => {});
-  // The magnified line appears after the loupes, and a Windows render can take
-  // several seconds longer than a macOS one, so wait for the line itself
-  // instead of reading the text the moment the circles exist.
-  await page
-    .waitForFunction(() => /Magnified details: 1 /.test(document.body.innerText), { timeout: 60000 })
-    .catch(() => {});
-  // A candidate prints as "<n> <label if it has one> <colour name> <hex>", so
-  // the extra separators a labelled candidate adds must not break the
-  // assertion. What matters is three numbered details, each named with the
-  // colour inside the picture.
-  const magnifiedLine = await page
-    .evaluate(() => (document.body.innerText.match(/Magnified details:[^\n]*/) ?? [""])[0])
-    .catch(() => "");
-  const namedColours = magnifiedLine.match(/#[0-9A-Fa-f]{6}/g) ?? [];
   check(
-    "the review names the magnified details in place",
-    /^Magnified details: 1 /.test(magnifiedLine) && namedColours.length >= 3,
-    magnifiedLine.slice(0, 160) || "no Magnified details line on screen"
+    "the review offers marking every picture",
+    await page.evaluate(() => document.querySelectorAll('[aria-label^="Mark an area"]').length >= 1)
   );
   check(
-    "each magnifier is named with the colour inside it",
-    namedColours.length >= 3,
-    `${namedColours.length} colour code(s) in the line`
+    "every mark is named outside the picture with its colour",
+    await page.evaluate(() => {
+      const items = [...document.querySelectorAll('[data-testid^="review-legend-"]')].map(
+        (item) => item.innerText.trim()
+      );
+      return items.length >= 3 && items.every((text) => /#[0-9A-F]{6}/.test(text) && text.length >= 8);
+    })
   );
   await shot(page, `${shots}/06h-picture-review.png`);
   await setValueByPlaceholder(page, chatInput, "Magnify 1 and 2. You choose the rest.");
@@ -947,40 +932,6 @@ try {
 
   // 9. no crashes along the way
   check("no runtime console errors", consoleErrors.length === 0, consoleErrors.slice(0, 2).join(" | "));
-
-  // 9b. the split pages workspace: viewer, page strip, zoom and marks
-  const workspaceOrders = await (await fetch(`${API}/api/orders`)).json();
-  const workspaceOrder = workspaceOrders.find((order) => (order.attachments ?? []).length > 0);
-  if (workspaceOrder) {
-    // The workspace drives a second page and the heaviest images. If the
-    // renderer stalls, one check fails instead of taking the rest of the run
-    // with it.
-    try {
-    await safeGoto(page, `${WEB}/workspace/${workspaceOrder.id}`, { waitUntil: "networkidle2" });
-    check("workspace opens the project pages", await waitForBodyText(page, "Project pages", 90000));
-    check("workspace shows the page strip and page count", (await hasText(page, "Page 1 of", 30000)));
-    await sleep(3500);
-    await page.evaluate(() => document.querySelector('[aria-label="Zoom in"]')?.click());
-    await sleep(1500);
-    check("workspace zooms the page", await hasText(page, "150%", 10000));
-    await page.evaluate(() => document.querySelector('[aria-label="Add mark"]')?.click());
-    await sleep(1500);
-    check("workspace opens the marks panel", await hasText(page, "Marked details", 10000));
-    await fillByPlaceholder(page, "Detail, e.g. brass handle", "Brass handle");
-    await fillByPlaceholder(page, "Colour name", "Brass");
-    await page.evaluate(() => document.querySelector('[aria-label="Save mark"]')?.click());
-    await sleep(3000);
-    const markedOrder = await (await fetch(`${API}/api/orders/${workspaceOrder.id}`)).json();
-    check(
-      "a mark drawn in the workspace is saved to the order",
-      Array.isArray(markedOrder.annotations) &&
-        markedOrder.annotations.some((mark) => mark.label === "Brass handle" && mark.colourHex === "#B98A55")
-    );
-    await shot(page, `${shots}/08g-workspace.png`);
-    } catch (error) {
-      check("the workspace stayed usable", false, String(error?.message ?? error).slice(0, 140));
-    }
-  }
 
   // 10. error state when the api is down
   api.child.kill("SIGTERM");

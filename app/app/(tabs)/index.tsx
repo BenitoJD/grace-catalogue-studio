@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
@@ -1305,10 +1305,6 @@ function ReviewPhotoCard({
   >([]);
   const [sampling, setSampling] = useState(false);
   const [marking, setMarking] = useState(false);
-  const LOUPE = 96;
-  const ZOOM = 4;
-  const zoomWidth = frame.width * ZOOM;
-  const zoomHeight = frame.height * ZOOM;
   const ready = frame.width > 0 && frame.height > 0;
   const samplePoint = async (position: { x: number; y: number }) => {
     setSampling(true);
@@ -1411,51 +1407,29 @@ function ReviewPhotoCard({
         </View>
         {ready
           ? photo.analysis.candidates.map((candidate, candidateIndex) => {
-              // Keep the loupe and its label inside the picture frame.
-              const cx = Math.min(84, Math.max(16, candidate.x));
-              const cy = Math.min(76, Math.max(16, candidate.y));
-              const labelTop = Math.min(cy + ((LOUPE + 8) / frame.height) * 100, 94);
+              const cx = Math.min(94, Math.max(6, candidate.x));
+              const cy = Math.min(92, Math.max(8, candidate.y));
+              const distances = [
+                { side: 'left', value: cx },
+                { side: 'right', value: 100 - cx },
+                { side: 'top', value: cy },
+                { side: 'bottom', value: 100 - cy },
+              ].sort((left, right) => left.value - right.value);
+              const side = distances[0].side;
+              const leader =
+                side === 'right'
+                  ? { left: `${cx}%`, top: `${cy}%`, width: `${(100 - cx).toFixed(1)}%`, borderTopWidth: 1, borderTopColor: '#0D0D0D', borderStyle: 'dashed' as const }
+                  : side === 'left'
+                    ? { left: '0%', top: `${cy}%`, width: `${cx.toFixed(1)}%`, borderTopWidth: 1, borderTopColor: '#0D0D0D', borderStyle: 'dashed' as const }
+                    : side === 'top'
+                      ? { left: `${cx}%`, top: '0%', height: `${cy.toFixed(1)}%`, borderLeftWidth: 1, borderLeftColor: '#0D0D0D', borderStyle: 'dashed' as const }
+                      : { left: `${cx}%`, top: `${cy}%`, height: `${(100 - cy).toFixed(1)}%`, borderLeftWidth: 1, borderLeftColor: '#0D0D0D', borderStyle: 'dashed' as const };
               return (
-                <View key={candidate.id}>
-                  <View
-                    testID={`review-loupe-${candidateIndex + 1}`}
-                    accessibilityLabel={`Magnify detail ${candidateIndex + 1} ${candidate.name}`}
-                    style={[
-                      styles.reviewLoupe,
-                      {
-                        width: LOUPE,
-                        height: LOUPE,
-                        marginLeft: -LOUPE / 2,
-                        marginTop: -LOUPE / 2,
-                        left: `${cx}%`,
-                        top: `${cy}%`,
-                      },
-                    ]}>
-                    <Image
-                      source={{ uri: fileUrl(photo.previewUrl ?? photo.url) }}
-                      style={{
-                        position: 'absolute',
-                        width: zoomWidth,
-                        height: zoomHeight,
-                        left: LOUPE / 2 - (cx / 100) * zoomWidth,
-                        top: LOUPE / 2 - (cy / 100) * zoomHeight,
-                      }}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.reviewLoupeNumber}>
-                      <Text style={styles.reviewLoupeNumberLabel}>{candidateIndex + 1}</Text>
-                    </View>
+                <View key={candidate.id} pointerEvents="none">
+                  <View testID={`review-point-${candidateIndex + 1}`} style={[styles.reviewPointRing, { left: `${cx}%`, top: `${cy}%` }]}>
+                    <Text style={styles.reviewPointRingLabel}>{candidateIndex + 1}</Text>
                   </View>
-                  <View
-                    style={[
-                      styles.reviewLoupeLabel,
-                      { left: `${cx}%`, top: `${labelTop}%` },
-                    ]}>
-                    <View style={[styles.reviewLoupeDot, { backgroundColor: candidate.hex }]} />
-                    <Text style={styles.reviewLoupeName} numberOfLines={1}>
-                      {`${candidate.name} ${candidate.hex}`}
-                    </Text>
-                  </View>
+                  <View style={[styles.reviewLeader, leader]} />
                 </View>
               );
             })
@@ -1467,14 +1441,17 @@ function ReviewPhotoCard({
         </Text>
       ) : null}
       {photo.analysis.candidates.length > 0 ? (
-        <Text style={[text.caption, styles.reviewMagnifiedLine]}>
-          {`Magnified details: ${photo.analysis.candidates
-            .map((candidate, candidateIndex) => {
-              const detail = /^Detail \d+$/.test(candidate.label) ? '' : `${candidate.label} · `;
-              return `${candidateIndex + 1} ${detail}${candidate.name} ${candidate.hex}`;
-            })
-            .join(' · ')}`}
-        </Text>
+        <View style={styles.reviewLegend}>
+          {photo.analysis.candidates.map((candidate, candidateIndex) => (
+            <View key={`${candidate.id}-legend`} testID={`review-legend-${candidateIndex + 1}`} style={styles.reviewLegendItem}>
+              <Text style={styles.reviewLegendNumber}>{candidateIndex + 1}</Text>
+              <View style={[styles.reviewLegendSwatch, { backgroundColor: candidate.hex }]} />
+              <Text style={[text.caption, styles.reviewLegendText]} numberOfLines={1}>
+                {`${candidate.name} ${candidate.hex}`}
+              </Text>
+            </View>
+          ))}
+        </View>
       ) : null}
       <View style={styles.reviewPalette}>
         {photo.analysis.palette.map((swatch) => (
@@ -1490,7 +1467,6 @@ function ReviewPhotoCard({
         ))}
       </View>
     </View>
-  );
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Mark an area on picture ${index + 1}`}
@@ -1508,7 +1484,7 @@ function ReviewPhotoCard({
               </Pressable>
             </View>
             <Text style={[text.caption, styles.markHint]}>
-              Tap the exact area on the picture. It becomes a magnified detail with the colour you name.
+              Tap the exact area on the picture. It becomes a marked detail with the colour you name.
             </Text>
             <View
               style={styles.markImageBox}
@@ -1688,10 +1664,6 @@ function BubbleView({
               <SmallAction
                 label="Open order"
                 onPress={() => router.push(`/orders/${bubble.orderId}`)}
-              />
-              <SmallAction
-                label="Pages"
-                onPress={() => router.push(`/workspace/${bubble.orderId}` as Href)}
               />
             </View>
           </View>
@@ -3090,5 +3062,59 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#0D0D0D',
     flexShrink: 1,
+  },
+  reviewPointRing: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    marginLeft: -7,
+    marginTop: -7,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewPointRingLabel: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '700',
+  },
+  reviewLeader: {
+    position: 'absolute',
+  },
+  reviewLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  reviewLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  reviewLegendNumber: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#0D0D0D',
+  },
+  reviewLegendSwatch: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D0D0D0',
+  },
+  reviewLegendText: {
+    color: '#0D0D0D',
+    fontSize: 10,
   },
 });
