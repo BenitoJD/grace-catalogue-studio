@@ -1294,12 +1294,59 @@ function ReviewPhotoCard({
   const [markName, setMarkName] = useState('');
   const [markHex, setMarkHex] = useState('');
   const [markNote, setMarkNote] = useState('');
+  const [markSuggestions, setMarkSuggestions] = useState<
+    { label: string; x: number; y: number; colourHex: string; colourName: string }[]
+  >([]);
+  const [sampling, setSampling] = useState(false);
   const [marking, setMarking] = useState(false);
   const LOUPE = 96;
   const ZOOM = 4;
   const zoomWidth = frame.width * ZOOM;
   const zoomHeight = frame.height * ZOOM;
   const ready = frame.width > 0 && frame.height > 0;
+  const samplePoint = async (position: { x: number; y: number }) => {
+    setSampling(true);
+    setMarkSuggestions([]);
+    try {
+      const sample = await api.visualSample({
+        imageUrl: photo.previewUrl ?? photo.url,
+        x: position.x,
+        y: position.y,
+      });
+      setMarkHex(sample.hex);
+      setMarkName(sample.name);
+      if (sample.label) setMarkLabel(sample.label);
+      setMarkSuggestions(sample.suggestions ?? []);
+    } catch {
+      // Fall back to the candidates already read from this picture.
+      const candidates = (photo.analysis.candidates ?? []).slice(0, 3).map((candidate) => ({
+        label: candidate.label,
+        x: candidate.x,
+        y: candidate.y,
+        colourHex: candidate.hex ?? '',
+        colourName: candidate.name ?? 'Colour',
+      }));
+      const named = candidates.filter((candidate) => candidate.colourHex !== '');
+      if (named.length > 0) {
+        let nearest = named[0];
+        let best = Number.POSITIVE_INFINITY;
+        for (const candidate of named) {
+          const distance = Math.hypot(candidate.x - position.x, candidate.y - position.y);
+          if (distance < best) {
+            best = distance;
+            nearest = candidate;
+          }
+        }
+        setMarkHex(nearest.colourHex);
+        setMarkName(nearest.colourName);
+        setMarkLabel(nearest.label);
+      }
+      setMarkSuggestions(named);
+    } finally {
+      setSampling(false);
+    }
+  };
+
   const saveMark = async () => {
     if (!orderId) {
       setMarkNote('The order must exist before marks can be saved.');
@@ -1477,20 +1524,50 @@ function ReviewPhotoCard({
                   const localX = Number(native.locationX ?? native.offsetX);
                   const localY = Number(native.locationY ?? native.offsetY);
                   if (markFrame.width <= 0 || markFrame.height <= 0) return;
-                  setPoint({
+                  const position = {
                     x: Number.isFinite(localX)
                       ? Math.min(100, Math.max(0, (localX / markFrame.width) * 100))
                       : 50,
                     y: Number.isFinite(localY)
                       ? Math.min(100, Math.max(0, (localY / markFrame.height) * 100))
                       : 50,
-                  });
+                  };
+                  setPoint(position);
+                  void samplePoint(position);
                 }}
               />
               {point ? (
                 <View style={[styles.markPoint, { left: `${point.x}%`, top: `${point.y}%` }]} />
               ) : null}
             </View>
+            {sampling ? (
+              <Text style={[text.caption, styles.markNote]}>Reading the colour at that point.</Text>
+            ) : null}
+            {markSuggestions.length > 0 ? (
+              <View style={styles.markSuggestWrap}>
+                <Text style={[text.caption, styles.markSuggestTitle]}>Suggestions for this point</Text>
+                <View style={styles.markSuggestRow}>
+                  {markSuggestions.map((suggestion) => (
+                    <Pressable
+                      key={`${suggestion.label}-${suggestion.x}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use ${suggestion.label} ${suggestion.colourName}`}
+                      onPress={() => {
+                        setPoint({ x: suggestion.x, y: suggestion.y });
+                        setMarkLabel(suggestion.label);
+                        setMarkName(suggestion.colourName);
+                        setMarkHex(suggestion.colourHex);
+                      }}
+                      style={({ pressed }) => [styles.markSuggestChip, pressed && styles.sendPressed]}>
+                      <View style={[styles.markSuggestSwatch, { backgroundColor: suggestion.colourHex || '#EFE7D8' }]} />
+                      <Text style={styles.markSuggestText}>
+                        {`${suggestion.label} · ${suggestion.colourName} ${suggestion.colourHex}`}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
             <View style={styles.markFields}>
               <TextInput
                 style={styles.markField}
@@ -2971,5 +3048,39 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 11,
     color: '#8E8E93',
+  },
+  markSuggestWrap: {
+    marginTop: 10,
+    gap: 6,
+  },
+  markSuggestTitle: {
+    color: colors.muted,
+  },
+  markSuggestRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  markSuggestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+    maxWidth: '100%',
+  },
+  markSuggestSwatch: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  markSuggestText: {
+    fontSize: 11,
+    color: '#0D0D0D',
+    flexShrink: 1,
   },
 });

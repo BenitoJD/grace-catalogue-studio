@@ -4972,6 +4972,23 @@ test('a second Pi turn restores the transcript and designs the same order', { ti
   assert.ok(calls.includes('/api/orders/order-1/ai-brochure'));
 });
 
+test('a tapped point returns the colour that is actually there', async () => {
+  writeFixtureMedia();
+  const sample = await postJson(`${baseUrl}/api/visual-sample`, {
+    imageUrl: FIXTURE_ROOM_FILES[0].url,
+    x: 50,
+    y: 50,
+  });
+  const raw = await sample.text();
+  assert.equal(sample.status, 200, raw);
+  const body = JSON.parse(raw);
+  assert.match(body.hex, /^#[0-9A-F]{6}$/);
+  assert.equal(typeof body.name, 'string');
+  assert.ok(Array.isArray(body.suggestions));
+  const bad = await postJson(`${baseUrl}/api/visual-sample`, { imageUrl: FIXTURE_ROOM_FILES[0].url, x: 200, y: 50 });
+  assert.equal(bad.status, 400);
+});
+
 test('order pages endpoint lists every page and the marks', async () => {
   const tinyPng =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';

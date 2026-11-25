@@ -110,6 +110,52 @@ export function decodeImageFile(filePath) {
 }
 
 /** Palettes for every image in an order, keyed photo1, photo2, ... */
+/**
+ * The actual colour under one point of a photograph, averaged over a small
+ * window. Used by the marking tools so a tap fills the colour name and code
+ * instead of asking the studio to type them.
+ */
+export function sampleColourAt(filePath, xPercent, yPercent) {
+  let buffer;
+  try {
+    buffer = readFileSync(filePath);
+  } catch {
+    return null;
+  }
+  let decoded;
+  try {
+    if (buffer.length > 8 && buffer[0] === 0x89 && buffer[1] === 0x50) {
+      const png = PNG.sync.read(buffer);
+      decoded = { width: png.width, height: png.height, data: png.data, channels: 4 };
+    } else if (buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+      const jpeg = decodeJpeg(buffer, { useTArray: true, formatAsRGBA: false });
+      decoded = { width: jpeg.width, height: jpeg.height, data: jpeg.data, channels: 3 };
+    } else {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  const x = Math.min(decoded.width - 1, Math.max(0, Math.round((Number(xPercent) / 100) * (decoded.width - 1))));
+  const y = Math.min(decoded.height - 1, Math.max(0, Math.round((Number(yPercent) / 100) * (decoded.height - 1))));
+  const radius = Math.max(2, Math.round(Math.min(decoded.width, decoded.height) * 0.025));
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+  for (let py = Math.max(0, y - radius); py <= Math.min(decoded.height - 1, y + radius); py += 1) {
+    for (let px = Math.max(0, x - radius); px <= Math.min(decoded.width - 1, x + radius); px += 1) {
+      const index = (py * decoded.width + px) * decoded.channels;
+      r += decoded.data[index];
+      g += decoded.data[index + 1];
+      b += decoded.data[index + 2];
+      count += 1;
+    }
+  }
+  if (count === 0) return null;
+  return toHex([r / count, g / count, b / count]);
+}
+
 export function photoPalettesFor(order, mediaDir) {
   const attachments = Array.isArray(order?.attachments) ? order.attachments : [];
   const images = attachments.filter(

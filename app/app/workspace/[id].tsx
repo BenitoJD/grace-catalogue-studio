@@ -53,6 +53,10 @@ export default function WorkspaceScreen() {
   const [markHex, setMarkHex] = useState('');
   const [markNote, setMarkNote] = useState('');
   const [savingMark, setSavingMark] = useState(false);
+  const [markSuggestions, setMarkSuggestions] = useState<
+    { label: string; x: number; y: number; colourHex: string; colourName: string }[]
+  >([]);
+  const [sampling, setSampling] = useState(false);
 
   const [sessionId, setSessionId] = useState('');
   const [lines, setLines] = useState<ChatLine[]>([]);
@@ -109,6 +113,27 @@ export default function WorkspaceScreen() {
   const active = activePages[Math.min(pageIndex, Math.max(0, activePages.length - 1))];
   const photoToken = `photo${pageIndex + 1}`;
   const stageWidth = Math.max(200, stage.width || 600);
+
+  const samplePoint = async (position: { x: number; y: number }) => {
+    setSampling(true);
+    setMarkSuggestions([]);
+    try {
+      const sample = await api.visualSample({
+        orderId,
+        pageIndex,
+        x: position.x,
+        y: position.y,
+      });
+      setMarkHex(sample.hex);
+      setMarkName(sample.name);
+      if (sample.label) setMarkLabel(sample.label);
+      setMarkSuggestions(sample.suggestions ?? []);
+    } catch {
+      setMarkNote('The colour could not be read at that point; type it instead.');
+    } finally {
+      setSampling(false);
+    }
+  };
 
   const saveMark = async () => {
     if (!active) return;
@@ -323,10 +348,12 @@ export default function WorkspaceScreen() {
                           const localX = Number(native.locationX ?? native.offsetX);
                           const localY = Number(native.locationY ?? native.offsetY);
                           const bounds = stage.width > 0 ? stage : { width: 1, height: 1 };
-                          setPoint({
+                          const position = {
                             x: Number.isFinite(localX) ? Math.min(100, Math.max(0, (localX / bounds.width) * 100)) : 50,
                             y: Number.isFinite(localY) ? Math.min(100, Math.max(0, (localY / bounds.height) * 100)) : 50,
-                          });
+                          };
+                          setPoint(position);
+                          void samplePoint(position);
                         }}>
                         <Image
                           source={{ uri: fileUrl(active.pageUrl) }}
@@ -470,6 +497,31 @@ export default function WorkspaceScreen() {
                   ))
                 )}
                 <View style={styles.markForm}>
+                  {sampling ? (
+                    <Text style={[text.caption, styles.markNote]}>Reading the colour at that point.</Text>
+                  ) : null}
+                  {markSuggestions.length > 0 ? (
+                    <View style={styles.suggestRow}>
+                      {markSuggestions.map((suggestion) => (
+                        <Pressable
+                          key={`${suggestion.label}-${suggestion.x}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Use ${suggestion.label} ${suggestion.colourName}`}
+                          onPress={() => {
+                            setPoint({ x: suggestion.x, y: suggestion.y });
+                            setMarkLabel(suggestion.label);
+                            setMarkName(suggestion.colourName);
+                            setMarkHex(suggestion.colourHex);
+                          }}
+                          style={styles.suggestChip}>
+                          <View style={[styles.suggestSwatch, { backgroundColor: suggestion.colourHex || '#EFE7D8' }]} />
+                          <Text style={styles.suggestText}>
+                            {`${suggestion.label} · ${suggestion.colourName} ${suggestion.colourHex}`}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
                   {point ? (
                     <Text style={[text.caption, styles.markPointText]}>
                       {`Point ${point.x.toFixed(1)}% / ${point.y.toFixed(1)}%`}
@@ -603,4 +655,32 @@ const styles = StyleSheet.create({
   composerInput: { flex: 1, maxHeight: 90, minHeight: 36, borderWidth: 1, borderColor: colors.faint, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, color: colors.ink, fontSize: 12.5 },
   sendButton: { backgroundColor: colors.copper, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14 },
   sendLabel: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  suggestRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  suggestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: '#FFFFFF',
+    maxWidth: '100%',
+  },
+  suggestSwatch: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+  },
+  suggestText: {
+    fontSize: 10.5,
+    color: '#0D0D0D',
+    flexShrink: 1,
+  },
 });

@@ -459,6 +459,21 @@ export const api = {
     return request(`/api/orders/${encodeId(orderId)}/pages`);
   },
 
+  visualSample(input: {
+    imageUrl?: string;
+    orderId?: string;
+    pageIndex?: number;
+    x: number;
+    y: number;
+  }): Promise<{
+    hex: string;
+    name: string;
+    label: string | null;
+    suggestions: { label: string; x: number; y: number; colourHex: string; colourName: string }[];
+  }> {
+    return request('/api/visual-sample', { method: 'POST', body: input, timeoutMs: 30000 });
+  },
+
   assistantSession(orderId: string): Promise<{
     sessionId: string | null;
     messages: { role: 'user' | 'assistant'; content: string }[];

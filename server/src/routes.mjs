@@ -118,7 +118,7 @@ import {
   validateProvider,
 } from './llm.mjs';
 import { createLogger, parseLogLevel } from './logger.mjs';
-import { colourName, photoPalette } from './image-palette.mjs';
+import { colourName, photoPalette, sampleColourAt } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
 import { detailPlatesFor } from './image-detail.mjs';
 import { readPicturesWithVision, visionEnabled } from './vision.mjs';
@@ -1799,6 +1799,63 @@ export function createApp(options) {
     if (!page) return fail(c, 404, 'Page not found.');
     const type = /\.png$/i.test(page.filePath) ? 'image/png' : 'image/jpeg';
     return sendFile(c, page.filePath, type, { 'Cache-Control': 'private, max-age=300' });
+  });
+
+  // Tap a photograph, get the colour that is actually there. Used by the
+  // marking tools so the colour name and code fill themselves.
+  app.post('/api/visual-sample', async (c) => {
+    const parsed = await readJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const body = parsed.body ?? {};
+    const x = Number(body.x);
+    const y = Number(body.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 100 || y < 0 || y > 100) {
+      return fail(c, 400, 'Point positions must be percentages between 0 and 100.');
+    }
+    const mediaDir = path.join(dataDir, 'media');
+    let filePath = null;
+    const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl : '';
+    if (/^\/media\/[A-Za-z0-9._-]+$/.test(imageUrl)) {
+      filePath = path.join(mediaDir, path.basename(imageUrl));
+    } else if (/^\/pdf-previews\/[A-Za-z0-9._-]+\.(png|jpg)$/i.test(imageUrl)) {
+      filePath = path.join(pdfPreviewDir(dataDir), path.basename(imageUrl));
+    } else if (typeof body.orderId === 'string' && body.orderId !== '') {
+      const order = getOrder(db, body.orderId);
+      if (!order) return fail(c, 404, 'Order not found.');
+      const files = await orderPageFiles(order);
+      const pageIndex = Number.parseInt(body.pageIndex, 10);
+      const page = files[pageIndex];
+      if (page) filePath = page.filePath;
+    }
+    if (!filePath || !existsSync(filePath)) return fail(c, 404, 'That picture could not be sampled.');
+    const hex = sampleColourAt(filePath, x, y);
+    if (!hex) return fail(c, 400, 'That picture format cannot be sampled.');
+    const analysis = analyseImage(filePath);
+    const suggestions = (analysis?.candidates ?? []).slice(0, 3).map((candidate) => {
+      const candidateHex = sampleColourAt(filePath, candidate.x, candidate.y) ?? hex;
+      return {
+        label: candidate.label ?? 'Detail',
+        x: candidate.x,
+        y: candidate.y,
+        colourHex: candidateHex,
+        colourName: colourName(candidateHex),
+      };
+    });
+    let nearest = null;
+    let nearestDistance = 999;
+    for (const suggestion of suggestions) {
+      const distance = Math.hypot(suggestion.x - x, suggestion.y - y);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = suggestion;
+      }
+    }
+    return c.json({
+      hex,
+      name: colourName(hex),
+      label: nearest && nearestDistance <= 22 ? nearest.label : null,
+      suggestions,
+    });
   });
 
   // Reopen the conversation for an order in History. Returns the stored Pi
