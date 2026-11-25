@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
@@ -1658,10 +1658,6 @@ function BubbleView({
               <SmallAction
                 label="Open order"
                 onPress={() => router.push(`/orders/${bubble.orderId}`)}
-              />
-              <SmallAction
-                label="Pages"
-                onPress={() => router.push(`/workspace/${bubble.orderId}` as Href)}
               />
             </View>
           </View>

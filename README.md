@@ -74,10 +74,9 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 - **Guards**: one turn at a time per chat, one order per chat, the designer can only run for an existing order, and the model cannot create a second order by accident.
 - **Failures keep the work**: if a turn fails or runs long after the order is created, the order and any render are returned and saved, with a reply saying what happened. Nothing is thrown away and no duplicate order is made.
 - **Point sampling with suggestions.** When a mark is placed on a picture, the app samples the real pixel colour at that point, names it like a paint card, fills the colour name and code, and shows the nearest joinery details as one tap suggestions that move the ring to that detail.
-- **Pages workspace**: a split screen with the document at 75 percent and the studio desk at 25 percent. It opens every picture and every PDF page in the app, with a page strip, zoom, marks pinned on the page, a live callout preview, a marks panel with swatches and codes, and the same Pi conversation beside it. No external PDF viewer.
 - **Studio marks**: on any picture review the studio can tap the exact area, name the detail and its colour name and code. Marks are saved on the order and become authoritative callout specifications for the designer, which must print their exact name and code.
 - **Modern settings**: compact header, clean cards for the language model and app details, quiet provider pills, black primary action, outline test and a quiet forget key.
-- **Modern order book**: History is a searchable grid of cards with the pamphlet cover, customer, page count and one tap actions for chat, pages workspace, order and PDF.
+- **Modern order book**: History is a searchable grid of cards with the pamphlet cover, customer, page count and one tap actions for chat, order and PDF.
 - **ChatGPT style chat**: neutral canvas, a centered welcome, quiet suggestion chips, assistant answers as plain text, user messages in a soft grey bubble, and a floating rounded composer with a circular send. The model status and New order sit quietly in the header.
 - **Live progress**: while a turn runs, the server publishes each stage. The chat shows the current step (reading the pictures, creating the order, designing the pages, checking the print) with the elapsed seconds and a trail of the steps already done.
 - **Only path**: the chat is the agent. There is no second deterministic chat flow. If a turn fails, the chat reports the failure and keeps any order or render that was already made; the next message continues the same session.
@@ -99,8 +98,6 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 ![Order detail in the new interface](docs/screenshots/order-detail.png)
 
 ![A real take home pamphlet, designed from the uploaded pictures](docs/screenshots/pamphlet-cover.png)
-
-![The pages workspace: document, marks and chat in one screen](docs/screenshots/workspace.png)
 
 ![A live cover: prominent logo, no order number](docs/screenshots/print-cover.png)
 
@@ -208,7 +205,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ```bash
 npm test          # server suite
 npm run verify    # black box smoke test
-npm run e2e       # 99 browser checks
+npm run e2e       # 96 browser checks
 npm run typecheck
 npm run lint
 ```
