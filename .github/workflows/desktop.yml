@@ -89,33 +89,29 @@ jobs:
             }
           }
           if (-not $installed) {
-            # Direct binaries: Tauri hosts the official NSIS setup, with
-            # SourceForge as a second mirror.
-            $urls = @(
-              'https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.08/nsis-3.08-setup.exe',
-              'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11-setup.exe'
-            )
-            foreach ($url in $urls) {
-              if ($installed) { break }
-              $setup = Join-Path $env:RUNNER_TEMP 'nsis-setup.exe'
-              for ($attempt = 1; $attempt -le 2; $attempt++) {
-                try {
-                  Write-Host "Downloading NSIS from $url (attempt $attempt)"
-                  Invoke-WebRequest -Uri $url -OutFile $setup -UseBasicParsing -MaximumRedirection 10
-                  $bytes = [System.IO.File]::ReadAllBytes($setup)
-                  if ($bytes.Length -gt 1000000 -and $bytes[0] -eq 0x4D -and $bytes[1] -eq 0x5A) { break }
-                  Write-Host 'Download was not a Windows executable.'
-                } catch {
-                  Write-Host "Download failed: $($_.Exception.Message)"
-                }
+            # Direct binary distribution hosted by Tauri, used when the
+            # Chocolatey community feed is unavailable.
+            $zipUrl = 'https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip'
+            $zip = Join-Path $env:RUNNER_TEMP 'nsis.zip'
+            for ($attempt = 1; $attempt -le 2; $attempt++) {
+              try {
+                Write-Host "Downloading NSIS from $zipUrl (attempt $attempt)"
+                Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing
+                if ((Get-Item $zip).Length -gt 1000000) { break }
+                Write-Host 'Downloaded archive is too small.'
+              } catch {
+                Write-Host "Download failed: $($_.Exception.Message)"
                 Start-Sleep -Seconds 15
               }
-              if (Test-Path $setup) {
-                $bytes = [System.IO.File]::ReadAllBytes($setup)
-                if ($bytes.Length -gt 1000000 -and $bytes[0] -eq 0x4D -and $bytes[1] -eq 0x5A) {
-                  Start-Process -FilePath $setup -ArgumentList '/S' -Wait
-                  $installed = Test-Path $makensis
-                }
+            }
+            if (Test-Path $zip) {
+              $nsisRoot = Join-Path $env:RUNNER_TEMP 'nsis'
+              Expand-Archive -Path $zip -DestinationPath $nsisRoot -Force
+              $found = Get-ChildItem $nsisRoot -Recurse -Filter 'makensis.exe' | Select-Object -First 1
+              if ($found) {
+                $env:PATH = "$($found.DirectoryName);$env:PATH"
+                $found.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append
+                $installed = $true
               }
             }
           }
