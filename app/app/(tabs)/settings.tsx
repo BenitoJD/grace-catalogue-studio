@@ -148,21 +148,18 @@ export default function SettingsScreen() {
                 resizeMode="contain"
                 accessibilityLabel="Jacob Design Studio"
               />
-              <View style={styles.brandText}>
-                <Text style={text.eyebrow}>Jacob Design Studio</Text>
-            <TamilLine />
-            <Text style={[text.screenTitle, styles.title]}>Settings</Text>
-              </View>
+              <Text style={styles.brandName}>Jacob Studio</Text>
             </View>
-            <Text style={[text.muted, styles.subtitle]}>Model and app details. Everything runs on this computer.</Text>
+            <Text style={styles.screenTitle}>Settings</Text>
+            <Text style={styles.subtitle}>Model and app details. Everything runs on this computer.</Text>
           </View>
 
 
           <View style={styles.section}>
-            <Text style={text.sectionLabel}>Language model</Text>
-            <Text style={[text.muted, styles.hint]}>
-              Any OpenAI compatible endpoint. The key is stored on the server and never comes back
-              to the app.
+            <Text style={styles.sectionTitle}>Language model</Text>
+            <Text style={styles.sectionHint}>
+              Any OpenAI compatible endpoint. The key is stored on this computer and never comes
+              back to the app.
             </Text>
 
             {settingsLoading ? <LoadingState label="Loading model settings." /> : null}
@@ -257,30 +254,51 @@ export default function SettingsScreen() {
                 />
                 <Text style={[text.caption, styles.hint]}>
                   {settings?.hasKey
-                    ? `A key is already saved (${settings.source === 'env' ? 'from the environment' : 'set in the studio'}).`
+                    ? `Key saved (${settings.source === 'env' ? 'from the environment' : 'on this computer'}).`
                     : settings?.keyOptional
                       ? 'No key needed for this provider.'
                       : 'No key saved yet.'}
                   {providers.find((provider) => provider.id === providerId)?.keyUrl
-                    ? ` Create a key at ${providers.find((provider) => provider.id === providerId)?.keyUrl}`
+                    ? ` Create one at ${providers.find((provider) => provider.id === providerId)?.keyUrl}`
                     : ''}
                 </Text>
 
                 <View style={styles.actions}>
-                  <Button label="Save" onPress={() => void save()} loading={saving} />
-                  <Button
-                    label="Test connection"
-                    variant="secondary"
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Save model settings"
+                    disabled={saving}
+                    onPress={() => void save()}
+                    style={({ pressed }) => [
+                      styles.primaryAction,
+                      saving && styles.actionDisabled,
+                      pressed && styles.actionPressed,
+                    ]}>
+                    <Text style={styles.primaryActionLabel}>{saving ? 'Saving' : 'Save'}</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Test connection"
+                    disabled={testing}
                     onPress={() => void test()}
-                    loading={testing}
-                  />
+                    style={({ pressed }) => [
+                      styles.secondaryAction,
+                      testing && styles.actionDisabled,
+                      pressed && styles.actionPressed,
+                    ]}>
+                    <Text style={styles.secondaryActionLabel}>
+                      {testing ? 'Testing' : 'Test connection'}
+                    </Text>
+                  </Pressable>
                   {settings?.hasKey ? (
-                    <Button
-                      label="Forget saved key"
-                      variant="secondary"
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Forget saved key"
+                      disabled={saving}
                       onPress={() => void forgetKey()}
-                      loading={saving}
-                    />
+                      style={({ pressed }) => [styles.quietAction, pressed && styles.actionPressed]}>
+                      <Text style={styles.quietActionLabel}>Forget key</Text>
+                    </Pressable>
                   ) : null}
                 </View>
 
@@ -301,7 +319,7 @@ export default function SettingsScreen() {
 
 
           <View style={styles.section}>
-            <Text style={text.sectionLabel}>App</Text>
+            <Text style={styles.sectionTitle}>This app</Text>
             <InfoRow label="Version" value={APP_VERSION} />
             <InfoRow label="Platform" value={PLATFORM_LABEL} />
             <InfoRow label="Runs on" value="This computer, entirely" />
@@ -311,7 +329,7 @@ export default function SettingsScreen() {
 
 
           <View style={styles.section}>
-            <Text style={text.sectionLabel}>About</Text>
+            <Text style={styles.sectionTitle}>About</Text>
             <Text style={[text.body, styles.aboutTitle]}>Jacob Design Studio, Nagercoil</Text>
             <Text style={[text.muted, styles.about]}>
               Jacob Design Studio builds custom wardrobes and furniture in Nagercoil, Tamil Nadu.
@@ -329,8 +347,8 @@ export default function SettingsScreen() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
-      <Text style={text.muted}>{label}</Text>
-      <Text style={[text.value, styles.infoValue]}>{value}</Text>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
     </View>
   );
 }
@@ -340,36 +358,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.gutter,
   },
   header: {
-    paddingTop: space.md,
+    paddingTop: 14,
+    paddingBottom: 4,
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   brandText: {
     flexShrink: 1,
   },
   brandMark: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     flexShrink: 0,
   },
-  title: {
-    marginTop: 2,
+  brandName: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+    color: '#0D0D0D',
+  },
+  screenTitle: {
+    marginTop: 14,
+    fontSize: 32,
+    fontWeight: '700',
+    letterSpacing: -0.8,
+    color: '#0D0D0D',
   },
   subtitle: {
-    marginTop: 4,
+    marginTop: 2,
+    fontSize: 14,
+    color: '#6E6E73',
   },
   section: {
-    backgroundColor: colors.surface,
-    borderRadius: layout.radius,
-    padding: space.lg,
-    marginTop: space.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    padding: 20,
+    marginTop: 12,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#0D0D0D',
+    letterSpacing: -0.2,
+  },
+  sectionHint: {
+    marginTop: 4,
+    fontSize: 13.5,
+    lineHeight: 20,
+    color: '#6E6E73',
   },
   label: {
     marginTop: space.lg,
@@ -403,8 +445,8 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   providerChipActive: {
-    borderColor: colors.copper,
-    backgroundColor: colors.copperSoft,
+    backgroundColor: '#0D0D0D',
+    borderColor: '#0D0D0D',
   },
   providerChipPressed: {
     opacity: 0.72,
@@ -414,8 +456,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   providerChipTextActive: {
-    color: colors.copper,
-    fontWeight: '600',
+    color: '#FFFFFF',
   },
   modelWrap: {
     gap: 4,
@@ -427,7 +468,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   modelChipActive: {
-    backgroundColor: colors.copperSoft,
+    backgroundColor: '#0D0D0D',
+    borderColor: '#0D0D0D',
   },
   modelChipText: {
     fontSize: 11.5,
@@ -436,7 +478,48 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: space.md,
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 18,
+  },
+  primaryAction: {
+    backgroundColor: '#0D0D0D',
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  primaryActionLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  secondaryAction: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  secondaryActionLabel: {
+    color: '#0D0D0D',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  quietAction: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  quietActionLabel: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  actionDisabled: {
+    opacity: 0.5,
+  },
+  actionPressed: {
+    opacity: 0.7,
   },
   status: {
     maxWidth: 520,
@@ -450,13 +533,21 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.hairInset,
+    gap: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  infoLabel: {
+    fontSize: 13.5,
+    color: '#6E6E73',
   },
   infoValue: {
+    fontSize: 13.5,
+    fontWeight: '500',
+    color: '#0D0D0D',
     textAlign: 'right',
   },
   aboutTitle: {

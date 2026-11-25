@@ -70,6 +70,7 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 - **Failures keep the work**: if a turn fails or runs long after the order is created, the order and any render are returned and saved, with a reply saying what happened. Nothing is thrown away and no duplicate order is made.
 - **Pages workspace**: a split screen with the document at 75 percent and the studio desk at 25 percent. It opens every picture and every PDF page in the app, with a page strip, zoom, marks pinned on the page, a live callout preview, a marks panel with swatches and codes, and the same Pi conversation beside it. No external PDF viewer.
 - **Studio marks**: on any picture review the studio can tap the exact area, name the detail and its colour name and code. Marks are saved on the order and become authoritative callout specifications for the designer, which must print their exact name and code.
+- **Modern settings**: compact header, clean cards for the language model and app details, quiet provider pills, black primary action, outline test and a quiet forget key.
 - **Modern order book**: History is a searchable grid of cards with the pamphlet cover, customer, page count and one tap actions for chat, pages workspace, order and PDF.
 - **ChatGPT style chat**: neutral canvas, a centered welcome, quiet suggestion chips, assistant answers as plain text, user messages in a soft grey bubble, and a floating rounded composer with a circular send. The model status and New order sit quietly in the header.
 - **Live progress**: while a turn runs, the server publishes each stage. The chat shows the current step (reading the pictures, creating the order, designing the pages, checking the print) with the elapsed seconds and a trail of the steps already done.
@@ -84,6 +85,8 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 ![The chat home, ChatGPT style](docs/screenshots/chat-home.png)
 
 ![History: searchable cards with the pamphlet thumbnail and one tap actions](docs/screenshots/history.png)
+
+![Settings: model and app details in clean cards](docs/screenshots/settings.png)
 
 ![A real take home pamphlet, designed from the uploaded pictures](docs/screenshots/pamphlet-cover.png)
 
