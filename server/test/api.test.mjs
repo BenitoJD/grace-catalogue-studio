@@ -42,7 +42,7 @@ import {
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { DESIGNER_TRIES, buildDesignerMessages, parseDesignerReply, themeFromPalettes } from '../src/ai-brochure.mjs';
+import { DESIGNER_TRIES, artDirectionFor, buildDesignerMessages, parseDesignerReply, pictureTaste, themeFromPalettes } from '../src/ai-brochure.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -3607,6 +3607,59 @@ test('a brochure under four pages is rejected before print', () => {
   const pages = (count) =>
     Array.from({ length: count }, (_, index) => `<div class="page"><p>Page ${index + 1} carries some words for the count.</p></div>`).join('\n');
   assert.throws(() => parseDesignerReply(`<html><body>${pages(3)}</body></html>`, 2), /at least four pages/);
+});
+
+test('each picture set gets its own art direction and the client can override it', () => {
+  const light = artDirectionFor({
+    photoPalettes: { photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] },
+    pictureAnalysis: [{ details: ['brass handle', 'shutter edge'] }],
+  });
+  const deep = artDirectionFor({
+    photoPalettes: { photo1: ['#161616', '#2E2A24', '#3A3F45', '#6B5A44'] },
+  });
+  assert.match(light.concept, /light, architectural/i);
+  assert.match(deep.concept, /dark, cinematic/i);
+  assert.notEqual(light.palette, deep.palette);
+  const lightTheme = themeFromPalettes({ photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] });
+  const deepTheme = themeFromPalettes({ photo1: ['#161616', '#2E2A24', '#3A3F45', '#6B5A44'] });
+  assert.notEqual(lightTheme.paper, deepTheme.paper, 'the paper follows the pictures');
+  assert.notEqual(lightTheme.accent, deepTheme.accent);
+  const prompt = buildDesignerMessages({
+    order: { title: 'Wardrobe', room: 'Bedroom', customerName: 'Meena' },
+    brief: 'Client wants a deep green wardrobe front.',
+    direction: 'deep green',
+    copy: BROCHURE_COPY,
+    photos: ['photo1'],
+    photoPalettes: { photo1: ['#161616', '#2E2A24', '#3A3F45', '#6B5A44'] },
+    pictureAnalysis: [{ details: ['brass handle'] }],
+  })
+    .map((message) => String(message.content ?? ''))
+    .join('\n');
+  assert.match(prompt, /YOUR ART DIRECTION FOR THIS BOOK/i);
+  assert.match(prompt, /invented fresh for this order/i);
+  assert.match(prompt, /CLIENT WORDS HAVE THE FINAL WORD/i);
+  assert.match(prompt, /overrides the picture defaults/i);
+  assert.match(prompt, /dark, cinematic/i);
+});
+
+test('the visual taste is read from the supplied pictures', () => {
+  const light = pictureTaste({ photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] });
+  assert.equal(light.tone, 'light and airy');
+  assert.equal(light.warmth, 'warm');
+  const deep = pictureTaste({ photo1: ['#161616', '#2E2A24', '#4A3F33', '#6B5A44'] });
+  assert.equal(deep.tone, 'deep and low lit');
+  const prompt = buildDesignerMessages({
+    order: { title: 'Wardrobe', room: 'Bedroom', customerName: 'Meena' },
+    copy: BROCHURE_COPY,
+    photos: ['photo1'],
+    photoPalettes: { photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] },
+  })
+    .map((message) => String(message.content ?? ''))
+    .join('\n');
+  assert.match(prompt, /VISUAL TASTE READ FROM THE PICTURES/i);
+  assert.match(prompt, /light and airy/i);
+  assert.match(prompt, /var\(--paper\)/);
+  assert.match(prompt, /Never apply a fixed house beige/i);
 });
 
 test('the designer is told the pictures are the source and must all be used', { timeout: 240_000 }, async () => {

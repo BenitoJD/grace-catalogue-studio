@@ -173,14 +173,14 @@ const DESIGNER_SYSTEM = [
   '- When the studio asks for a colour palette callout, print the palette strip or its four chips beside a loupe of the pictured detail, with the mood name underneath.',
   '',
   'THE QUALITY BAR',
-  'This must look like the printed book a Fortune 500 automotive or luxury interiors brand hands to a customer: art directed, composed, quiet, confident. If a page could have come from a Canva template, a restaurant menu or a website, it is wrong.',
+  'This must look like the printed book a Fortune 500 automotive or luxury interiors brand hands to a customer, art directed by one of the best print designers alive: composed, quiet, confident, with one clear idea for this project and no trace of a template. If a page could have come from Canva, a restaurant menu, a website or an AI image, it is wrong.',
   'Use a real editorial grid: one 12 column grid with a consistent 18 mm outer margin and an 8 mm gutter, and align every element to it. Set a type scale and keep it: cover display 44 to 64 pt, section titles 20 to 26 pt, body 8.4 to 9.5 pt with 1.55 line height, captions 6.4 to 7 pt with 0.2 em tracking, folio 6.4 pt.',
   'Give every page a clear job and a different composition. Vary full bleed photograph pages, a two thirds split page, a quiet type page, a colour plate page and the magnifier spread. Never repeat the same arrangement twice in one document.',
   'The cover brand plate is a hero: at least 55 mm wide, preferably 60 to 100 mm, set with real space around it. A tiny corner plate is wrong.',
   'Colour callouts on photographs follow the paint card reference: a small ring or dot on the exact point, a thin dashed leader line, and the colour code and name set at the end of the line in small caps. Keep the callout text clear of busy detail and never cover the thing it points at.',
   'The cover is a designed photograph, not a template: full bleed image or a strong 2:3 split, an oversized title reacting to the image, the brand plate placed with intent, and nothing centered by default. Use a kicker, a hairline and one line of quiet information. No logo, title, photo and footer stack.',
   'Treat typography like a brand book: one display face, one text face, real hierarchy, generous leading, ragged right body, small caps labels with wide tracking, oversized folio numbers, and no more than three type sizes on a page.',
-  'Compose with negative space, hairlines and the palette. Only three colour families on a page. Gold is a one point rule, a numeral or a motif, never a fill. No gradients, no drop shadows, no rounded cards, no badges, no clip art icons, no emoji, no chevrons, no buttons.',
+  'Compose with negative space, hairlines and the picture palette, through the theme variables. Only three colour families on a page. The accent is a one point rule, a numeral or a motif, never a fill. No gradients, no drop shadows, no rounded cards, no badges, no clip art icons, no emoji, no chevrons, no buttons.',
   'Photographs are the hero: crop with intent, let them bleed, and use a solid scrim or band for any words that sit on them. Never make a photograph small and polite unless the page is deliberately quiet.',
   'Magnifier spread: the loupe is a designed object, not a sticker. Make it large: 55 to 75 mm across, zoomed 3.5 to 5 times, with a crisp 0.5 mm ring and a 0.2 mm inner hairline, a 45 degree leader line to the caption, and a soft solid ground behind the caption. The caption names the detail and its colour and code, in 7 to 8 pt small caps with 0.2 em tracking. It must be clearly readable: light caption on a dark ground or dark caption on a light ground, never words drifting over a busy photograph.',
   'Colour page: treat the palette like paint chips in an automotive book. Strips at full measure, chips aligned in a row on the grid, names in small caps, codes small and quiet, one line of mood copy. No card frames and no shadows.',
@@ -435,6 +435,29 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
           )
           .join('\n')
       : 'None marked; choose details yourself.',
+    '',
+    'YOUR ART DIRECTION FOR THIS BOOK',
+    (() => {
+      const direction = artDirectionFor({ photoPalettes, pictureAnalysis });
+      return direction.text;
+    })(),
+    '',
+    'This direction is invented fresh for this order from these pictures. Do not reuse a house layout. Do not make it look like the last book. The photographs decide the taste: their palette, their light, their materials and the details seen in them.',
+    '',
+    'CLIENT WORDS HAVE THE FINAL WORD',
+    'If the client or the order words ask for a colour, a mood, a motif, a layout or a detail, that request overrides the picture defaults for that part of the book. Where the client says nothing, the pictures decide everything.',
+    '',
+    'VISUAL TASTE READ FROM THE PICTURES',
+    (() => {
+      const taste = pictureTaste(photoPalettes);
+      const paletteLine = taste.colours
+        .slice(0, 6)
+        .map((colour) => `${colour.name} ${colour.hex} (${colour.share}%)`)
+        .join(', ');
+      return `${taste.warmth}, ${taste.contrast} contrast, ${taste.tone}. Palette by share: ${paletteLine || 'from the supplied palettes'}.`;
+    })(),
+    '',
+    'The whole book inherits this taste. The page ground, the ink, the deep label tone and one accent all come from this palette through var(--paper), var(--ink), var(--deep), var(--accent), var(--gold) and var(--hair). Never apply a fixed house beige, teal or gold look that is not in the pictures.',
     '',
     'PICTURE BY PICTURE',
     Array.isArray(pictureAnalysis) && pictureAnalysis.length > 0
@@ -1155,14 +1178,95 @@ function saturationOf(hex) {
  * deep tone and accent come straight out of the photograph palettes, so the
  * pages belong to the project rather than to a house style.
  */
+/**
+ * Read the visual taste of the supplied pictures: the palette itself, its
+ * shares, the overall tone, the warmth and the contrast. The book style must
+ * inherit this, never a fixed house beige or teal.
+ */
+/**
+ * The art direction for one book, computed only from the supplied pictures.
+ * This is what makes every brochure feel made for its own photographs: the
+ * tone words, the palette shares and the focal details are read from the set.
+ */
+export function artDirectionFor({ photoPalettes = {}, pictureAnalysis = [] } = {}) {
+  const taste = pictureTaste(photoPalettes);
+  const palette = taste.colours
+    .slice(0, 6)
+    .map((colour) => `${colour.name} ${colour.hex}`)
+    .join(', ');
+  const details = (Array.isArray(pictureAnalysis) ? pictureAnalysis : [])
+    .flatMap((picture) => (picture?.details ?? []).slice(0, 2))
+    .filter(Boolean)
+    .slice(0, 6);
+  const concept =
+    taste.tone === 'deep and low lit'
+      ? 'a dark, cinematic volume where the photographs carry the light and the type stays quiet and precise'
+      : taste.tone === 'light and airy'
+        ? 'a light, architectural volume with generous air, full bleed daylight photographs and fine typographic lines'
+        : 'a calm, material led volume with measured rhythm, close photographs and restrained typography';
+  return {
+    taste,
+    palette,
+    details,
+    concept,
+    text: `${concept}. Tone ${taste.tone}, ${taste.warmth}, ${taste.contrast} contrast. Palette read from the pictures: ${palette || 'derived from the supplied palettes'}. Focal details seen: ${details.length > 0 ? details.join(', ') : 'handles, edges, grain'}.`,
+  };
+}
+
+export function pictureTaste(photoPalettes = {}) {
+  const entries = Object.entries(photoPalettes)
+    .filter(([key, palette]) => /^photo\d+$/.test(key) && Array.isArray(palette) && palette.length > 0)
+    .flatMap(([, palette]) => palette.filter((hex) => hexRgb(hex)));
+  if (entries.length === 0) {
+    return { tone: 'warm neutral', warmth: 'neutral', contrast: 'balanced', colours: [] };
+  }
+  const counts = new Map();
+  for (const hex of entries) {
+    const key = hex.toUpperCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const total = entries.length;
+  const colours = [...counts.entries()]
+    .map(([hex, count]) => ({ hex, name: colourName(hex), share: Math.round((count / total) * 100) }))
+    .sort((left, right) => luminanceOf(right.hex) - luminanceOf(left.hex));
+  const averageLuminance =
+    colours.reduce((sum, colour) => sum + luminanceOf(colour.hex), 0) / colours.length;
+  const lightness = colours.reduce(
+    (sum, colour) => sum + (colour.share / 100) * luminanceOf(colour.hex),
+    0,
+  );
+  const lu = averageLuminance;
+  const tone = lu < 0.3 ? 'deep and low lit' : lu > 0.55 ? 'light and airy' : 'mid toned and calm';
+  const [ar, ag, ab] = colours
+    .map((colour) => hexRgb(colour.hex))
+    .reduce(([r, g, b], [cr, cg, cb]) => [r + cr, g + cg, b + cb], [0, 0, 0])
+    .map((value) => value / colours.length);
+  const warmthValue = ar - ab;
+  const warmth = warmthValue > 14 ? 'warm' : warmthValue < -14 ? 'cool' : 'neutral';
+  const darkest = Math.min(...colours.map((colour) => luminanceOf(colour.hex)));
+  const lightest = Math.max(...colours.map((colour) => luminanceOf(colour.hex)));
+  const contrast = lightest - darkest > 0.55 ? 'high' : 'soft';
+  return { tone, warmth, contrast, colours, lightness: Number((lightness * lightness).toFixed(2)) };
+}
+
 export function themeFromPalettes(photoPalettes = {}) {
   const colours = Object.values(photoPalettes).flat().filter((hex) => hexRgb(hex));
   if (colours.length === 0) return { ...PALETTE };
   const sorted = [...colours].sort((a, b) => luminanceOf(b) - luminanceOf(a));
   const paperCandidate = sorted[0];
   const inkCandidate = sorted[sorted.length - 1];
-  const paper = luminanceOf(paperCandidate) > 0.62 ? paperCandidate : PALETTE.paper;
-  const ink = luminanceOf(inkCandidate) < 0.24 ? inkCandidate : PALETTE.ink;
+  // Paper comes from the pictures too. A dark or saturated set gets a tinted
+  // paper mixed from its own lightest tone, not the house cream.
+  let paper =
+    luminanceOf(paperCandidate) > 0.55
+      ? paperCandidate
+      : mix(paperCandidate, '#FFFFFF', 0.78);
+  // A printed page needs a light enough ground for dark type.
+  for (let step = 0; step < 8 && luminanceOf(paper) < 0.84; step += 1) {
+    paper = mix(paper, '#FFFFFF', 0.14);
+  }
+  if (luminanceOf(paper) < 0.8) paper = PALETTE.paper;
+  const ink = luminanceOf(inkCandidate) < 0.3 ? inkCandidate : PALETTE.ink;
   const deepCandidate = sorted.find((hex) => luminanceOf(hex) < luminanceOf(ink) + 0.18) ?? ink;
   const accent = [...colours].sort((a, b) => saturationOf(b) - saturationOf(a))[0];
   const warm = [...colours].sort((a, b) => {
