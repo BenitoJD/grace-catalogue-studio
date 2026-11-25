@@ -30,7 +30,7 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **A second art director pass.** After the designer produces a valid document, an art director prompt refines composition, hierarchy and rhythm. If the refinement breaks any print rule, the valid original is kept.
 - **No order number in print.** The order number lives in the app and the database, never on a printed page.
 - **The logo leads.** On the cover the brand plate must be 55 to 100 mm wide, prominent and given real space; the body mark stays a small quiet sign.
-- **Every picture whole.** At least one uncropped copy of every supplied picture is guaranteed in the print, on its own whole frame appendix pages added after the designed pages. The model can crop for art direction, but the complete picture always exists in the book.
+- **Every picture is the hero.** Each uploaded photo is printed whole and uncropped, never a cropped background, and the studio adds a full picture material callout page for every picture with decoded details. There is no thumbnail appendix and no keyword sheet.
 - **Material callout pages, drawn by the studio.** No magnifier and no loupe. Every picture with a decoded detail gets a callout page: a small open ring on the exact point, a layered dashed leader line with an arrow to the outer edge, and the colour code and name printed on paper outside the photograph, like the paint card catalogue. The annotation is deterministic, so it can never be faint, clipped or missing.
 - **The taste comes from the pictures.** Every order gets its own art direction computed from its photographs: palette shares, tone (light and airy, calm, or deep and low lit), warmth, contrast and the focal details seen. The brief tells the designer to invent a fresh concept for that set and never reuse a house layout; the page ground, ink, deep tone, accent and hairline all come from the picture palette through the theme variables.
 - **Client words override, nothing else does.** If the customer asks for a colour, mood, motif, layout or detail in the chat, that request wins for that part of the book. Where the client is silent, the pictures decide everything.
@@ -84,8 +84,6 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 ![The pages workspace: document, marks and chat in one screen](docs/screenshots/workspace.png)
 
 ![A live cover: prominent logo, no order number](docs/screenshots/print-cover.png)
-
-![Every picture whole: the appendix page](docs/screenshots/print-whole.png)
 
 ## Chat first
 

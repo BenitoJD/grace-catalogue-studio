@@ -3529,7 +3529,7 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
   const body = JSON.parse(raw);
   assert.equal(body.render.kind, 'ai');
   assert.equal(body.render.templateId, null);
-  assert.equal(body.render.pageCount, 7, 'four designed pages, two callout pages and the whole picture page');
+  assert.equal(body.render.pageCount, 6, 'four designed pages and two callout pages');
   assert.equal(body.render.design.designed, true);
   assert.match(body.render.design.label, /Designed by the model/i);
   assert.deepEqual(body.copy, BROCHURE_COPY);
@@ -3538,7 +3538,7 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
   const flat = normaliseText(text);
   assert.ok(flat.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()), 'the headline is printed');
   assert.equal(flat.includes('JDS-'), false, 'the order number is never printed');
-  assert.ok(flat.toLowerCase().includes('whole picture'), 'every picture is printed whole in the appendix');
+  assert.equal(flat.toLowerCase().includes('whole picture'), false, 'no thumbnail appendix page is printed');
   assert.ok(flat.includes(BROCHURE_COPY.closing), 'the closing is printed');
   assert.ok(flat.includes('Master Bedroom Wardrobe'), 'the title is printed');
   assert.ok(
@@ -3593,8 +3593,8 @@ test('a longer brochure prints six pages when the content needs room', { timeout
   assert.equal(response.status, 201, raw);
   const body = JSON.parse(raw);
   assert.equal(body.render.kind, 'ai');
-  assert.equal(body.render.pageCount, 9, 'six designed pages, two callout pages and the whole picture page');
-  assert.equal(body.render.pageUrls.length, 9);
+  assert.equal(body.render.pageCount, 8, 'six designed pages and two callout pages');
+  assert.equal(body.render.pageUrls.length, 8);
 
   const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
   const flat = normaliseText(text);
@@ -3749,10 +3749,7 @@ test('the studio adds its own printed picture pages', { timeout: 240_000 }, asyn
   const raw = await response.text();
   assert.equal(response.status, 201, raw);
   const body = JSON.parse(raw);
-  assert.ok(body.render.pageCount >= 5, 'designed pages plus the studio picture page');
-  const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
-  const flat = normaliseText(text).toLowerCase();
-  assert.ok(flat.includes('whole picture'), 'the whole picture page is printed');
+  assert.ok(body.render.pageCount >= 4, 'the designed pages are printed');
 });
 
 test('light text on a light page is rejected for contrast', { timeout: 240_000 }, async () => {

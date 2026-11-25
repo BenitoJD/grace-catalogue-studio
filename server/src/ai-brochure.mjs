@@ -164,7 +164,7 @@ const DESIGNER_SYSTEM = [
   '- {{headline}}, {{body}} and {{closing}} each exactly once, anywhere in the story pages.',
   '- Every photograph token from {{photo1}} to the last available must appear at least once.',
   '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as paint card chips, each using its colour token and its colour NAME token, with its hex value small. This is the colour options spread of the showroom book.',
-  '- At least one detail annotation: a small ring at {{photoNdetailMX}} and {{photoNdetailMY}}, a dashed leader line with an arrow, and the colour name and code printed OUTSIDE the photograph using {{photoNdetailMColorName}} and {{photoNdetailMColor}}.',
+  '- Every photograph is a hero: wherever it is used, print it whole and uncropped, never a cropped background. The studio also prints each picture whole on its own material callout page. No contact sheet, no thumbnail appendix, no keyword page.',
   '- The last page: a large brand plate and a contact plate. Never print an order number.',
   '- Somewhere in the document: at least one house motif token.',
   '- No dimension, size, shutter count or specification value may appear. Those tokens do not exist and naming them rejects the document.',
@@ -1390,34 +1390,6 @@ export function compileGenerativeBrochure({
   const docStyles = noDashes(filledStyles);
   const docPages = filledPages.map(noDashes);
 
-  // Contract: at least one whole, uncropped copy of every supplied picture is
-  // printed. These pages are added after the authored ones so the model can
-  // never crop a picture out of the book.
-  const wholeFrames = [];
-  for (let index = 0; index < photoTokens.length; index += 6) {
-    const chunk = photoTokens.slice(index, index + 6);
-    wholeFrames.push(
-      `<div style="position:relative;width:100%;height:100%;background:#F7F2E9;color:#2E2A24;font-family:var(--body);">` +
-        `<div style="position:absolute;left:18mm;top:14mm;font-size:6.4pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Every picture, whole frame</div>` +
-        `<div style="position:absolute;left:18mm;top:22mm;width:180mm;display:grid;grid-template-columns:1fr 1fr;gap:6mm;">` +
-        chunk
-          .map((uri, offset) => {
-            const number = index + offset + 1;
-            return (
-              `<div>` +
-              `<div style="height:66mm;background:#EFE7D8;display:flex;align-items:center;justify-content:center;padding:2mm;">` +
-              `<img src="${uri}" style="max-width:100%;max-height:62mm;width:auto;height:auto;object-fit:contain;">` +
-              `</div>` +
-              `<div style="margin-top:2mm;font-size:6.2pt;letter-spacing:0.16em;text-transform:uppercase;color:#6E6152;">Whole picture ${number}</div>` +
-              `</div>`
-            );
-          })
-          .join('') +
-        `</div>` +
-        `<div style="position:absolute;left:18mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO</div>` +
-        `</div>`,
-    );
-  }
   // Material callout pages, drawn by the server so the annotation is always
   // visible and always matches the paint card reference.
   const annotationPages = [];
@@ -1462,7 +1434,7 @@ export function compileGenerativeBrochure({
         `</div>`,
     );
   }
-  const allPages = [...docPages, ...annotationPages.map(noDashes), ...wholeFrames.map(noDashes)];
+  const allPages = [...docPages, ...annotationPages.map(noDashes)];
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
