@@ -3,8 +3,11 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("../app/dist/", import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: on Windows the latter yields "/C:/..." with
+// forward slashes and percent encoded spaces, which is not a usable path.
+const root = fileURLToPath(new URL("../app/dist/", import.meta.url));
 const port = Number.parseInt(process.argv[2] ?? "8081", 10);
 
 const types = {

@@ -19,13 +19,40 @@ export const DEFAULT_NOTE_LIMIT_PER_MIN = 30;
 export const DEFAULT_RENDER_RETENTION_DAYS = 30;
 export const DEFAULT_LLM_CACHE_TTL_HOURS = 168;
 
+// Windows finds an executable by its PATHEXT suffix, so "weasyprint" is really
+// weasyprint.exe. POSIX has executable files with no suffix, and returns the
+// name unchanged. Kept in step with isExecutable() in http.mjs.
+const WINDOWS_PATHEXT = Object.freeze(
+  (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
+    .split(';')
+    .map((extension) => extension.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+function executableNames(command) {
+  if (process.platform !== 'win32' || path.extname(command) !== '') return [command];
+  return [command, ...WINDOWS_PATHEXT.map((extension) => `${command}${extension}`)];
+}
+
 function findOnPath(command) {
   const dirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
   for (const dir of dirs) {
-    const candidate = path.join(dir, command);
-    if (existsSync(candidate)) return candidate;
+    for (const name of executableNames(command)) {
+      const candidate = path.join(dir, name);
+      if (existsSync(candidate)) return candidate;
+    }
   }
   return null;
+}
+
+// A virtualenv puts console scripts in bin/ on POSIX and Scripts/ with an .exe
+// suffix on Windows, so the same checkout works on both without a hard coded
+// path.
+function venvExecutable(root, name) {
+  if (process.platform === 'win32') {
+    return path.join(root, '.venv', 'Scripts', `${name}.exe`);
+  }
+  return path.join(root, '.venv', 'bin', name);
 }
 
 // A checkout may keep WeasyPrint in a local virtualenv, and a container or CI
@@ -35,8 +62,8 @@ function findOnPath(command) {
 export function resolveWeasyprint(root = rootDir, env = process.env) {
   if (env.WEASYPRINT_BIN) return env.WEASYPRINT_BIN;
   const candidates = [
-    path.join(root, '.venv', 'bin', 'weasyprint'),
-    path.join(root, 'specimen', '.venv', 'bin', 'weasyprint'),
+    venvExecutable(root, 'weasyprint'),
+    venvExecutable(path.join(root, 'specimen'), 'weasyprint'),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;

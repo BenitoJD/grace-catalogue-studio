@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 // The bundle ships no photography: only the brand logo, the house motifs and
@@ -40,4 +40,17 @@ export function ensureMedia(templatesDir, dataDir) {
   const mediaDir = path.join(dataDir, 'media');
   mkdirSync(mediaDir, { recursive: true });
   return mediaDir;
+}
+
+// The voucher templates print a customer photograph in every image slot and the
+// product ships no stock photography, so a preview cannot be built until the
+// studio holds at least one picture. A fresh install has none.
+const PICTURE_PATTERN = /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i;
+
+export function hasMediaPictures(dataDir) {
+  try {
+    return readdirSync(path.join(dataDir, 'media')).some((name) => PICTURE_PATTERN.test(name));
+  } catch {
+    return false;
+  }
 }

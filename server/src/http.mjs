@@ -170,14 +170,26 @@ function applyCorsHeaders(c, headers, corsOrigins) {
 // Executable check used by GET /ready
 // ---------------------------------------------------------------------------
 
+// Windows resolves an executable through its PATHEXT suffix ("weasyprint" is
+// weasyprint.exe on disk), while POSIX runs files with no suffix at all. Kept
+// in step with the PATH lookup in config.mjs.
+function executableNames(bin) {
+  if (process.platform !== 'win32' || path.extname(bin) !== '') return [bin];
+  const extensions = String(process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
+    .split(';')
+    .map((extension) => extension.trim().toLowerCase())
+    .filter(Boolean);
+  return [bin, ...extensions.map((extension) => `${bin}${extension}`)];
+}
+
 export function isExecutable(bin) {
   if (typeof bin !== 'string' || bin.trim() === '') return false;
   const candidates = [];
   if (bin.includes('/') || bin.includes('\\')) {
-    candidates.push(bin);
+    candidates.push(...executableNames(bin));
   } else {
     for (const dir of String(process.env.PATH ?? '').split(path.delimiter)) {
-      if (dir) candidates.push(path.join(dir, bin));
+      if (dir) candidates.push(...executableNames(path.join(dir, bin)));
     }
   }
   for (const candidate of candidates) {

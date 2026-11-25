@@ -12,7 +12,7 @@ import { loadConfig } from './config.mjs';
 import { openDb, pruneLlmCache } from './db.mjs';
 import { isExecutable } from './http.mjs';
 import { createLogger } from './logger.mjs';
-import { ensureMedia, removeStockMedia } from './media.mjs';
+import { ensureMedia, hasMediaPictures, removeStockMedia } from './media.mjs';
 import { createRenderer } from './render.mjs';
 import { runRetentionSweep } from './retention.mjs';
 import { createApp } from './routes.mjs';
@@ -90,6 +90,16 @@ export async function startCatalogServer(options = {}) {
     llmCacheTtlHours: config.llmCacheTtlHours,
     onReady: ({ previewStore }) => {
       setTimeout(() => {
+        // Every voucher image slot prints a customer photograph and the bundle
+        // ships no stock photography, so a fresh install cannot build previews
+        // and warming would only log thirty failures. The store still builds
+        // one on demand at /previews/<id>.png once pictures exist.
+        if (!hasMediaPictures(dataDir)) {
+          logger.info('Template previews wait for the first uploaded picture.', {
+            reason: 'no pictures in the media folder',
+          });
+          return;
+        }
         previewStore
           .warmAll()
           .then(({ generated, failed, total }) => {

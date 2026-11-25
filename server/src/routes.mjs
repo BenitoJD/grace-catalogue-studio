@@ -765,10 +765,12 @@ export function createApp(options) {
   );
 
   // Readiness check: the database answers and the renderer binary is usable.
-  // Returns 503 with a JSON reason when either dependency is missing.
+  // Returns 503 with a JSON reason when either dependency is missing. The
+  // desktop build prints through Electron's Chromium instead of WeasyPrint, so
+  // there WeasyPrint is not a dependency and must not make the app unready.
   app.get('/ready', (c) => {
     const database = checkDatabase(db);
-    const weasyprint = isExecutable(weasyprintBin);
+    const weasyprint = renderer.engine === 'desktop' || isExecutable(weasyprintBin);
 
     if (database.ok && weasyprint) {
       return c.json({
@@ -1779,7 +1781,9 @@ export function createApp(options) {
     const files = await orderPageFiles(order);
     return c.json({
       pages: files.map((page, index) => ({
-        url: page.filePath.split('/').pop(),
+        // path.basename, not a "/" split: uploaded and unpacked files have a
+        // backslash separator on Windows.
+        url: path.basename(page.filePath),
         pageUrl: `/api/orders/${order.id}/pages/${index}/image`,
         name: page.name,
         label: page.label,

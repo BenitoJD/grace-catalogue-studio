@@ -8,7 +8,9 @@
 // Output images land in /tmp/family-check/<name>/page-N.png
 import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { resolveWeasyprint } from '../server/src/config.mjs';
@@ -17,7 +19,7 @@ import { buildTitleMarkup } from '../server/src/title.mjs';
 import { buildVoucherValues, fillTemplate } from '../server/src/render.mjs';
 
 const run = promisify(execFile);
-const rootDir = path.resolve(new URL('..', import.meta.url).pathname);
+const rootDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const templatesDir = path.join(rootDir, 'templates');
 
 function arg(name, fallback = '') {
@@ -73,7 +75,7 @@ const filled = fillTemplate(
   'voucher'
 );
 
-const outDir = path.join('/tmp/family-check', familyId);
+const outDir = path.join(os.tmpdir(), 'family-check', familyId);
 mkdirSync(outDir, { recursive: true });
 // Build inside templates/voucher, like production, so ../assets and ../fonts resolve.
 const builtFile = path.join(templatesDir, 'voucher', `.check-${familyId}.html`);

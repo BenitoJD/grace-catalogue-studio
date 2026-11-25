@@ -710,6 +710,8 @@ export function createRenderer({
   }
 
   return {
+    /** Which print engine this renderer uses: the desktop Chromium or WeasyPrint. */
+    engine: pdfEngine ? 'desktop' : 'weasyprint',
     render(input) {
       pendingRenders += 1;
       return enqueue(async () => {

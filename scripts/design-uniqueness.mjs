@@ -17,7 +17,7 @@ const api = process.argv.includes('--api')
   : 'http://localhost:8787';
 const outFile = process.argv.includes('--out')
   ? process.argv[process.argv.indexOf('--out') + 1]
-  : '/tmp/design-uniqueness.json';
+  : path.join(os.tmpdir(), 'design-uniqueness.json');
 
 const SUSPICIOUS_BITS = 8;
 const PAGE_COUNT = 4;

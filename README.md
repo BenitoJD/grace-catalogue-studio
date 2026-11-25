@@ -176,6 +176,40 @@ npm run seed       # creates data/catalog.db with demo data
 npm run dev        # engine on :8787 and the web app on :8081
 ```
 
+### Windows
+
+The same commands work on Windows. The development server needs the two native
+tools that a Mac gets from Homebrew, and neither is bundled with Node.
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\pip install -r requirements.txt
+```
+
+WeasyPrint needs the GTK text stack (Pango). Install it with MSYS2
+(`pacman -S mingw-w64-x86_64-pango`) or the GTK3 runtime installer, then set
+`WEASYPRINT_DLL_DIRECTORIES` to the folder that holds `libgobject-2.0-0.dll`,
+because WeasyPrint opens Pango with `LOAD_LIBRARY_SEARCH_DEFAULT_DIRS` and so
+ignores `PATH`:
+
+```powershell
+$env:WEASYPRINT_DLL_DIRECTORIES = 'C:\msys64\mingw64\bin'
+```
+
+Poppler supplies `pdftoppm` and `pdftotext`: download the Poppler for Windows
+release and add its `Library\bin` folder to `PATH`. The server finds
+`.venv\Scripts\weasyprint.exe` by itself, so `WEASYPRINT_BIN` is not needed for a
+checkout.
+
+The desktop application needs none of this. It prints through Electron's
+Chromium and embeds the engine, so `npm run build:win` is the whole Windows
+story for the shipped product.
+
+`npm run lint` uses a native Rust resolver (`unrs-resolver`), so the machine
+also needs the Microsoft Visual C++ 2015-2022 Redistributable. Without it the
+loader reports `Cannot find native binding` for every file; the app build and
+the server are unaffected.
+
 Useful commands:
 
 ```bash
@@ -186,8 +220,19 @@ npm run typecheck
 npm run lint
 npm run desktop    # run the standalone app in development
 npm run build:mac  # dmg and zip in desktop/release
-npm run build:win  # nsis and portable exe, best on Windows
+npm run build:win  # portable exe, best on Windows
 ```
+
+The Windows install wizard is a second step on top of the portable build:
+
+```bash
+npm run build:win:all     # win-unpacked payload plus the portable exe
+npm run build:win:setup   # the four step NSIS wizard, release\JacobStudio-Setup-<version>.exe
+```
+
+Both need `makensis.exe` on `PATH` for the wizard (NSIS 3.x). electron-builder
+downloads NSIS for the portable target, and its
+`%LOCALAPPDATA%\electron-builder\Cache\nsis-*\...\Bin` folder works.
 
 ## Desktop app
 
@@ -214,6 +259,11 @@ npm run lint
 ```
 
 The browser suite walks the product like a person: chat with date and time, picture-led intake, attachments, the colour chips read from the pictures, an order created the way the chat does, design, PDF, share, design again, note, info kit, edits, late files, settings, deep link, mobile and the API-down path. Screenshots land in `docs/screenshots/e2e/`.
+
+It drives the browser already on the machine: Google Chrome on macOS or Linux,
+then Chrome or Microsoft Edge on Windows. `CHROME_PATH` overrides the choice, so
+a portable browser or a CI image can point at its own binary. The suite needs
+`puppeteer-core`, which `npm run setup` installs at the repository root.
 
 ## Offline by design
 

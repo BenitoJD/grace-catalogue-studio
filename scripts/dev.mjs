@@ -8,8 +8,24 @@ const jobs = [
 
 const reset = "\x1b[0m";
 
+// npm is a shell script on POSIX and a .cmd batch file on Windows. A batch file
+// cannot be spawned directly, so Windows runs it through the command
+// interpreter; the arguments here are fixed words with no spaces to quote.
+function spawnJob(job) {
+  const stdio = ["ignore", "pipe", "pipe"];
+  if (process.platform === "win32") {
+    const line = [job.cmd, ...job.args].join(" ");
+    return spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", line], {
+      stdio,
+      env: process.env,
+      windowsHide: true
+    });
+  }
+  return spawn(job.cmd, job.args, { stdio, env: process.env });
+}
+
 for (const job of jobs) {
-  const child = spawn(job.cmd, job.args, { stdio: ["ignore", "pipe", "pipe"], env: process.env });
+  const child = spawnJob(job);
   const tag = `${job.color}${job.name.padEnd(3)}${reset}`;
   const pipe = (stream, out) => {
     let buffer = "";

@@ -84,7 +84,11 @@ Section "Jacob Design Studio (required)" SecApp
 
   ; A fresh copy on every install, so upgrades do not leave old Electron files
   ; behind. User data lives in APPDATA, not here, and is never touched.
-  nsExec::ExecToLog 'taskkill /IM "${APP_EXE}" /F'
+  ; taskkill /T ends the whole Electron tree (main, GPU and crashpad helpers),
+  ; and the wait gives Windows time to release the executable before the folder
+  ; is removed; without it the locked exe survives the reinstall.
+  nsExec::ExecToLog 'taskkill /IM "${APP_EXE}" /T /F'
+  Sleep 2500
   RMDir /r "$INSTDIR"
   SetOutPath "$INSTDIR"
   File /r "${PAYLOAD_DIR}\*"
@@ -116,8 +120,12 @@ Section "Uninstall"
   SetOutPath "$TEMP"
 
   ; Close the app if it is still running, otherwise Windows locks its files.
-  nsExec::ExecToLog 'taskkill /IM "${APP_EXE}" /F'
+  ; The uninstaller runs from inside the folder it deletes, so end the whole
+  ; Electron tree first and wait for the handles to be released.
+  nsExec::ExecToLog 'taskkill /IM "${APP_EXE}" /T /F'
+  Sleep 2500
 
+  Delete "$INSTDIR\${APP_EXE}"
   Delete "$INSTDIR\Uninstall.exe"
   Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
   RMDir "$SMPROGRAMS\${APP_NAME}"

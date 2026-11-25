@@ -2,13 +2,42 @@
 // Run with: node scripts/e2e.mjs
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+// Chrome lives in a different place on every platform. CHROME_PATH wins, then
+// the standard install locations. Edge is a Chromium build and is the browser
+// every Windows machine already has, so it is the last resort there.
+function findChrome() {
+  const fromEnv = process.env.CHROME_PATH;
+  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  const candidates =
+    process.platform === "win32"
+      ? [
+          join(process.env.LOCALAPPDATA ?? "", "Google", "Chrome", "Application", "chrome.exe"),
+          join(process.env.PROGRAMFILES ?? "", "Google", "Chrome", "Application", "chrome.exe"),
+          join(process.env["PROGRAMFILES(X86)"] ?? "", "Google", "Chrome", "Application", "chrome.exe"),
+          join(process.env["PROGRAMFILES(X86)"] ?? "", "Microsoft", "Edge", "Application", "msedge.exe"),
+          join(process.env.PROGRAMFILES ?? "", "Microsoft", "Edge", "Application", "msedge.exe")
+        ]
+      : [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "/Applications/Chromium.app/Contents/MacOS/Chromium",
+          "/usr/bin/google-chrome",
+          "/usr/bin/chromium",
+          "/usr/bin/chromium-browser"
+        ];
+  return candidates.find((candidate) => candidate && existsSync(candidate)) ?? candidates[0];
+}
+
+const CHROME = findChrome();
 const API = "http://localhost:8787";
 const WEB = "http://localhost:8081";
-const root = new URL("..", import.meta.url).pathname;
+// A directory URL keeps the trailing separator the suite relies on when it
+// builds paths by concatenation, which fileURLToPath preserves on Windows too.
+const root = fileURLToPath(new URL("..", import.meta.url));
 // The suite keeps its database and its renders in their own directory so a run
 // can never touch the studio data or clean up someone else's documents.
 const e2eDir = `${root}data/e2e`;
@@ -55,6 +84,41 @@ async function waitFor(url, attempts = 80) {
     await sleep(250);
   }
   return false;
+}
+
+// The screenshots are documentation, not assertions. Headless Chromium on
+// Windows sometimes never answers Page.captureScreenshot, and that call is
+// bounded only by the protocol timeout (minutes), so race it against a short
+// timer and stop taking screenshots for the rest of the run after the first
+// one stalls. The checks still run and still decide the result.
+let screenshotsDisabled = false;
+async function shot(target, path, options = {}) {
+  if (screenshotsDisabled) return false;
+  let timer = null;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), 15000);
+  });
+  try {
+    const capture = target.screenshot({
+      path,
+      captureBeyondViewport: false,
+      ...options
+    });
+    const result = await Promise.race([capture.catch((error) => error), deadline]);
+    if (result === "timeout") {
+      screenshotsDisabled = true;
+      process.stdout.write(`warn screenshot timed out ${path}; the rest of the run skips screenshots\n`);
+      capture.catch(() => {});
+      return false;
+    }
+    if (result instanceof Error) throw result;
+    return true;
+  } catch (error) {
+    process.stdout.write(`warn screenshot skipped ${path} (${error?.message ?? "unknown"})\n`);
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // helpers that work with react-native-web output
@@ -186,7 +250,7 @@ async function fillByPlaceholder(page, placeholder, value) {
 }
 
 import { spawnSync } from "node:child_process";
-const seeded = spawnSync("node", ["server/src/seed.mjs"], {
+const seeded = spawnSync(process.execPath, ["server/src/seed.mjs"], {
   cwd: root,
   env: { ...process.env, CATALOG_DB: dbFile },
   encoding: "utf8"
@@ -196,7 +260,7 @@ if (seeded.status !== 0) {
   process.exit(1);
 }
 
-const api = startProcess("node", ["server/src/index.mjs"], {
+const api = startProcess(process.execPath, ["server/src/index.mjs"], {
   PORT: "8787",
   CATALOG_DATA_DIR: e2eDir,
   CATALOG_DB: dbFile,
@@ -210,8 +274,8 @@ const api = startProcess("node", ["server/src/index.mjs"], {
   DESIGN_QUALITY: "off",
   DESIGN_THEME_LOCK: "off"
 });
-const web = startProcess("node", ["scripts/serve-web.mjs", "8081"]);
-const mock = startProcess("node", ["scripts/mock-llm.mjs", "8793"]);
+const web = startProcess(process.execPath, ["scripts/serve-web.mjs", "8081"]);
+const mock = startProcess(process.execPath, ["scripts/mock-llm.mjs", "8793"]);
 let browser;
 
 // SPA route changes can leave a navigation in flight; Chrome then aborts the
@@ -233,6 +297,49 @@ async function safeGoto(target, url, options = { waitUntil: "networkidle2" }) {
 }
 
 
+
+// page.evaluate has no timeout of its own in puppeteer, so a renderer that
+// stops answering hangs the suite forever. Bound it; a stall then surfaces as a
+// failed check instead of a run that never finishes. waitForFunction, goto and
+// the click helpers already take their own timeouts.
+const STALLED = Symbol("stalled");
+function guardPage(target) {
+  for (const name of ["evaluate", "evaluateHandle", "$", "$$"]) {
+    const original = target[name].bind(target);
+    target[name] = (...args) =>
+      Promise.race([original(...args), sleep(45000).then(() => STALLED)]).then((value) => {
+        if (value === STALLED) throw new Error(`the page stopped answering ${name}`);
+        return value;
+      });
+  }
+  return target;
+}
+
+// One exit path for the normal finish and for the watchdog below, so a suite
+// that stalls still prints its score and leaves a usable exit code.
+let finished = false;
+function finish() {
+  if (finished) return;
+  finished = true;
+  clearTimeout(watchdog);
+  const failed = results.filter((result) => !result.ok);
+  console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
+  if (failed.length) console.log("failed:", failed.map((f) => f.label).join(", "));
+  if (failures > 0) {
+    const lines = api.dump().split("\n").filter((line) => line.includes('"status":500'));
+    console.log("api 500s:", lines.slice(-6).join("\n") || "none");
+  }
+  // A protocol timeout while tearing down headless Chrome is a harness
+  // flutter, not a product failure, once every check has passed.
+  process.exit(failed.length === 0 && results.length >= 99 ? 0 : 1);
+}
+
+// Headless Chromium on Windows can wedge a page call indefinitely. The checks
+// below are all time bounded, so a run this long is stalled: report and leave.
+const watchdog = setTimeout(() => {
+  console.log("\nwatchdog: the suite stalled, reporting the checks that ran");
+  finish();
+}, 15 * 60 * 1000);
 
 try {
   const apiUp = await waitFor(`${API}/health`);
@@ -291,7 +398,7 @@ try {
     // the share path; the suite exercises the clipboard fallback instead.
     args: ["--no-sandbox", "--disable-gpu", "--disable-features=WebShare"]
   });
-  const page = await browser.newPage();
+  const page = guardPage(await browser.newPage());
   page.setDefaultTimeout(40000);
   page.setDefaultNavigationTimeout(40000);
   await page.setViewport({ width: 1400, height: 1000 });
@@ -315,7 +422,7 @@ try {
   check("composer explains the keyboard and drop", await hasText(page, "Enter to send"));
   check("chat is picture led", await hasText(page, "read every picture"));
   check("chat offers a magnifier prompt", await hasText(page, "What to magnify"));
-  await page.screenshot({ path: `${shots}/00-chat.png` });
+  await shot(page, `${shots}/00-chat.png`);
 
   await page.click('[aria-label="History"]');
   check("the tab bar opens history", await hasText(page, "Every order the studio has made"));
@@ -327,7 +434,7 @@ try {
   check("seeded orders show", await hasText(page, "JDS-2026-001"));
   check("seeded materials show in api", (await (await fetch(`${API}/api/bootstrap`)).json()).materials.length === 4);
   check("history has no manual new order button", await page.evaluate(() => !document.body.innerText.includes("New order")));
-  await page.screenshot({ path: `${shots}/01-orders.png` });
+  await shot(page, `${shots}/01-orders.png`);
 
   // 2. orders come from the chat. The suite makes one through the API, the same
   // route the chat uses, then checks it appears in history.
@@ -369,7 +476,7 @@ try {
       )
     )
   );
-  await page.screenshot({ path: `${shots}/02-order-detail.png` });
+  await shot(page, `${shots}/02-order-detail.png`);
 
   // 3. the model designs and prints the brochure
   check("design button present", await clickText(page, "Design the brochure"));
@@ -379,7 +486,7 @@ try {
     { timeout: 60000 }
   ).then(() => true).catch(() => false);
   check("page preview image painted", previewOk);
-  await page.screenshot({ path: `${shots}/05-brochure-preview.png` });
+  await shot(page, `${shots}/05-brochure-preview.png`);
 
   let designRender = null;
   for (let attempt = 0; attempt < 300; attempt += 1) {
@@ -452,7 +559,7 @@ try {
   );
   check("history lists the brochure pages", await hasText(page, "6 sides"));
   check("history offers the pdf", await clickText(page, "PDF"));
-  await page.screenshot({ path: `${shots}/06-orders-with-data.png` });
+  await shot(page, `${shots}/06-orders-with-data.png`);
 
   // 4b. language model settings and a drafted customer note
   const providerUp = await waitFor("http://127.0.0.1:8793/v1/models", 40);
@@ -496,7 +603,7 @@ try {
     .then(() => true)
     .catch(() => false);
   check("test connection reports success", connected);
-  await page.screenshot({ path: `${shots}/06b-model-settings.png` });
+  await shot(page, `${shots}/06b-model-settings.png`);
 
   // 4c. the chat interface: dump the requirement, answer the gap, cook
   await safeGoto(page, WEB, { waitUntil: "networkidle2" });
@@ -532,26 +639,34 @@ try {
   await page
     .waitForFunction(
       () => document.querySelectorAll('[data-testid^="review-loupe-"]').length >= 3,
-      { timeout: 30000 }
+      { timeout: 60000 }
     )
     .catch(() => {});
+  // The magnified line appears after the loupes, and a Windows render can take
+  // several seconds longer than a macOS one, so wait for the line itself
+  // instead of reading the text the moment the circles exist.
+  await page
+    .waitForFunction(() => /Magnified details: 1 /.test(document.body.innerText), { timeout: 60000 })
+    .catch(() => {});
+  // A candidate prints as "<n> <label if it has one> <colour name> <hex>", so
+  // the extra separators a labelled candidate adds must not break the
+  // assertion. What matters is three numbered details, each named with the
+  // colour inside the picture.
+  const magnifiedLine = await page
+    .evaluate(() => (document.body.innerText.match(/Magnified details:[^\n]*/) ?? [""])[0])
+    .catch(() => "");
+  const namedColours = magnifiedLine.match(/#[0-9A-Fa-f]{6}/g) ?? [];
   check(
     "the review names the magnified details in place",
-    await page.evaluate(() =>
-      /Magnified details: 1 [^·\n]+ · 2 [^·\n]+ · 3 [^\n]+/.test(document.body.innerText)
-    )
+    /^Magnified details: 1 /.test(magnifiedLine) && namedColours.length >= 3,
+    magnifiedLine.slice(0, 160) || "no Magnified details line on screen"
   );
   check(
     "each magnifier is named with the colour inside it",
-    await page.evaluate(() => {
-      const line = document.body.innerText.match(
-        /Magnified details: 1 ([^·\n]+) · 2 ([^·\n]+) · 3 ([^\n]+)/
-      );
-      if (!line) return false;
-      return [line[1], line[2], line[3]].every((name) => name.trim().length >= 3);
-    })
+    namedColours.length >= 3,
+    `${namedColours.length} colour code(s) in the line`
   );
-  await page.screenshot({ path: `${shots}/06h-picture-review.png` });
+  await shot(page, `${shots}/06h-picture-review.png`);
   await setValueByPlaceholder(page, chatInput, "Magnify 1 and 2. You choose the rest.");
   check("chat takes the magnify answer", await clickAria(page, "Send message"));
   const cooked = await waitForBodyText(page, "the brochure is ready", 180000);
@@ -580,7 +695,7 @@ try {
       chatCreatedOrder.attachments.some((file) => file.name === "plan.txt"),
     `${chatCreatedOrder.attachments?.length ?? 0} files`
   );
-  await page.screenshot({ path: `${shots}/06g-chat-brochure.png` });
+  await shot(page, `${shots}/06g-chat-brochure.png`);
 
   // 4b. the same chat edits the live order in plain language
   const editInput = "Ask for a change to this order";
@@ -604,7 +719,7 @@ try {
     .then(() => true)
     .catch(() => false);
   check("the brochure re-renders after an edit", editedBrochure);
-  await page.screenshot({ path: `${shots}/06g2-chat-editor.png` });
+  await shot(page, `${shots}/06g2-chat-editor.png`);
 
   // Files can join a live order too: attach a plan with the next sentence.
   // Wait until the previous edit fully settled: the picker refuses to open
@@ -670,7 +785,7 @@ try {
     `${filesBefore} to ${orderWithFiles?.attachments?.length ?? filesBefore} files`
   );
   check("the file change applies", await waitForBodyText(page, "brochure is ready", 180000));
-  await page.screenshot({ path: `${shots}/06g3-chat-attach.png` });
+  await shot(page, `${shots}/06g3-chat-attach.png`);
 
   // Let the file edit's re-render fully settle before starting fresh.
   await page
@@ -726,7 +841,7 @@ try {
     document.body.innerText.includes("copied") || document.body.innerText.includes("Could not copy")
   );
   check("copy gives feedback", copied);
-  await page.screenshot({ path: `${shots}/06c-customer-note.png` });
+  await shot(page, `${shots}/06c-customer-note.png`);
 
   // 4d. the info kit renders from the same order
   await safeGoto(page, `${WEB}/orders/${noteOrderId}`, { waitUntil: "networkidle2" });
@@ -738,7 +853,7 @@ try {
     () => [...document.querySelectorAll("img")].filter((image) => image.src.includes("/pages/") && image.naturalWidth > 100).length
   );
   check("info kit page preview loads", kitImages >= 1, `${kitImages} page images`);
-  await page.screenshot({ path: `${shots}/06e-info-kit.png` });
+  await shot(page, `${shots}/06e-info-kit.png`);
 
   // 6. settings tab
   await safeGoto(page, `${WEB}/settings`, { waitUntil: "networkidle2" });
@@ -753,7 +868,7 @@ try {
   check("deep link to order works", await hasText(page, orders[0].orderNo, 12000));
 
   // 8. mobile viewport
-  const mobile = await browser.newPage();
+  const mobile = guardPage(await browser.newPage());
   await mobile.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await safeGoto(mobile, `${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(1500);
@@ -763,11 +878,11 @@ try {
     return text.includes("Chat") && text.includes("History") && text.includes("Settings");
   });
   check("mobile tab bar present", tabBar);
-  await mobile.screenshot({ path: `${shots}/07-mobile-orders.png` });
+  await shot(mobile, `${shots}/07-mobile-orders.png`);
   await safeGoto(mobile, `${WEB}/orders/${orderId}`, { waitUntil: "networkidle2" });
   await sleep(2000);
   check("mobile deep link renders", await hasText(mobile, orders[0].orderNo, 12000));
-  await mobile.screenshot({ path: `${shots}/08-mobile-detail.png` });
+  await shot(mobile, `${shots}/08-mobile-detail.png`);
 
   // 9. no crashes along the way
   check("no runtime console errors", consoleErrors.length === 0, consoleErrors.slice(0, 2).join(" | "));
@@ -796,7 +911,7 @@ try {
       Array.isArray(markedOrder.annotations) &&
         markedOrder.annotations.some((mark) => mark.label === "Brass handle" && mark.colourHex === "#B98A55")
     );
-    await page.screenshot({ path: `${shots}/08g-workspace.png` });
+    await shot(page, `${shots}/08g-workspace.png`);
   }
 
   // 10. error state when the api is down
@@ -806,29 +921,24 @@ try {
   await sleep(2000);
   const errorShown = await hasText(page, "Cannot load", 12000);
   check("api down shows a readable error", errorShown);
-  await page.screenshot({ path: `${shots}/09b-api-down.png`, timeout: 15000 }).catch(() => {});
-  await page.screenshot({ path: `${shots}/09-api-down.png`, timeout: 15000 }).catch(() => {});
+  await shot(page, `${shots}/09b-api-down.png`, { timeout: 15000 });
+  await shot(page, `${shots}/09-api-down.png`, { timeout: 15000 });
 } catch (error) {
   failures += 1;
   console.error("E2E crashed:", error && error.stack ? error.stack.split("\n").slice(0, 3).join("\n") : error);
   console.error("api log:", api.dump().slice(-600));
   console.error("web log:", web.dump().slice(-600));
 } finally {
-  if (browser) await browser.close().catch(() => {});
+  // A stalled screenshot or a wedged renderer must never keep the run from
+  // reporting, so the browser close is bounded and the summary always prints.
+  if (browser) {
+    await Promise.race([browser.close().catch(() => {}), sleep(15000)]);
+  }
   for (const proc of [api, web, mock]) {
     try {
       process.kill(proc.child.pid, "SIGTERM");
     } catch {}
   }
   await sleep(400);
-  const failed = results.filter((r) => !r.ok);
-  console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
-  if (failed.length) console.log("failed:", failed.map((f) => f.label).join(", "));
-  if (failures > 0) {
-    const lines = api.dump().split("\n").filter((line) => line.includes('"status":500'));
-    console.log("api 500s:", lines.slice(-6).join("\n") || "none");
-  }
-  // A protocol timeout while tearing down headless Chrome is a harness
-  // flutter, not a product failure, once every check has passed.
-  process.exit(failed.length === 0 && results.length >= 99 ? 0 : 1);
+  finish();
 }

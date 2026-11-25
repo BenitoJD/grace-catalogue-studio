@@ -3,10 +3,16 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 
 const PORT = 8799;
 const BASE = `http://127.0.0.1:${PORT}`;
-const root = new URL("..", import.meta.url).pathname;
+// A one pixel PNG: the smoke test only needs a real picture file on the order.
+const ROOM_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+// fileURLToPath keeps the trailing separator this script relies on, and unlike
+// URL.pathname it is a real path on Windows ("C:\..." rather than "/C:/...").
+const root = fileURLToPath(new URL("..", import.meta.url));
 const dbFile = `${root}data/verify.db`;
 
 let failed = 0;
@@ -18,7 +24,7 @@ const check = (label, ok, detail = "") => {
 if (existsSync(dbFile)) rmSync(dbFile);
 mkdirSync(`${root}data`, { recursive: true });
 
-const server = spawn("node", ["server/src/index.mjs"], {
+const server = spawn(process.execPath, ["server/src/index.mjs"], {
   cwd: root,
   env: { ...process.env, PORT: String(PORT), CATALOG_DB: dbFile },
   stdio: ["ignore", "pipe", "pipe"]
@@ -55,6 +61,21 @@ try {
   ).json();
   check("customer created", Boolean(customer.id), customer.name ?? JSON.stringify(customer));
 
+  // A voucher prints the customer's own photograph, and the engine refuses an
+  // order without one, so the smoke test brings its own picture.
+  const photo = await (
+    await fetch(`${BASE}/api/media`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        data: ROOM_PNG_BASE64,
+        name: "verify-room.png",
+        contentType: "image/png"
+      })
+    })
+  ).json();
+  check("picture uploaded", Boolean(photo.url), photo.url ?? JSON.stringify(photo));
+
   const order = await (
     await fetch(`${BASE}/api/orders`, {
       method: "POST",
@@ -66,21 +87,33 @@ try {
         width: "2400 mm",
         height: "2100 mm",
         depth: "600 mm",
-        shutters: "3, 800 mm"
+        shutters: "3, 800 mm",
+        attachments: [
+          { url: photo.url, name: photo.name, contentType: photo.contentType, bytes: photo.bytes }
+        ]
       })
     })
   ).json();
   check("order created", Boolean(order.id), order.orderNo ?? JSON.stringify(order));
   check("order number generated", /^JDS-\d{4}-\d{3}$/.test(order.orderNo ?? ""), order.orderNo);
 
-  const render = await (
-    await fetch(`${BASE}/api/orders/${order.id}/render`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ kind: "voucher" })
-    })
-  ).json();
-  check("render returned", Boolean(render.id), `${render.pageCount} pages`);
+  const renderResponse = await fetch(`${BASE}/api/orders/${order.id}/render`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "voucher" })
+  });
+  const renderBody = await renderResponse.text();
+  let render = {};
+  try {
+    render = JSON.parse(renderBody);
+  } catch {
+    render = {};
+  }
+  check(
+    "render returned",
+    Boolean(render.id),
+    render.id ? `${render.pageCount} pages` : `${renderResponse.status} ${renderBody.slice(0, 300)}`
+  );
   check("voucher is four pages", render.pageCount === 4);
   check("page urls present", Array.isArray(render.pageUrls) && render.pageUrls.length === 4);
 
