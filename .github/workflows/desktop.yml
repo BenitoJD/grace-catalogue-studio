@@ -76,7 +76,35 @@ jobs:
 
       - name: Install NSIS
         if: matrix.name == 'Windows'
-        run: choco install nsis -y --no-progress
+        shell: pwsh
+        run: |
+          $installed = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            Write-Host "Chocolatey attempt $attempt"
+            choco install nsis -y --no-progress
+            if (Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe') { $installed = $true; break }
+            Start-Sleep -Seconds 20
+          }
+          if (-not $installed) {
+            Write-Host 'Chocolatey did not deliver NSIS, downloading the official installer.'
+            $url = 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11-setup.exe'
+            $setup = Join-Path $env:RUNNER_TEMP 'nsis-setup.exe'
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              try {
+                Invoke-WebRequest -Uri $url -OutFile $setup -UseBasicParsing
+                break
+              } catch {
+                Write-Host "Download attempt $attempt failed: $($_.Exception.Message)"
+                Start-Sleep -Seconds 20
+              }
+            }
+            if (Test-Path $setup) {
+              Start-Process -FilePath $setup -ArgumentList '/S' -Wait
+            }
+            $installed = Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe'
+          }
+          if (-not $installed) { throw 'NSIS could not be installed.' }
+          'C:\Program Files (x86)\NSIS' | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Build the setup wizard
         if: matrix.name == 'Windows'
