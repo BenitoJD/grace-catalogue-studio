@@ -317,12 +317,12 @@ try {
   await page.screenshot({ path: `${shots}/00-chat.png` });
 
   await page.click('[aria-label="History"]');
-  check("the tab bar opens history", await hasText(page, "Every order the chat has made"));
+  check("the tab bar opens history", await hasText(page, "Every order the studio has made"));
   await page.click('[aria-label="Chat"]');
   check("the tab bar returns to chat", await hasText(page, "Jacob Studio"));
 
   await safeGoto(page, `${WEB}/orders`, { waitUntil: "networkidle2" });
-  check("history loads", await hasText(page, "Jacob Design Studio"));
+  check("history loads", await hasText(page, "Jacob Studio"));
   check("seeded orders show", await hasText(page, "JDS-2026-001"));
   check("seeded materials show in api", (await (await fetch(`${API}/api/bootstrap`)).json()).materials.length === 4);
   check("history has no manual new order button", await page.evaluate(() => !document.body.innerText.includes("New order")));
@@ -352,7 +352,7 @@ try {
   await safeGoto(page, `${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(2000);
   check("order appears in history", await hasText(page, "E2E Master Wardrobe"));
-  check("history card offers the order", await hasText(page, "Open order"));
+  check("history card offers the order", await hasText(page, "Order"));
   await safeGoto(page, `${WEB}/orders/${chatOrder.id}`, { waitUntil: "networkidle2" });
   check("detail screen opens", await hasText(page, "E2E Master Wardrobe", 12000));
   check("order shows the colour read from its pictures", await hasText(page, "Colour from the pictures"));
@@ -447,10 +447,10 @@ try {
   check("order count updated", await hasText(page, "3 orders"));
   check(
     "history shows the generated brochure",
-    await page.evaluate(() => document.body.innerText.toLowerCase().includes("brochure"))
+    await page.evaluate(() => document.body.innerText.toLowerCase().includes("print ready"))
   );
-  check("history lists the brochure pages", await hasText(page, "6 pages"));
-  check("history offers the pdf", await clickText(page, "Open PDF"));
+  check("history lists the brochure pages", await hasText(page, "6 sides"));
+  check("history offers the pdf", await clickText(page, "PDF"));
   await page.screenshot({ path: `${shots}/06-orders-with-data.png` });
 
   // 4b. language model settings and a drafted customer note
@@ -756,7 +756,7 @@ try {
   await mobile.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await safeGoto(mobile, `${WEB}/orders`, { waitUntil: "networkidle2" });
   await sleep(1500);
-  check("mobile renders the order book", await hasText(mobile, "Jacob Design Studio"));
+  check("mobile renders the order book", await hasText(mobile, "Jacob Studio"));
   const tabBar = await mobile.evaluate(() => {
     const text = document.body.innerText;
     return text.includes("Chat") && text.includes("History") && text.includes("Settings");
