@@ -128,7 +128,7 @@ const DESIGNER_SYSTEM = [
   'An A4 brochure printed on warm cream uncoated paper. The page box is 216 mm wide by 303 mm tall and includes a 3 mm bleed on every side, so the trim is 210 by 297 mm.',
   'It is picture led, quiet, warm and confident, the kind of book a customer keeps on the table. Indian taste: generous margins, large type, deep colour and muted gold against cream, Tamil and English together, ornament used like jewellery, never a poster and never a website.',
   'This brochure is about COLOUR, not measurements. There is no size, no dimension and no technical schedule in it. The photographs and their colour palettes are the subject. The model never prints a width, height, depth, shutter count or hardware list.',
-  'The brochure is as long as its content: at least four pages, and as many more as the content and pictures need. More photographs and their palettes earn more pages. Fill every page completely.',
+  'The pamphlet has no fixed length. It is exactly as long as the input needs: at least a cover and a closing side, then one or more sides per picture and its story. More photographs, more palettes and more details earn more pages. Never pad, never squeeze a picture to fit a page count.',
   '',
   'THE PAGES, IN ORDER',
   '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
@@ -139,7 +139,7 @@ const DESIGNER_SYSTEM = [
   'HOW TO REPLY',
   '- Reply with the HTML document only: no prose, no markdown, no code fences, no explanation.',
   '- The <head> may hold one <style> block. Inline style attributes are welcome.',
-  '- The <body> holds at least four page elements in order: <div class="page"> ... </div>. This is a small printed pamphlet: four to six sides is the target. The studio adds one material callout page per picture after the design, so keep the designed sides tight; more only when the pictures need the room. Nothing else beside the pages.',
+  '- The <body> holds at least two page elements in order: <div class="page"> ... </div>, a cover and a closing side, then as many sides as the pictures and the story need. The studio adds one material callout page per picture with details after the design. There is no page count to hit and no page count to avoid; the pictures decide the length. Nothing else beside the pages.',
   '- The renderer supplies the page box, the bleed, the fonts and the colour tokens. Do not define @page, @import or @font-face, do not write html or body rules, and do not set width, height, position, margin or page-break on .page.',
   '- Position inside a page with absolute mm offsets, or with flex or grid. Keep type and decoration at least 18 mm from the left and right edges and 18 mm from the top, and keep the bottom 18 mm clear for the folio unless a photograph bleeds.',
   '- Use mm for print sizes. Never use vh or vw for type or position.',
@@ -625,7 +625,7 @@ export function buildDesignerRepairMessages(messages, previous, issues) {
     content: [
       `That document was rejected by the print checks: ${problems.join('; ')}.`,
       'Reply with the complete corrected HTML document only. Keep the design and fix exactly these problems.',
-      'The body still needs at least four <div class="page"> elements for the pamphlet, the required tokens, and no external references.',
+      'The body still needs at least a cover and a closing <div class="page">, the required tokens, and no external references.',
     ].join(' '),
   });
   return repaired;
@@ -735,10 +735,10 @@ function tokenList(html) {
   return new Set([...html.matchAll(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g)].map((match) => match[1]));
 }
 
-// The brochure grows with its content: a quiet order is four pages, a full one
+// The pamphlet grows with its content: a quiet order is a cover and a close, a full one
 // up to eight. The first page is always the cover and the last always the
 // specification; everything between is story and materials.
-export const MIN_DESIGN_PAGES = 4;
+export const MIN_DESIGN_PAGES = 2;
 export const MAX_DESIGN_PAGES = 64;
 const COVER_WORD_LIMIT = 60;
 const MIDDLE_WORD_LIMIT = 280;
@@ -770,12 +770,12 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
 
   const pages = pageSegments(bodyHtml);
   const issues = [];
-  // A take home pamphlet, not a catalogue: eight sides for two pictures, one
-  // extra side for each further picture, at most sixteen.
-  const pamphletBudget = Math.min(16, Math.max(8, 6 + photoCount));
-  const maxPamphletPages = Math.max(4, pamphletBudget - calloutCount);
-  if (pages.length < MIN_DESIGN_PAGES || pages.length > maxPamphletPages) {
-    issues.push(`it has ${pages.length} pages; keep the whole pamphlet to ${pamphletBudget} sides including the studio callout pages, so four to ${maxPamphletPages} designed sides`);
+  // Length follows the input: no target, no cap, only a safety ceiling.
+  if (pages.length < MIN_DESIGN_PAGES) {
+    issues.push(`it has ${pages.length} page; a pamphlet needs at least a cover and a closing side`);
+  }
+  if (pages.length > MAX_DESIGN_PAGES) {
+    issues.push(`it has ${pages.length} pages, beyond the technical safety ceiling of ${MAX_DESIGN_PAGES}`);
   }
   const last = pages.length - 1;
   const middle = pages.slice(1, last);
@@ -1615,7 +1615,65 @@ export function compileGenerativeBrochure({
         `</div>`,
     );
   }
-  const allPages = [...docPages, ...annotationPages.map(noDashes)];
+  // Guarantee: every supplied picture appears whole at least once. A picture
+  // is already whole on its material callout page or on a designed page; only
+  // the ones the design cropped away get a dedicated full picture side, so the
+  // pamphlet grows with the input instead of forcing a fixed page count.
+  const showsWholePicture = (pageHtml, number) => {
+    const imagePattern = new RegExp(`<img[^>]*src="\\{\\{\\s*photo${number}\\s*\\}\\}"[^>]*>`, 'gi');
+    for (const match of String(pageHtml).matchAll(imagePattern)) {
+      const style = /style="([^"]*)"/i.exec(match[0])?.[1] ?? '';
+      const widthMm = Number(/width\s*:\s*([0-9.]+)mm/i.exec(style)?.[1] ?? 0);
+      const heightMm = Number(/height\s*:\s*([0-9.]+)mm/i.exec(style)?.[1] ?? 0);
+      const widthPercent = Number(/width\s*:\s*([0-9.]+)%/i.exec(style)?.[1] ?? 0);
+      if (/object-fit\s*:\s*contain/i.test(style) && (widthMm >= 120 || heightMm >= 120 || widthPercent >= 90)) {
+        return true;
+      }
+    }
+    const backgroundPattern = new RegExp(`<div[^>]*background-image\\s*:\\s*url\\(\\s*\\{\\{photo${number}\\}\\}\\)[^>]*>`, 'gi');
+    for (const match of String(pageHtml).matchAll(backgroundPattern)) {
+      const style = /style="([^"]*)"/i.exec(match[0])?.[1] ?? '';
+      const widthMm = Number(/width\s*:\s*([0-9.]+)mm/i.exec(style)?.[1] ?? 0);
+      if (/background-size\s*:\s*contain/i.test(style) && widthMm >= 120) return true;
+    }
+    return false;
+  };
+  const detailPhotoIndexes = new Set(
+    Object.keys(photoDetails)
+      .map((key) => Number.parseInt(String(key).replace('photo', ''), 10))
+      .filter((value) => Number.isInteger(value)),
+  );
+  const fullPicturePages = [];
+  for (let number = 1; number <= photoTokens.length; number += 1) {
+    if (detailPhotoIndexes.has(number)) continue;
+    if (pages.some((page) => showsWholePicture(page, number))) continue;
+    const uri = photoTokens[number - 1];
+    if (!uri) continue;
+    const key = `photo${number}`;
+    const palette = Array.isArray(photoPalettes[key]) ? photoPalettes[key].slice(0, 4) : [];
+    const chips = palette
+      .map(
+        (hex) =>
+          `<div style="width:31mm;"><div style="height:20mm;background:${hex};"></div>` +
+          `<div style="margin-top:2mm;font-size:6pt;letter-spacing:0.14em;text-transform:uppercase;color:#000;">${escapeHtml(colourName(hex))}<br><span style="color:#6E6E73;">${hex}</span></div></div>`,
+      )
+      .join('');
+    fullPicturePages.push(
+      `<div style="position:absolute;inset:0;background:var(--paper);color:#000;font-family:var(--body);">` +
+        `<div style="position:absolute;left:28mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Material study</div>` +
+        `<div style="position:absolute;left:28mm;top:25mm;width:160mm;font-family:var(--display);font-size:20pt;line-height:1.05;">The finish, read in full.</div>` +
+        `<div style="position:absolute;left:28mm;top:52mm;width:160mm;height:134mm;background:#EFE7D8;">` +
+        `<img src="${uri}" style="width:100%;height:100%;object-fit:contain;"></div>` +
+        `<div style="position:absolute;left:28mm;top:194mm;width:160mm;display:flex;gap:5mm;">${chips}</div>` +
+        `<div style="position:absolute;left:28mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
+        `</div>`,
+    );
+  }
+  const allPages = [
+    ...docPages,
+    ...annotationPages.map(noDashes),
+    ...fullPicturePages.map(noDashes),
+  ];
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
