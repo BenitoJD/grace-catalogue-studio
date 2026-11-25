@@ -42,7 +42,7 @@ import {
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { DESIGNER_TRIES, applyPictureTheme, artDirectionFor, buildDesignerMessages, clientNamedColour, parseDesignerReply, parseQualityReview, pictureTaste, styleProfileFor, themeFromPalettes } from '../src/ai-brochure.mjs';
+import { DESIGNER_TRIES, applyPictureTheme, artDirectionFor, buildDesignerMessages, buildQualityMessages, clientNamedColour, parseDesignerReply, parseQualityReview, pictureTaste, styleProfileFor, themeFromPalettes } from '../src/ai-brochure.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -3763,6 +3763,48 @@ test('the chat passes the chosen format to the agent', { timeout: 240_000 }, asy
   } finally {
     app.assistantRuntime.run = runAssistantTurn;
   }
+});
+
+test('the design reads light, materials and mood, not just colour', () => {
+  const analysis = [
+    {
+      photo: 'photo1',
+      style: {
+        mood: 'quiet modern minimal',
+        materials: ['matte laminate', 'brushed brass'],
+        light: 'soft daylight from the left',
+        composition: 'long horizontal wall',
+        styling: ['calm', 'precise'],
+      },
+    },
+  ];
+  const profile = styleProfileFor(
+    { photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] },
+    analysis,
+  );
+  assert.match(profile.directives.join(' '), /quiet modern minimal/);
+  assert.match(profile.directives.join(' '), /matte laminate/);
+  assert.match(profile.directives.join(' '), /soft daylight/);
+  const prompt = buildDesignerMessages({
+    order: { title: 'Wardrobe', room: 'Bedroom', customerName: 'Meena' },
+    copy: BROCHURE_COPY,
+    photos: ['photo1'],
+    photoPalettes: { photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] },
+    pictureAnalysis: analysis,
+  })
+    .map((message) => String(message.content ?? ''))
+    .join('\n');
+  assert.match(prompt, /IMAGE STYLE NOTES/);
+  assert.match(prompt, /mood: quiet modern minimal/);
+  assert.match(prompt, /materials: matte laminate, brushed brass/);
+  const judge = buildQualityMessages({
+    html: '<html></html>',
+    styleNotes: 'mood quiet modern minimal, materials matte laminate, light soft daylight',
+  })
+    .map((message) => String(message.content ?? ''))
+    .join('\n');
+  assert.match(judge, /feel inspired by these picture notes/);
+  assert.match(judge, /soft daylight/);
 });
 
 test('the whole style signature is read from the pictures', () => {

@@ -469,6 +469,26 @@ function designContext({ order, brief, direction, format = 'pamphlet', copy, pho
     '',
     'The whole book inherits this taste. The page ground, the ink, the deep label tone and one accent all come from this palette through var(--paper), var(--ink), var(--deep), var(--accent), var(--gold) and var(--hair). Never apply a fixed house beige, teal or gold look that is not in the pictures.',
     '',
+    'IMAGE STYLE NOTES',
+    (() => {
+      const notes = (Array.isArray(pictureAnalysis) ? pictureAnalysis : [])
+        .filter((picture) => picture && picture.style)
+        .map((picture) => {
+          const style = picture.style;
+          const parts = [
+            style.mood ? `mood: ${style.mood}` : '',
+            style.materials?.length ? `materials: ${style.materials.join(', ')}` : '',
+            style.light ? `light: ${style.light}` : '',
+            style.composition ? `composition: ${style.composition}` : '',
+            style.styling?.length ? `styling: ${style.styling.join(', ')}` : '',
+          ].filter(Boolean);
+          return `${picture.photo}: ${parts.join('; ')}.`;
+        });
+      return notes.length > 0
+        ? notes.join('\n')
+        : 'No separate style notes; take the aesthetic from the pictures and the art direction above.';
+    })(),
+    '',
     'PICTURE BY PICTURE',
     Array.isArray(pictureAnalysis) && pictureAnalysis.length > 0
       ? pictureAnalysis
@@ -529,17 +549,23 @@ export const QUALITY_SYSTEM = [
   '9 is excellent, distinctive and print ready.',
   '8 is strong professional work, safe to send to a client.',
   '7 and below is not ready: generic, crowded, weak hierarchy, template feel, timid photography, poor typography, or a layout that does not come from the pictures.',
-  'Judge: is the photograph the hero and printed whole; is the composition fresh for this picture set; is there one clear idea; is the type hierarchy confident and quiet; is the whitespace generous; does the palette come from the photographs; does it feel hand art directed rather than generated; does anything look like a template, a website or an AI image.',
+  'Judge: is the photograph the hero and printed whole; is the composition fresh for this picture set; is there one clear idea; is the type hierarchy confident and quiet; is the whitespace generous; does the palette come from the photographs; does the design feel inspired by the light, materials and mood of these specific pictures; does it feel hand art directed rather than generated; does anything look like a template, a website or an AI image.',
   'Reply with strict JSON only: {"score": 8, "fixes": ["one concrete instruction", "another"]}.',
   'The fixes must be concrete art direction that the designer can apply to the document, not general praise.',
 ].join(' ');
 
-export function buildQualityMessages({ html, round = 1 }) {
+export function buildQualityMessages({ html, round = 1, styleNotes = '' }) {
+  const inspiration = String(styleNotes ?? '').trim();
   return [
     { role: 'system', content: QUALITY_SYSTEM },
     {
       role: 'user',
-      content: `Round ${round}. Judge this pamphlet and reply with the JSON only.\n\n${html}`,
+      content:
+        `Round ${round}. Judge this pamphlet and reply with the JSON only.` +
+        (inspiration === ''
+          ? ''
+          : ` The design must feel inspired by these picture notes: ${inspiration.slice(0, 1200)}. Lower the score if it looks generic instead.`) +
+        `\n\n${html}`,
     },
   ];
 }
@@ -1388,7 +1414,20 @@ export function styleProfileFor(photoPalettes = {}, pictureAnalysis = []) {
   const details = (Array.isArray(pictureAnalysis) ? pictureAnalysis : []).flatMap(
     (picture) => picture?.details ?? [],
   );
-  const serif = warm || !deep;
+  const styleEntries = (Array.isArray(pictureAnalysis) ? pictureAnalysis : [])
+    .map((picture) => picture?.style)
+    .filter((style) => style && typeof style === 'object');
+  const styleMood = styleEntries.map((style) => style.mood ?? '').filter(Boolean).join(' ');
+  const styleMaterials = [...new Set(styleEntries.flatMap((style) => style.materials ?? []))];
+  const styleLight = styleEntries.map((style) => style.light ?? '').filter(Boolean).join(' ');
+  const styleComposition = styleEntries.map((style) => style.composition ?? '').filter(Boolean).join(' ');
+  const modern =
+    /minimal|modern|architectural|contemporary|sharp|graphic|cool/i.test(styleMood) ||
+    styleMaterials.some((material) => /metal|glass|stone|concrete|steel|aluminium/i.test(material));
+  const classic =
+    /warm|traditional|classic|heritage|rich|cosy|cozy|rustic/i.test(styleMood) ||
+    styleMaterials.some((material) => /oak|teak|walnut|wood|brass|rattan|linen/i.test(material));
+  const serif = classic || (warm && !modern) || !deep;
   const marginMm = airy ? 22 : deep ? 18 : 20;
   const displayFont = serif
     ? "'Instrument Serif', Georgia, serif"
@@ -1400,6 +1439,9 @@ export function styleProfileFor(photoPalettes = {}, pictureAnalysis = []) {
     `Outer margin: ${marginMm} mm; keep that discipline on every side.`,
     `Photographs: ${details.length >= 3 ? 'one dominant whole picture per side, close and generous, with the callouts doing the small detail work' : 'large whole pictures with real air around them'}.`,
     `Rules and labels: hairline weight, wide tracked small caps, quiet and precise. ${deep ? 'Light type over dark grounds, never a mid tone mush.' : 'Dark type over paper, never a heavy black slab unless the picture needs it.'}`,
+    styleEntries.length > 0
+      ? `Take the aesthetic from the pictures themselves: mood ${styleMood || taste.tone}; materials ${styleMaterials.join(', ') || 'as seen'}; light ${styleLight || 'as photographed'}; composition ${styleComposition || 'as framed'}. The type, framing, caption style and page ground must feel related to these, not borrowed from another project.`
+      : 'Take the aesthetic from the pictures themselves: their light, materials and composition, not from a house style.',
   ];
   return { taste, deep, airy, warm, serif, displayFont, marginMm, directives };
 }

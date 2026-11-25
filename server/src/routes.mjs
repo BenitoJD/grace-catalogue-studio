@@ -365,6 +365,7 @@ async function pictureReadingFor(
     return {
       photo: `photo${index + 1}`,
       summary: pictureInsight?.summary ?? '',
+      style: pictureInsight?.style ?? null,
       piece: pictureInsight?.piece ?? facts.title,
       room: pictureInsight?.room ?? facts.room,
       colours: (pictureInsight?.colours?.length ? pictureInsight.colours : (analysis?.palette ?? []).map((swatch) => swatch.name)).slice(0, 5),
@@ -1982,6 +1983,21 @@ export function createApp(options) {
         previousHtml,
         editNote,
       });
+      const designStyleNotes = (reading?.photos ?? [])
+        .map((picture) => {
+          const style = picture?.style;
+          if (!style) return '';
+          return [
+            style.mood ? `mood ${style.mood}` : '',
+            style.materials?.length ? `materials ${style.materials.join(', ')}` : '',
+            style.light ? `light ${style.light}` : '',
+            style.composition ? `composition ${style.composition}` : '',
+          ]
+            .filter(Boolean)
+            .join(', ');
+        })
+        .filter(Boolean)
+        .join('; ');
       const palettePhotos = Object.keys(photoPalettes)
         .map((key) => Number.parseInt(key.replace('photo', ''), 10))
         .filter((index) => Number.isInteger(index));
@@ -2040,7 +2056,7 @@ export function createApp(options) {
                 endpoint: config.endpoint,
                 model: config.model,
                 apiKey: config.apiKey,
-                messages: buildQualityMessages({ html: result.content, round: attempt }),
+                messages: buildQualityMessages({ html: result.content, round: attempt, styleNotes: designStyleNotes }),
                 maxTokens: 1200,
                 temperature: 0.2,
                 timeoutMs: 180_000,

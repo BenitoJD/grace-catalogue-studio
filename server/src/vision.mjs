@@ -51,9 +51,10 @@ const VISION_PROMPT = [
   'You are the picture analyst at Jacob Design Studio, an interior and joinery workshop.',
   'You receive one or more photographs of one customer project, in order.',
   'Reply with strict JSON only, exactly this shape:',
-  '{"pictures": [{"summary": "one short sentence on what this picture shows", "piece": "the joinery piece, for example Wardrobe, TV Unit, Modular Kitchen", "room": "the room, for example Master Bedroom, Living Room, Kitchen", "colours": ["three to five colour names you actually see"], "details": [{"label": "two or three joinery details worth magnifying, for example brass handle, shutter edge, edge banding", "x": 55, "y": 40}]}]}',
+  '{"pictures": [{"summary": "one short sentence on what this picture shows", "piece": "the joinery piece, for example Wardrobe, TV Unit, Modular Kitchen", "room": "the room, for example Master Bedroom, Living Room, Kitchen", "colours": ["three to five colour names you actually see"], "details": [{"label": "two or three joinery details worth magnifying, for example brass handle, shutter edge, edge banding", "x": 55, "y": 40}], "style": {"mood": "two or three words for the mood of the room, for example quiet minimal, warm traditional, dark cinematic", "materials": ["the visible materials, for example matte laminate, fluted oak, marble, brass"], "light": "how the room is lit, for example soft daylight, warm evening, low moody light", "composition": "how the picture is composed, for example strong vertical lines, centred symmetry, long horizontal", "styling": ["two or three styling words a designer should take from this picture"]}]}]}',
   'One entry per picture, in the same order. x and y are percentages of the picture, pointing at the middle of that detail.',
   'The details must be the joinery, never the floor, the ceiling, a fan or a light fitting.',
+  'The style block must describe what the picture actually shows, never a generic category.',
   'No markdown and no prose outside the JSON.',
 ].join(' ');
 
@@ -85,6 +86,11 @@ function parseBatch(content, count) {
           .filter((detail) => detail.label !== '')
           .slice(0, 4)
       : [];
+    const style = entry?.style && typeof entry.style === 'object' ? entry.style : {};
+    const styleList = (value, max = 40, limit = 4) =>
+      Array.isArray(value)
+        ? value.map((item) => clean(item, max)).filter(Boolean).slice(0, limit)
+        : [];
     return {
       summary: clean(entry?.summary, 240),
       piece: clean(entry?.piece, 60),
@@ -93,6 +99,13 @@ function parseBatch(content, count) {
         ? entry.colours.map((colour) => clean(colour, 30)).filter(Boolean).slice(0, 5)
         : [],
       details,
+      style: {
+        mood: clean(style.mood, 60),
+        materials: styleList(style.materials, 30, 5),
+        light: clean(style.light, 60),
+        composition: clean(style.composition, 80),
+        styling: styleList(style.styling, 30, 5),
+      },
     };
   });
   return pictures.length > 0 ? pictures : null;
