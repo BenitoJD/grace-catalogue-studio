@@ -139,7 +139,7 @@ const DESIGNER_SYSTEM = [
   'HOW TO REPLY',
   '- Reply with the HTML document only: no prose, no markdown, no code fences, no explanation.',
   '- The <head> may hold one <style> block. Inline style attributes are welcome.',
-  '- The <body> must hold between four and eight page elements in order: <div class="page"> ... </div>. Nothing else beside them.',
+  '- The <body> holds at least four page elements in order: <div class="page"> ... </div>. This is a small printed pamphlet: four to six sides is the target. The studio adds one material callout page per picture after the design, so keep the designed sides tight; more only when the pictures need the room. Nothing else beside the pages.',
   '- The renderer supplies the page box, the bleed, the fonts and the colour tokens. Do not define @page, @import or @font-face, do not write html or body rules, and do not set width, height, position, margin or page-break on .page.',
   '- Position inside a page with absolute mm offsets, or with flex or grid. Keep type and decoration at least 18 mm from the left and right edges and 18 mm from the top, and keep the bottom 18 mm clear for the folio unless a photograph bleeds.',
   '- Use mm for print sizes. Never use vh or vw for type or position.',
@@ -173,7 +173,7 @@ const DESIGNER_SYSTEM = [
   '- When the studio asks for a colour palette callout, print the palette strip or its four chips beside a loupe of the pictured detail, with the mood name underneath.',
   '',
   'THE QUALITY BAR',
-  'This must look like the printed book a Fortune 500 automotive or luxury interiors brand hands to a customer, art directed by one of the best print designers alive: composed, quiet, confident, with one clear idea for this project and no trace of a template. If a page could have come from Canva, a restaurant menu, a website or an AI image, it is wrong.',
+  'This is a small printed pamphlet the salesperson hands to the customer, art directed by one of the best print designers alive: image led, quiet, confident, with one clear idea for this project and no trace of a template. If a side could have come from Canva, a restaurant menu, a website or an AI image, it is wrong.',
   'Use a real editorial grid: one 12 column grid with a consistent 18 mm outer margin and an 8 mm gutter, and align every element to it. Set a type scale and keep it: cover display 44 to 64 pt, section titles 20 to 26 pt, body 8.4 to 9.5 pt with 1.55 line height, captions 6.4 to 7 pt with 0.2 em tracking, folio 6.4 pt.',
   'Give every page a clear job and a different composition. Vary full bleed photograph pages, a two thirds split page, a quiet type page, a colour plate page and the annotated photograph spread. Never repeat the same arrangement twice in one document.',
   'The cover brand plate is a hero: at least 55 mm wide, preferably 60 to 100 mm, set with real space around it. A tiny corner plate is wrong.',
@@ -186,6 +186,9 @@ const DESIGNER_SYSTEM = [
   'Frame photographs so a calm strip of paper remains at the outer edge of the page for the annotations. On a full bleed photograph, bring the leader line to the nearest margin and set the text there, never over the picture.',
   'Colour page: treat the palette like paint chips in an automotive book. Strips at full measure, chips aligned in a row on the grid, names in small caps, codes small and quiet, one line of mood copy. No card frames and no shadows.',
   'The closing page is a quiet exhale: brand plate, contact plate, one line of thanks, a motif if it belongs. Nothing else.',
+  '',
+  'PAMPHLET, NOT CATALOGUE',
+  'The customer holds this in their hands, folded and small. The photographs are the pamphlet: one dominant whole picture per side, a short line of type, and a lot of air. No index, no contents, no appendix, no keyword sheets, no thumbnail grids, no badge, no ribbon, no page furniture that does not earn its place. The cover is one picture and one title. The back closes with the brand and contact plates.',
   '',
   'DESIGN RULES',
   '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',
@@ -511,7 +514,7 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
 
 export const POLISH_SYSTEM = [
   'You are an award winning print art director for luxury automotive and interiors brand books. You do not add content. You art direct.',
-  'You receive one brochure as complete HTML authored by a designer. Raise it to the standard of a Fortune 500 showroom book: stronger cover composition, a real grid, one clear hierarchy, better page rhythm, more confident whitespace, photographs treated as heroes, refined captions and folios, and quieter, more precise detail.',
+  'You receive one printed pamphlet as complete HTML authored by a designer. Raise it to the standard of the best small printed pamphlet: one clear idea, a stronger cover, a real grid, one hierarchy, image led sides, more confident whitespace, photographs treated as heroes, refined captions and folios, and quieter, more precise detail.',
   'Keep every token, every required element, the page count and all print rules exactly as they are. Change only composition, typography, spacing and colour usage inside the page. Do not add new tokens, do not remove tokens, do not add external URLs, scripts or fonts, and do not change the page box.',
   'Return the complete revised HTML document only, with no prose and no code fences. If the document is already at the standard, return it unchanged.',
 ].join(' ');
@@ -540,7 +543,7 @@ export function buildPolishMessages({ html }) {
     { role: 'system', content: POLISH_SYSTEM },
     {
       role: 'user',
-      content: `Art direct this brochure to Fortune 500 showroom quality. Keep all tokens and constraints. Return the complete revised HTML only.\n\n${html}`,
+      content: `Art direct this pamphlet to the best printed pamphlet quality. Keep all tokens and constraints. Return the complete revised HTML only.\n\n${html}`,
     },
   ];
 }
@@ -570,7 +573,7 @@ export function buildDesignerRepairMessages(messages, previous, issues) {
     content: [
       `That document was rejected by the print checks: ${problems.join('; ')}.`,
       'Reply with the complete corrected HTML document only. Keep the design and fix exactly these problems.',
-      'The body still needs at least four <div class="page"> elements, as many as the content needs, the required tokens, and no external references.',
+      'The body still needs at least four <div class="page"> elements for the pamphlet, the required tokens, and no external references.',
     ].join(' '),
   });
   return repaired;
@@ -695,7 +698,7 @@ const SPEC_WORD_LIMIT = 300;
  * printing. The page wrappers are removed and rebuilt by the server, so the
  * body can never end up with content beside the pages.
  */
-export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], theme = PALETTE, markedDetails = []) {
+export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], theme = PALETTE, markedDetails = [], calloutCount = 0) {
   const raw = typeof content === 'string' ? content : '';
   if (raw.trim() === '') {
     throw new LlmError('The model returned an empty brochure design.', { type: 'invalid_reply' });
@@ -715,8 +718,12 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
 
   const pages = pageSegments(bodyHtml);
   const issues = [];
-  if (pages.length < MIN_DESIGN_PAGES || pages.length > MAX_DESIGN_PAGES) {
-    issues.push(`it has ${pages.length} pages; use at least four pages, and as many as the content needs`);
+  // A take home pamphlet, not a catalogue: eight sides for two pictures, one
+  // extra side for each further picture, at most sixteen.
+  const pamphletBudget = Math.min(16, Math.max(8, 6 + photoCount));
+  const maxPamphletPages = Math.max(4, pamphletBudget - calloutCount);
+  if (pages.length < MIN_DESIGN_PAGES || pages.length > maxPamphletPages) {
+    issues.push(`it has ${pages.length} pages; keep the whole pamphlet to ${pamphletBudget} sides including the studio callout pages, so four to ${maxPamphletPages} designed sides`);
   }
   const last = pages.length - 1;
   const middle = pages.slice(1, last);

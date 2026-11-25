@@ -1966,6 +1966,7 @@ export function createApp(options) {
             palettePhotos,
             designTheme,
             order.annotations ?? [],
+            Object.keys(photoDetails).length,
           );
           acceptedReply = result.content;
           html = compileGenerativeBrochure({
@@ -2008,6 +2009,7 @@ export function createApp(options) {
             palettePhotos,
             polishedTheme,
             order.annotations ?? [],
+            Object.keys(photoDetails).length,
           );
           html = compileGenerativeBrochure({
             order,
@@ -2051,6 +2053,7 @@ export function createApp(options) {
               palettePhotos,
               reviewedTheme,
               order.annotations ?? [],
+              Object.keys(photoDetails).length,
             );
             html = compileGenerativeBrochure({
               order,

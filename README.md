@@ -81,6 +81,8 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 
 ![The chat home, ChatGPT style](docs/screenshots/chat-home.png)
 
+![A real take home pamphlet, designed from the uploaded pictures](docs/screenshots/pamphlet-cover.png)
+
 ![The pages workspace: document, marks and chat in one screen](docs/screenshots/workspace.png)
 
 ![A live cover: prominent logo, no order number](docs/screenshots/print-cover.png)

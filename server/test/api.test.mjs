@@ -3606,7 +3606,7 @@ test('a longer brochure prints six pages when the content needs room', { timeout
 test('a brochure under four pages is rejected before print', () => {
   const pages = (count) =>
     Array.from({ length: count }, (_, index) => `<div class="page"><p>Page ${index + 1} carries some words for the count.</p></div>`).join('\n');
-  assert.throws(() => parseDesignerReply(`<html><body>${pages(3)}</body></html>`, 2), /at least four pages/);
+  assert.throws(() => parseDesignerReply(`<html><body>${pages(3)}</body></html>`, 2), /keep the whole pamphlet to/);
 });
 
 test('each picture set gets its own art direction and the client can override it', () => {
@@ -3935,7 +3935,7 @@ test('the art director pass refines a valid brochure', { timeout: 240_000 }, asy
     const prompt = mockProviderState.requests.at(-1).json.messages
       .map((message) => String(message.content ?? ''))
       .join('\n');
-    assert.match(prompt, /Fortune 500 showroom quality/i, 'the polish pass asks for the top tier');
+    assert.match(prompt, /best printed pamphlet quality/i, 'the polish pass asks for the top tier');
   } finally {
     process.env.DESIGN_POLISH = 'off';
 process.env.DESIGN_QA_PASSES = '0';
