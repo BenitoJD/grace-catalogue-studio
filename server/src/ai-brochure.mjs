@@ -448,6 +448,9 @@ function designContext({ order, brief, direction, copy, photos, photoShapes, pho
     '',
     'This direction is invented fresh for this order from these pictures. Do not reuse a house layout. Do not make it look like the last book. The photographs decide the taste: their palette, their light, their materials and the details seen in them.',
     '',
+    'STYLE READ FROM THE PICTURES (follow these decisions exactly)',
+    styleProfileFor(photoPalettes, pictureAnalysis).directives.join(' '),
+    '',
     'CLIENT WORDS HAVE THE FINAL WORD',
     'If the client or the order words ask for a colour, a mood, a motif, a layout or a detail, that request overrides the picture defaults for that part of the book. Where the client says nothing, the pictures decide everything.',
     '',
@@ -1365,6 +1368,35 @@ export function clientNamedColour(text) {
   return COLOUR_WORDS.test(value);
 }
 
+/**
+ * The whole visual signature, read from the pictures: ground, display type,
+ * margin, image scale, rule weight and the way type behaves. Palette alone is
+ * not taste; this is what makes two picture sets produce two different books.
+ */
+export function styleProfileFor(photoPalettes = {}, pictureAnalysis = []) {
+  const taste = pictureTaste(photoPalettes);
+  const deep = taste.tone === 'deep and low lit';
+  const airy = taste.tone === 'light and airy';
+  const warm = taste.warmth === 'warm';
+  const details = (Array.isArray(pictureAnalysis) ? pictureAnalysis : []).flatMap(
+    (picture) => picture?.details ?? [],
+  );
+  const serif = warm || !deep;
+  const marginMm = airy ? 22 : deep ? 18 : 20;
+  const displayFont = serif
+    ? "'Instrument Serif', Georgia, serif"
+    : "'Barlow', Helvetica, Arial, sans-serif";
+  const directives = [
+    `The book reads ${taste.tone}, ${taste.warmth}, ${taste.contrast} contrast, so the design must look like that and not like a neutral template.`,
+    `Page ground: ${deep ? 'let the deep picture tones and dark grounds lead the quiet sides, with light type' : airy ? 'paper light grounds, generous air, daylight pages' : 'calm mid tone grounds with measured contrast'}.`,
+    `Display type: ${serif ? 'the serif voice, because the pictures are warm and material' : 'the sans voice, stripped and architectural, because the pictures are cool and high contrast'}.`,
+    `Outer margin: ${marginMm} mm; keep that discipline on every side.`,
+    `Photographs: ${details.length >= 3 ? 'one dominant whole picture per side, close and generous, with the callouts doing the small detail work' : 'large whole pictures with real air around them'}.`,
+    `Rules and labels: hairline weight, wide tracked small caps, quiet and precise. ${deep ? 'Light type over dark grounds, never a mid tone mush.' : 'Dark type over paper, never a heavy black slab unless the picture needs it.'}`,
+  ];
+  return { taste, deep, airy, warm, serif, displayFont, marginMm, directives };
+}
+
 export function themeFromPalettes(photoPalettes = {}) {
   const colours = Object.values(photoPalettes).flat().filter((hex) => hexRgb(hex));
   if (colours.length === 0) return { ...PALETTE };
@@ -1417,8 +1449,9 @@ export function themeFromPalettes(photoPalettes = {}) {
   return theme;
 }
 
-function pageCss(theme) {
+function pageCss(theme, profile) {
   const palette = theme ?? PALETTE;
+  const displayFont = profile?.displayFont ?? "'Instrument Serif', Georgia, serif";
   return `
 @page { size: 216mm 303mm; margin: 0; }
 html, body { margin: 0; padding: 0; background: #fff; }
@@ -1432,7 +1465,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
   --hair: ${palette.hair};
   --muted: ${palette.muted};
   --on-dark: ${palette.onDark};
-  --display: 'Instrument Serif', Georgia, serif;
+  --display: ${displayFont};
   --body: 'Barlow', Helvetica, Arial, sans-serif;
   --tamil: 'Noto Sans Tamil', 'Barlow', sans-serif;
 }
@@ -1548,7 +1581,7 @@ export function compileGenerativeBrochure({
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
-<style>${pageCss(themeFromPalettes(photoPalettes))}</style>
+<style>${pageCss(themeFromPalettes(photoPalettes), styleProfileFor(photoPalettes))}</style>
 ${docStyles ? `<style>${docStyles}</style>` : ''}
 </head><body>
 ${allPages.map((page) => `<div class="page">${page}</div>`).join('\n')}

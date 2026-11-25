@@ -42,7 +42,7 @@ import {
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { DESIGNER_TRIES, applyPictureTheme, artDirectionFor, buildDesignerMessages, clientNamedColour, parseDesignerReply, parseQualityReview, pictureTaste, themeFromPalettes } from '../src/ai-brochure.mjs';
+import { DESIGNER_TRIES, applyPictureTheme, artDirectionFor, buildDesignerMessages, clientNamedColour, parseDesignerReply, parseQualityReview, pictureTaste, styleProfileFor, themeFromPalettes } from '../src/ai-brochure.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -3715,6 +3715,34 @@ test('the picture palette is the law of the book', () => {
   assert.equal(clientNamedColour('Client wants a deep green wardrobe'), true);
   assert.equal(clientNamedColour('Make it in #1B4D3E'), true);
   assert.equal(clientNamedColour('More air on the cover'), false);
+});
+
+test('the whole style signature is read from the pictures', () => {
+  const light = styleProfileFor(
+    { photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] },
+    [{ details: ['brass handle', 'shutter edge'] }],
+  );
+  const deep = styleProfileFor({ photo1: ['#161616', '#2E2A24', '#3A3F45', '#6B5A44'] });
+  assert.equal(light.airy, true);
+  assert.equal(light.marginMm, 22);
+  assert.match(light.displayFont, /Instrument Serif/);
+  assert.equal(deep.deep, true);
+  assert.equal(deep.marginMm, 18);
+  assert.match(deep.displayFont, /Barlow/);
+  assert.ok(light.directives.join(' ').includes('paper light grounds'));
+  assert.ok(deep.directives.join(' ').includes('dark grounds'));
+  const prompt = buildDesignerMessages({
+    order: { title: 'Wardrobe', room: 'Bedroom', customerName: 'Meena' },
+    copy: BROCHURE_COPY,
+    photos: ['photo1'],
+    photoPalettes: { photo1: ['#161616', '#2E2A24', '#3A3F45', '#6B5A44'] },
+  })
+    .map((message) => String(message.content ?? ''))
+    .join('\n');
+  assert.match(prompt, /STYLE READ FROM THE PICTURES \(follow these decisions exactly\)/i);
+  assert.match(prompt, /sans voice/i);
+  assert.match(prompt, /18 mm/);
+  assert.match(prompt, /dark grounds/i);
 });
 
 test('the visual taste is read from the supplied pictures', () => {
