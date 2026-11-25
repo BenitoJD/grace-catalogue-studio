@@ -116,10 +116,6 @@ export default function OrderDetailScreen() {
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (order?.designFormat) setOutputFormat(order.designFormat);
-  }, [order?.designFormat]);
-
   const loadPalettes = useCallback(async () => {
     if (!orderId) return;
     try {
@@ -142,6 +138,7 @@ export default function OrderDetailScreen() {
       const next = await api.getOrder(orderId);
       setOrder(next);
       setDirection(next.designDirection ?? '');
+      setOutputFormat(next.designFormat ?? 'pamphlet');
       void loadPalettes();
     } catch (fetchError) {
       setLoadError(errorMessage(fetchError, 'The order could not be loaded. Try again.'));
