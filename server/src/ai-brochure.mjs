@@ -1057,6 +1057,17 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
     }
   });
 
+  // The studio draws the only callouts. A model drawn circle, ring or dashed
+  // leader is rejected so it can never print as a stray mark or invisible text.
+  pages.forEach((page, index) => {
+    if (/border[^;{}]*(dashed|dotted)/i.test(page)) {
+      issues.push(`page ${index + 1}: do not draw leaders or callouts; the studio adds them after the design`);
+    }
+    if (/border-radius\s*:\s*50%/i.test(page)) {
+      issues.push(`page ${index + 1}: do not draw circles or rings; the studio adds the material callouts`);
+    }
+  });
+
   // Print documents should never carry the tells of a generated web page.
   pages.forEach((page, index) => {
     if (/linear-gradient|radial-gradient/i.test(page)) {
@@ -1535,6 +1546,44 @@ html, body { margin: 0; padding: 0; background: #fff; }
  * Turn the checked pages into one print ready document. The wrapper owns the
  * page box, the bleed and the fonts; the model owns everything inside.
  */
+/** Natural size of a data URI picture, so callout marks sit on the photo, not its letterbox. */
+function pictureSizeFromDataUri(source) {
+  const value = String(source ?? '');
+  let buffer = null;
+  const match = /^data:image\/[a-zA-Z0-9.+-]+;base64,(.*)$/s.exec(value);
+  if (match) {
+    try {
+      buffer = Buffer.from(match[1], 'base64');
+    } catch {
+      return null;
+    }
+  } else if (value.startsWith('file://')) {
+    try {
+      buffer = readFileSync(fileURLToPath(value));
+    } catch {
+      return null;
+    }
+  } else {
+    return null;
+  }
+  if (buffer.length > 24 && buffer[0] === 0x89 && buffer[1] === 0x50) {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  }
+  if (buffer.length > 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let index = 2;
+    while (index + 9 < buffer.length) {
+      if (buffer[index] !== 0xff) { index += 1; continue; }
+      const marker = buffer[index + 1];
+      const length = buffer.readUInt16BE(index + 2);
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { width: buffer.readUInt16BE(index + 7), height: buffer.readUInt16BE(index + 5) };
+      }
+      index += 2 + length;
+    }
+  }
+  return null;
+}
+
 export function compileGenerativeBrochure({
   order,
   materials,
@@ -1584,10 +1633,11 @@ export function compileGenerativeBrochure({
 
   // Material callout pages, drawn by the server so the annotation is always
   // visible and always matches the paint card reference.
-  // Material callouts, drawn by the studio: black ring, black dashed leader to
-  // the nearest side only, and a compact label outside the picture. Lines stay
-  // short, so the picture keeps almost all of its space.
-  const IMG = { left: 43, top: 58, size: 130 };
+  // Material callouts, drawn by the studio. Marks use the real photograph
+  // geometry, so a ring always lands on the picture and never in the letterbox.
+  // Every line has a white halo under the black mark so it reads on any
+  // background: white joinery, dark walnut, marble or a photograph.
+  const CALLOUT = { left: 33, top: 58, size: 150 };
   const annotationPages = [];
   for (const [key, details] of Object.entries(photoDetails)) {
     const match = /^photo(\d+)$/.exec(key);
@@ -1595,72 +1645,97 @@ export function compileGenerativeBrochure({
     const index = Number.parseInt(match[1], 10) - 1;
     const uri = photoTokens[index];
     if (!uri || !Array.isArray(details) || details.length === 0) continue;
+    const natural = pictureSizeFromDataUri(uri) ?? { width: 1, height: 1 };
+    const scale = Math.min(CALLOUT.size / natural.width, CALLOUT.size / natural.height);
+    const displayWidth = Math.max(20, natural.width * scale);
+    const displayHeight = Math.max(20, natural.height * scale);
+    const offsetX = (CALLOUT.size - displayWidth) / 2;
+    const offsetY = (CALLOUT.size - displayHeight) / 2;
+    const photoLeft = CALLOUT.left + offsetX;
+    const photoTop = CALLOUT.top + offsetY;
+    const photoRight = photoLeft + displayWidth;
+    const photoBottom = photoTop + displayHeight;
     const used = details.slice(0, 3);
     const placements = [];
     for (const detail of used) {
-      const x = Math.min(93, Math.max(7, Number(detail.x ?? 50)));
-      const y = Math.min(93, Math.max(7, Number(detail.y ?? 50)));
-      const px = IMG.left + (x / 100) * IMG.size;
-      const py = IMG.top + (y / 100) * IMG.size;
+      const x = Math.min(94, Math.max(6, Number(detail.x ?? 50)));
+      const y = Math.min(92, Math.max(8, Number(detail.y ?? 50)));
+      const px = photoLeft + (x / 100) * displayWidth;
+      const py = photoTop + (y / 100) * displayHeight;
       const distances = [
-        { side: 'left', d: px - IMG.left },
-        { side: 'right', d: IMG.left + IMG.size - px },
-        { side: 'top', d: py - IMG.top },
-        { side: 'bottom', d: IMG.top + IMG.size - py },
+        { side: 'left', d: px - photoLeft },
+        { side: 'right', d: photoRight - px },
+        { side: 'top', d: py - photoTop },
+        { side: 'bottom', d: photoBottom - py },
       ].sort((left, right) => left.d - right.d);
       placements.push({ detail, px, py, side: distances[0].side });
     }
     const marks = placements
       .map(({ px, py }) => {
-        const x = px.toFixed(1);
-        const y = py.toFixed(1);
-        return `<div style="position:absolute;left:${x}mm;top:${y}mm;width:3mm;height:3mm;margin:-1.5mm 0 0 -1.5mm;border:0.4mm solid #000;border-radius:50%;"></div>`;
+        // Marks live inside the picture frame, so their coordinates are
+        // relative to that frame, not the page.
+        const x = (px - CALLOUT.left).toFixed(1);
+        const y = (py - CALLOUT.top).toFixed(1);
+        return (
+          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:4.8mm;height:4.8mm;margin:-2.4mm 0 0 -2.4mm;border:1.1mm solid #FFFFFF;border-radius:50%;"></div>` +
+          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:3mm;height:3mm;margin:-1.5mm 0 0 -1.5mm;border:0.4mm solid #000;border-radius:50%;"></div>`
+        );
       })
       .join('');
     const leaders = placements
       .map(({ detail, px, py, side }) => {
-        const label = `${String(placements.indexOf(placements.find((entry) => entry.detail === detail)) + 1).padStart(2, '0')}`;
+        const number = `${String(placements.findIndex((entry) => entry.detail === detail) + 1).padStart(2, '0')}`;
         const code = `${escapeHtml(detail.name ?? 'Colour')} ${escapeHtml(detail.colour ?? '')}`;
         const caption = escapeHtml(String(detail.label ?? 'Material detail')).slice(0, 30);
-        const text = `<span style="font-weight:700;letter-spacing:0.16em;">${label} · ${code}</span><br><span style="font-size:5.8pt;letter-spacing:0.1em;color:#4A4A4A;">${caption}</span>`;
+        const text = `<span style="font-weight:700;letter-spacing:0.16em;">${number} · ${code}</span><br><span style="font-size:5.8pt;letter-spacing:0.1em;color:#4A4A4A;">${caption}</span>`;
         const x = px.toFixed(1);
         const y = py.toFixed(1);
+        const labelStyle = (left, top, width, align) =>
+          `position:absolute;left:${left}mm;top:${top}mm;width:${width}mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;text-align:${align};`;
+        const whiteLineHorizontal = (left, width) =>
+          `<div style="position:absolute;left:${left}mm;top:${y}mm;width:${width}mm;border-top:1.2mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${left}mm;top:${y}mm;width:${width}mm;border-top:0.35mm dashed #000;"></div>`;
+        const whiteLineVertical = (left, top, height) =>
+          `<div style="position:absolute;left:${left}mm;top:${top}mm;height:${height}mm;border-left:1.2mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${left}mm;top:${top}mm;height:${height}mm;border-left:0.35mm dashed #000;"></div>`;
+        const arrowRight = (left) =>
+          `<div style="position:absolute;left:${left}mm;top:${(py - 1.7).toFixed(1)}mm;width:0;height:0;border-top:1.7mm solid transparent;border-bottom:1.7mm solid transparent;border-left:3mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${(left + 0.4).toFixed(1)}mm;top:${(py - 1.1).toFixed(1)}mm;width:0;height:0;border-top:1.1mm solid transparent;border-bottom:1.1mm solid transparent;border-left:2mm solid #000;"></div>`;
+        const arrowLeft = (left) =>
+          `<div style="position:absolute;left:${(left - 3).toFixed(1)}mm;top:${(py - 1.7).toFixed(1)}mm;width:0;height:0;border-top:1.7mm solid transparent;border-bottom:1.7mm solid transparent;border-right:3mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${(left - 2.4).toFixed(1)}mm;top:${(py - 1.1).toFixed(1)}mm;width:0;height:0;border-top:1.1mm solid transparent;border-bottom:1.1mm solid transparent;border-right:2mm solid #000;"></div>`;
+        const arrowUp = (left) =>
+          `<div style="position:absolute;left:${(left - 1.7).toFixed(1)}mm;top:${(py - 3.4).toFixed(1)}mm;width:0;height:0;border-left:1.7mm solid transparent;border-right:1.7mm solid transparent;border-bottom:3mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${(left - 1.1).toFixed(1)}mm;top:${(py - 3).toFixed(1)}mm;width:0;height:0;border-left:1.1mm solid transparent;border-right:1.1mm solid transparent;border-bottom:2mm solid #000;"></div>`;
+        const arrowDown = (left) =>
+          `<div style="position:absolute;left:${(left - 1.7).toFixed(1)}mm;top:${(py + 0.4).toFixed(1)}mm;width:0;height:0;border-left:1.7mm solid transparent;border-right:1.7mm solid transparent;border-top:3mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${(left - 1.1).toFixed(1)}mm;top:${(py + 0.8).toFixed(1)}mm;width:0;height:0;border-left:1.1mm solid transparent;border-right:1.1mm solid transparent;border-top:2mm solid #000;"></div>`;
         if (side === 'right') {
-          return (
-            `<div style="position:absolute;left:${x}mm;top:${y}mm;width:${(IMG.left + IMG.size - px).toFixed(1)}mm;border-top:0.3mm dashed #000;"></div>` +
-            `<div style="position:absolute;left:${(IMG.left + IMG.size + 0.5).toFixed(1)}mm;top:${(py - 1.1).toFixed(1)}mm;width:0;height:0;border-top:1.1mm solid transparent;border-bottom:1.1mm solid transparent;border-left:2mm solid #000;"></div>` +
-            `<div style="position:absolute;left:177mm;top:${(py - 2.4).toFixed(1)}mm;width:36mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;">${text}</div>`
-          );
+          return whiteLineHorizontal(x, Math.max(2, photoRight - px)) + arrowRight(photoRight) +
+            `<div style="${labelStyle(Math.min(184, photoRight + 4), py - 2.4, 28, 'left')}">${text}</div>`;
         }
         if (side === 'left') {
-          return (
-            `<div style="position:absolute;left:${IMG.left}mm;top:${y}mm;width:${(px - IMG.left).toFixed(1)}mm;border-top:0.3mm dashed #000;"></div>` +
-            `<div style="position:absolute;left:${(IMG.left - 2.5).toFixed(1)}mm;top:${(py - 1.1).toFixed(1)}mm;width:0;height:0;border-top:1.1mm solid transparent;border-bottom:1.1mm solid transparent;border-right:2mm solid #000;"></div>` +
-            `<div style="position:absolute;left:3mm;top:${(py - 2.4).toFixed(1)}mm;width:37mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;text-align:right;">${text}</div>`
-          );
+          const width = Math.max(2, px - photoLeft);
+          const labelWidth = Math.min(30, Math.max(18, photoLeft - 5));
+          return whiteLineHorizontal((photoLeft).toFixed(1), width) + arrowLeft(photoLeft) +
+            `<div style="${labelStyle(Math.max(3, photoLeft - 4 - labelWidth), py - 2.4, labelWidth, 'right')}">${text}</div>`;
         }
         if (side === 'top') {
-          return (
-            `<div style="position:absolute;left:${x}mm;top:${IMG.top}mm;height:${(py - IMG.top).toFixed(1)}mm;border-left:0.3mm dashed #000;"></div>` +
-            `<div style="position:absolute;left:${(px - 1.1).toFixed(1)}mm;top:${(IMG.top - 2.8).toFixed(1)}mm;width:0;height:0;border-left:1.1mm solid transparent;border-right:1.1mm solid transparent;border-bottom:2mm solid #000;"></div>` +
-            `<div style="position:absolute;left:${Math.min(178, Math.max(3, px - 17)).toFixed(1)}mm;top:40mm;width:34mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;text-align:center;">${text}</div>`
-          );
+          return whiteLineVertical(x, Math.max(2, py - photoTop), Math.max(2, py - photoTop)) + arrowUp(px) +
+            `<div style="${labelStyle(Math.min(180, Math.max(3, px - 16)), Math.max(39, photoTop - 15), 32, 'center')}">${text}</div>`;
         }
-        return (
-          `<div style="position:absolute;left:${x}mm;top:${y}mm;height:${(IMG.top + IMG.size - py).toFixed(1)}mm;border-left:0.3mm dashed #000;"></div>` +
-          `<div style="position:absolute;left:${(px - 1.1).toFixed(1)}mm;top:${(IMG.top + IMG.size + 0.8).toFixed(1)}mm;width:0;height:0;border-left:1.1mm solid transparent;border-right:1.1mm solid transparent;border-top:2mm solid #000;"></div>` +
-          `<div style="position:absolute;left:${Math.min(178, Math.max(3, px - 17)).toFixed(1)}mm;top:${(IMG.top + IMG.size + 5).toFixed(1)}mm;width:34mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;text-align:center;">${text}</div>`
-        );
+        return whiteLineVertical(x, y, Math.max(2, photoBottom - py)) + arrowDown(px) +
+          `<div style="${labelStyle(Math.min(180, Math.max(3, px - 16)), Math.min(288, photoBottom + 5), 32, 'center')}">${text}</div>`;
       })
       .join('');
     annotationPages.push(
       `<div style="position:absolute;inset:0;background:#F7F2E9;color:#000;font-family:var(--body);">` +
-        `<div style="position:absolute;left:43mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Material notes · colour callouts</div>` +
-        `<div style="position:absolute;left:43mm;top:25mm;width:130mm;font-family:var(--display);font-size:18pt;line-height:1.05;">The colour, named where it happens.</div>` +
-        `<div style="position:absolute;left:${IMG.left}mm;top:${IMG.top}mm;width:${IMG.size}mm;height:${IMG.size}mm;background:#EFE7D8;overflow:hidden;">` +
-        `<img src="${uri}" style="width:100%;height:100%;object-fit:contain;">${marks}</div>` +
+        `<div style="position:absolute;left:33mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Material notes · colour callouts</div>` +
+        `<div style="position:absolute;left:33mm;top:25mm;width:150mm;font-family:var(--display);font-size:18pt;line-height:1.05;">The colour, named where it happens.</div>` +
+        `<div style="position:absolute;left:${CALLOUT.left}mm;top:${CALLOUT.top}mm;width:${CALLOUT.size}mm;height:${CALLOUT.size}mm;background:#EFE7D8;overflow:hidden;">` +
+        `<img src="${uri}" style="position:absolute;left:${offsetX.toFixed(1)}mm;top:${offsetY.toFixed(1)}mm;width:${displayWidth.toFixed(1)}mm;height:${displayHeight.toFixed(1)}mm;">${marks}</div>` +
         leaders +
-        `<div style="position:absolute;left:43mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
+        `<div style="position:absolute;left:33mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
         `</div>`,
     );
   }

@@ -34,7 +34,7 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **Pamphlet or brochure, chosen per order.** The chat and the order page both offer Pamphlet and Brochure. Pamphlet is a small take home piece with minimal copy; Brochure is a larger art directed book with story spreads, colour plates and callouts. The format is stored on the order and the agent passes it to the designer, so an edit keeps the chosen output until the studio changes it.
 - **Length follows the input.** There is no target or cap on pages. A pamphlet needs at least a cover and a closing side, then as many sides as the pictures and story need. Every supplied picture is guaranteed at least one whole page; the studio adds a full picture side only for the pictures the design did not already show whole, so the page count is dynamic and no picture is ever left out.
 - **Every picture is the hero.** Each uploaded photo is printed whole and uncropped, never a cropped background, and the studio adds a full picture material callout page for every picture with decoded details. There is no thumbnail appendix and no keyword sheet.
-- **Material callout pages, drawn by the studio.** One page per picture with decoded details, the whole picture large, a small black ring on the exact point, a short black dashed leader with a black arrow, and the colour code and name outside the picture. Each callout takes the nearest side, top, bottom, left or right, so the line is as short as possible and the photograph keeps its space. No white halos, no loupe, no crop.
+- **Material callout pages, drawn by the studio.** One page per picture with decoded details, the whole picture large, a black ring and a short black dashed leader with an arrow. Each mark carries a white halo under it so it stays visible on white joinery, dark walnut, marble or any photograph. The label and arrow always take the nearest edge, top, bottom, left or right, so the leader stays short. Ring positions use the real picture aspect ratio, so they always land on the photograph and never in the letterbox. The model may not draw its own circles or leaders.
 - **A style fingerprint is read from every picture.** The vision pass returns the room mood, visible materials, how the room is lit and how the picture is composed. Those notes drive the display voice and framing, and the art director judge sees them too, so a generic book that ignores the light and materials of the photographs scores lower. Colour is only one part of the inspiration.
 - **The whole style signature comes from the pictures.** Palette, tone, warmth and contrast are mapped to concrete decisions: the page ground, the serif or sans display voice, the outer margin, the picture scale and the rule weight. Two picture sets cannot produce the same looking book. The designer must follow those decisions, and the palette lock removes invented colours.
 - **The picture palette is the law.** Any literal colour the model invents that is not within the picture theme or a neutral tint is remapped to the nearest colour the pictures actually contain. The only exception is when the client states a colour preference in the chat or the order words; then their choice wins for that book.
@@ -250,7 +250,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ```bash
 npm test          # server suite
 npm run verify    # black box smoke test
-npm run e2e       # 99 browser checks
+npm run e2e       # 105 browser checks
 npm run typecheck
 npm run lint
 ```
