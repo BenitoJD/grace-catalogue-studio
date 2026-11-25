@@ -36,7 +36,7 @@ export function Button({
   accessibilityHint,
 }: ButtonProps) {
   const inactive = disabled || loading;
-  const spinnerColor = variant === 'primary' ? colors.paper : colors.copper;
+  const spinnerColor = variant === 'primary' ? '#FFFFFF' : '#0D0D0D';
 
   return (
     <Pressable
@@ -95,18 +95,20 @@ export function TextAction({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 50,
-    borderRadius: 14,
-    paddingHorizontal: space.xl,
+    minHeight: 46,
+    borderRadius: 999,
+    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
   },
   primary: {
-    backgroundColor: colors.copper,
+    backgroundColor: '#0D0D0D',
   },
   secondary: {
-    backgroundColor: colors.fill,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   quiet: {
     minHeight: 44,
@@ -127,13 +129,13 @@ const styles = StyleSheet.create({
     marginRight: space.sm,
   },
   primaryLabel: {
-    color: colors.paper,
+    color: '#FFFFFF',
   },
   secondaryLabel: {
     color: colors.ink,
   },
   quietLabel: {
-    color: colors.copper,
+    color: '#6E6E73',
   },
   textAction: {
     flexDirection: 'row',

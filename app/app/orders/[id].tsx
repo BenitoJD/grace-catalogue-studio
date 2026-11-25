@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Screen } from '@/components/Screen';
-import { ScreenHeader } from '@/components/ScreenHeader';
 import { ErrorState, LoadingState } from '@/components/StateViews';
 import { openUrl, shareLink } from '@/lib/actions';
 import { copyText } from '@/lib/clipboard';
@@ -52,6 +51,46 @@ const SPEC_SECTIONS: {
     ],
   },
 ];
+
+function OrderTopBar({
+  onBack,
+  eyebrow,
+  title,
+  subtitle,
+}: {
+  onBack: () => void;
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <View style={styles.newHeader}>
+      <View style={styles.newHeaderTop}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={onBack}
+          style={({ pressed }) => [styles.newBack, pressed && styles.newPressed]}>
+          <Text style={styles.newBackLabel}>‹ Back</Text>
+        </Pressable>
+        <View style={styles.newBrand}>
+          <Image
+            source={require('@/assets/images/logo.png')}
+            style={styles.newBrandMark}
+            resizeMode="contain"
+            accessibilityLabel="Jacob Design Studio"
+          />
+          <Text style={styles.newBrandName}>Jacob Studio</Text>
+        </View>
+      </View>
+      <Text style={styles.newEyebrow}>{eyebrow}</Text>
+      <Text style={styles.newTitle} numberOfLines={2}>
+        {title}
+      </Text>
+      {subtitle ? <Text style={styles.newSubtitle}>{subtitle}</Text> : null}
+    </View>
+  );
+}
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -219,14 +258,14 @@ export default function OrderDetailScreen() {
         <View style={[shared.frame, styles.page]}>
           {loading ? (
             <>
-              <ScreenHeader back onBack={goBack} eyebrow="Order" title="Loading order" />
+              <OrderTopBar onBack={goBack} eyebrow="Order" title="Loading order" />
               <LoadingState label="Loading the order." />
             </>
           ) : null}
 
           {!loading && loadError ? (
             <>
-              <ScreenHeader back onBack={goBack} eyebrow="Order" title="Order unavailable" />
+              <OrderTopBar onBack={goBack} eyebrow="Order" title="Order unavailable" />
               <ErrorState
                 title="Cannot load this order"
                 message={loadError}
@@ -239,12 +278,11 @@ export default function OrderDetailScreen() {
 
           {!loading && order ? (
             <>
-              <ScreenHeader
-                back
+              <OrderTopBar
                 onBack={goBack}
                 eyebrow={order.orderNo}
-                title={order.title}
-                subtitle={`${displayValue(order.customerName)} · ${statusLabel(order.status)}`}
+                title={order.title || 'Untitled order'}
+                subtitle={`${displayValue(order.customerName)} · ${displayValue(order.room)} · ${statusLabel(order.status)}`}
               />
 
               {SPEC_SECTIONS.map((section) => (
@@ -560,13 +598,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.gutter,
   },
   specSection: {
-    backgroundColor: colors.surface,
-    borderRadius: layout.radius,
-    padding: space.lg,
-    marginTop: space.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    padding: 20,
+    marginTop: 12,
   },
   specHeading: {
-    marginBottom: space.sm,
+    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+    color: '#0D0D0D',
   },
   specRow: {
     flexDirection: 'row',
@@ -655,7 +699,9 @@ const styles = StyleSheet.create({
   },
   generateAction: {
     marginTop: space.lg,
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   noteStatus: {
     marginTop: space.sm,
@@ -809,5 +855,62 @@ const styles = StyleSheet.create({
   },
   footerNote: {
     marginTop: space.lg,
+  },
+  newHeader: {
+    paddingTop: 14,
+    paddingBottom: 10,
+  },
+  newHeaderTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  newBack: {
+    paddingVertical: 4,
+    paddingRight: 8,
+  },
+  newBackLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6E6E73',
+  },
+  newBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  newBrandMark: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+  },
+  newBrandName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0D0D0D',
+    letterSpacing: -0.2,
+  },
+  newEyebrow: {
+    marginTop: 14,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    color: '#8E8E93',
+  },
+  newTitle: {
+    marginTop: 4,
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '700',
+    letterSpacing: -0.7,
+    color: '#0D0D0D',
+  },
+  newSubtitle: {
+    marginTop: 4,
+    fontSize: 13.5,
+    color: '#6E6E73',
+  },
+  newPressed: {
+    opacity: 0.65,
   },
 });
