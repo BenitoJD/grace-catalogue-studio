@@ -164,7 +164,7 @@ const DESIGNER_SYSTEM = [
   '- {{headline}}, {{body}} and {{closing}} each exactly once, anywhere in the story pages.',
   '- Every photograph token from {{photo1}} to the last available must appear at least once.',
   '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as paint card chips, each using its colour token and its colour NAME token, with its hex value small. This is the colour options spread of the showroom book.',
-  '- At least one magnifier plate {{photoNdetailM}}, inside a circular loupe on a hero photograph, with its {{photoNdetailMColorName}} and {{photoNdetailMColor}} in the caption.',
+  '- At least one detail annotation: a small ring at {{photoNdetailMX}} and {{photoNdetailMY}}, a dashed leader line with an arrow, and the colour name and code printed OUTSIDE the photograph using {{photoNdetailMColorName}} and {{photoNdetailMColor}}.',
   '- The last page: a large brand plate and a contact plate. Never print an order number.',
   '- Somewhere in the document: at least one house motif token.',
   '- No dimension, size, shutter count or specification value may appear. Those tokens do not exist and naming them rejects the document.',
@@ -175,14 +175,15 @@ const DESIGNER_SYSTEM = [
   'THE QUALITY BAR',
   'This must look like the printed book a Fortune 500 automotive or luxury interiors brand hands to a customer, art directed by one of the best print designers alive: composed, quiet, confident, with one clear idea for this project and no trace of a template. If a page could have come from Canva, a restaurant menu, a website or an AI image, it is wrong.',
   'Use a real editorial grid: one 12 column grid with a consistent 18 mm outer margin and an 8 mm gutter, and align every element to it. Set a type scale and keep it: cover display 44 to 64 pt, section titles 20 to 26 pt, body 8.4 to 9.5 pt with 1.55 line height, captions 6.4 to 7 pt with 0.2 em tracking, folio 6.4 pt.',
-  'Give every page a clear job and a different composition. Vary full bleed photograph pages, a two thirds split page, a quiet type page, a colour plate page and the magnifier spread. Never repeat the same arrangement twice in one document.',
+  'Give every page a clear job and a different composition. Vary full bleed photograph pages, a two thirds split page, a quiet type page, a colour plate page and the annotated photograph spread. Never repeat the same arrangement twice in one document.',
   'The cover brand plate is a hero: at least 55 mm wide, preferably 60 to 100 mm, set with real space around it. A tiny corner plate is wrong.',
   'Colour callouts on photographs follow the paint card reference: a small ring or dot on the exact point, a thin dashed leader line, and the colour code and name set at the end of the line in small caps. Keep the callout text clear of busy detail and never cover the thing it points at.',
   'The cover is a designed photograph, not a template: full bleed image or a strong 2:3 split, an oversized title reacting to the image, the brand plate placed with intent, and nothing centered by default. Use a kicker, a hairline and one line of quiet information. No logo, title, photo and footer stack.',
   'Treat typography like a brand book: one display face, one text face, real hierarchy, generous leading, ragged right body, small caps labels with wide tracking, oversized folio numbers, and no more than three type sizes on a page.',
   'Compose with negative space, hairlines and the picture palette, through the theme variables. Only three colour families on a page. The accent is a one point rule, a numeral or a motif, never a fill. No gradients, no drop shadows, no rounded cards, no badges, no clip art icons, no emoji, no chevrons, no buttons.',
   'Photographs are the hero: crop with intent, let them bleed, and use a solid scrim or band for any words that sit on them. Never make a photograph small and polite unless the page is deliberately quiet.',
-  'Magnifier spread: the loupe is a designed object, not a sticker. Make it large: 55 to 75 mm across, zoomed 3.5 to 5 times, with a crisp 0.5 mm ring and a 0.2 mm inner hairline, a 45 degree leader line to the caption, and a soft solid ground behind the caption. The caption names the detail and its colour and code, in 7 to 8 pt small caps with 0.2 em tracking. It must be clearly readable: light caption on a dark ground or dark caption on a light ground, never words drifting over a busy photograph.',
+  'Do not draw a magnifier, a loupe, a crop or a callout on the photographs. The studio adds the material callout pages itself: ring on the exact point, layered dashed leader to the outer margin, arrow, and the colour code and name printed on paper outside the frame. Keep every photograph clean and full.',
+  'Frame photographs so a calm strip of paper remains at the outer edge of the page for the annotations. On a full bleed photograph, bring the leader line to the nearest margin and set the text there, never over the picture.',
   'Colour page: treat the palette like paint chips in an automotive book. Strips at full measure, chips aligned in a row on the grid, names in small caps, codes small and quiet, one line of mood copy. No card frames and no shadows.',
   'The closing page is a quiet exhale: brand plate, contact plate, one line of thanks, a motif if it belongs. Nothing else.',
   '',
@@ -779,6 +780,8 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
           tokensForPhoto.push(`photo${n}detail${detail}`);
           tokensForPhoto.push(`photo${n}detail${detail}Color`);
           tokensForPhoto.push(`photo${n}detail${detail}ColorName`);
+          tokensForPhoto.push(`photo${n}detail${detail}X`);
+          tokensForPhoto.push(`photo${n}detail${detail}Y`);
         }
       }
       return tokensForPhoto;
@@ -826,18 +829,24 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
 
   // The hero magnifier: a real enlarged crop of a picture, with the colour it
   // holds named beside it. Premium brand treatment, always present.
-  const detailUses = [...tokens].filter((token) => /^photo\d+detail\d+$/.test(token));
-  if (detailUses.length === 0) {
-    issues.push('no magnifier plate is used; print one {{photoNdetailM}} as the hero detail');
-  }
-  for (const detailToken of detailUses) {
-    if (countToken(whole, `${detailToken}ColorName`) === 0) {
-      issues.push(`{{${detailToken}ColorName}} is missing; name the colour in the magnifier caption`);
+  // The studio draws the material callout pages itself, deterministically.
+  // The model must leave the photographs clean: no loupe, no drawn annotation.
+  // A magnifier is no longer part of this book. Only a small ring, a dashed
+  // leader and a label outside the photograph are allowed.
+  pages.forEach((page, index) => {
+    if (/<img[^>]*src="\{\{\s*photo\d+detail\d+\s*\}\}"/i.test(page)) {
+      issues.push(`page ${index + 1}: remove the magnifier plate; annotate the point with a ring and a dashed leader instead`);
     }
-    if (countToken(whole, `${detailToken}Color`) === 0) {
-      issues.push(`{{${detailToken}Color}} is missing; print the colour code beside the magnifier`);
+    const styles = [...String(page).matchAll(/style="([^"]*)"/gi)].map((match) => match[1]);
+    for (const style of styles) {
+      if (!/border-radius\s*:\s*50%/i.test(style)) continue;
+      const width = /width\s*:\s*([0-9.]+)mm/i.exec(style);
+      if (width && Number.parseFloat(width[1]) >= 20) {
+        issues.push(`page ${index + 1}: a large circular magnifier is not allowed; use a small ring and a dashed leader`);
+        break;
+      }
     }
-  }
+  });
 
   // The colour study is the heart of this brochure: every decoded palette must
   // be printed, with its chips.
@@ -951,13 +960,8 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
   }
 
   pages.forEach((page, index) => {
-    if (/background-image\s*:\s*url\(\s*{{\s*photo/i.test(page) && /{{\s*photo\d+detail\d+Color/i.test(page)) {
-      if (!/background\s*:\s*(?:#|rgba?\()/i.test(page)) {
-        issues.push(`page ${index + 1}: the magnifier caption needs a solid ground behind it on a photographed page`);
-      }
-      if (!/color\s*:\s*(?:#|rgba?\()/i.test(page)) {
-        issues.push(`page ${index + 1}: the magnifier caption needs an explicit contrasting text colour`);
-      }
+    if (/{{\s*photo\d+detail\d+Color/i.test(page) && !/color\s*:\s*(?:#|rgba?\(|var\()/i.test(page)) {
+      issues.push(`page ${index + 1}: the annotation label needs an explicit contrasting text colour`);
     }
   });
 
@@ -1071,6 +1075,8 @@ function buildTokenValues({ values, photos, copy, photoPalettes = {}, photoDetai
       tokens[`${key}detail${detail.index}`] = detail.dataUri;
       tokens[`${key}detail${detail.index}Color`] = detail.colour;
       tokens[`${key}detail${detail.index}ColorName`] = detail.name;
+      tokens[`${key}detail${detail.index}X`] = String(Number(detail.x ?? 50).toFixed(1));
+      tokens[`${key}detail${detail.index}Y`] = String(Number(detail.y ?? 50).toFixed(1));
     }
   }
   for (const [key, palette] of Object.entries(photoPalettes)) {
@@ -1412,7 +1418,51 @@ export function compileGenerativeBrochure({
         `</div>`,
     );
   }
-  const allPages = [...docPages, ...wholeFrames.map(noDashes)];
+  // Material callout pages, drawn by the server so the annotation is always
+  // visible and always matches the paint card reference.
+  const annotationPages = [];
+  for (const [key, details] of Object.entries(photoDetails)) {
+    const match = /^photo(\d+)$/.exec(key);
+    if (!match) continue;
+    const index = Number.parseInt(match[1], 10) - 1;
+    const uri = photoTokens[index];
+    if (!uri || !Array.isArray(details) || details.length === 0) continue;
+    const used = details.slice(0, 3);
+    const marks = used
+      .map((detail) => {
+        const x = Math.min(92, Math.max(8, Number(detail.x ?? 50)));
+        const y = Math.min(88, Math.max(12, Number(detail.y ?? 50)));
+        return (
+          `<div style="position:absolute;left:${(x * 1.5).toFixed(1)}mm;top:${(y * 1.5).toFixed(1)}mm;width:3mm;height:3mm;margin:-1.5mm 0 0 -1.5mm;border:0.4mm solid #F8F2E7;box-shadow:0 0 0 0.35mm #1C1C1C;border-radius:50%;"></div>` +
+          `<div style="position:absolute;left:${(x * 1.5).toFixed(1)}mm;top:${(y * 1.5).toFixed(1)}mm;width:${(150 - x * 1.5).toFixed(1)}mm;border-top:0.9mm solid rgba(255,255,255,0.9);"></div>` +
+          `<div style="position:absolute;left:${(x * 1.5).toFixed(1)}mm;top:${(y * 1.5).toFixed(1)}mm;width:${(150 - x * 1.5).toFixed(1)}mm;border-top:0.35mm dashed #1C1C1C;"></div>`
+        );
+      })
+      .join('');
+    const labels = used
+      .map((detail, position) => {
+        const y = Math.min(88, Math.max(12, Number(detail.y ?? 50)));
+        const top = 46 + y * 1.5 + position * 0.5;
+        return (
+          `<div style="position:absolute;left:168mm;top:${top.toFixed(1)}mm;width:3mm;height:3mm;border-top:0.5mm solid #1C1C1C;border-right:0.5mm solid #1C1C1C;transform:rotate(45deg);"></div>` +
+          `<div style="position:absolute;left:174mm;top:${top.toFixed(1)}mm;width:38mm;color:#1C1C1C;font-family:var(--body);font-size:6.2pt;line-height:1.5;letter-spacing:0.12em;text-transform:uppercase;">` +
+          `<span style="color:#8A7A66;">${String(position + 1).padStart(2, '0')} · ${escapeHtml(String(detail.label ?? 'Detail')).slice(0, 30)}</span><br>` +
+          `<span style="font-size:7pt;letter-spacing:0.16em;">${escapeHtml(detail.name ?? 'Colour')} ${escapeHtml(detail.colour ?? '')}</span></div>`
+        );
+      })
+      .join('');
+    annotationPages.push(
+      `<div style="position:absolute;inset:0;background:#F7F2E9;color:#1C1C1C;font-family:var(--body);">` +
+        `<div style="position:absolute;left:18mm;top:13mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Material notes · colour callouts</div>` +
+        `<div style="position:absolute;left:18mm;top:22mm;width:170mm;font-family:var(--display);font-size:22pt;line-height:1.05;">The colour, named where it happens.</div>` +
+        `<div style="position:absolute;left:18mm;top:46mm;width:150mm;height:150mm;background:#EFE7D8;overflow:hidden;">` +
+        `<img src="${uri}" style="width:100%;height:100%;object-fit:contain;">${marks}</div>` +
+        labels +
+        `<div style="position:absolute;left:18mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
+        `</div>`,
+    );
+  }
+  const allPages = [...docPages, ...annotationPages.map(noDashes), ...wholeFrames.map(noDashes)];
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">

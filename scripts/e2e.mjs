@@ -371,7 +371,7 @@ try {
 
   // 3. the model designs and prints the brochure
   check("design button present", await clickText(page, "Design the brochure"));
-  check("design reports four pages plus the whole picture page", await hasText(page, "5 pages", 240000));
+  check("design reports four pages plus callout and whole picture pages", await hasText(page, "7 pages", 240000));
   const previewOk = await page.waitForFunction(
     () => [...document.querySelectorAll("img")].some((image) => image.src.includes("/pages/") && image.naturalWidth > 200),
     { timeout: 60000 }
@@ -386,7 +386,7 @@ try {
     if (designRender) break;
     await sleep(500);
   }
-  check("generated brochure recorded", Boolean(designRender && designRender.pageCount === 5));
+  check("generated brochure recorded", Boolean(designRender && designRender.pageCount === 7));
   check("it is a model designed document", designRender?.design?.designed === true);
   if (designRender) {
     const pdf = await fetch(`${API}${designRender.pdfUrl}`);
@@ -448,7 +448,7 @@ try {
     "history shows the generated brochure",
     await page.evaluate(() => document.body.innerText.toLowerCase().includes("brochure"))
   );
-  check("history lists the brochure pages", await hasText(page, "5 pages"));
+  check("history lists the brochure pages", await hasText(page, "7 pages"));
   check("history offers the pdf", await clickText(page, "Open PDF"));
   await page.screenshot({ path: `${shots}/06-orders-with-data.png` });
 

@@ -3529,7 +3529,7 @@ test('the model designs and typesets a printable brochure from scratch', { timeo
   const body = JSON.parse(raw);
   assert.equal(body.render.kind, 'ai');
   assert.equal(body.render.templateId, null);
-  assert.equal(body.render.pageCount, 5, 'four designed pages plus the whole picture page');
+  assert.equal(body.render.pageCount, 7, 'four designed pages, two callout pages and the whole picture page');
   assert.equal(body.render.design.designed, true);
   assert.match(body.render.design.label, /Designed by the model/i);
   assert.deepEqual(body.copy, BROCHURE_COPY);
@@ -3593,8 +3593,8 @@ test('a longer brochure prints six pages when the content needs room', { timeout
   assert.equal(response.status, 201, raw);
   const body = JSON.parse(raw);
   assert.equal(body.render.kind, 'ai');
-  assert.equal(body.render.pageCount, 7, 'six designed pages plus the whole picture page');
-  assert.equal(body.render.pageUrls.length, 7);
+  assert.equal(body.render.pageCount, 9, 'six designed pages, two callout pages and the whole picture page');
+  assert.equal(body.render.pageUrls.length, 9);
 
   const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
   const flat = normaliseText(text);
@@ -3740,18 +3740,19 @@ test('a closing page without the contact plate is rejected', { timeout: 240_000 
   assert.match(body.error.message, /contact plate/i);
 });
 
-test('a brochure without a real magnifier is rejected', { timeout: 240_000 }, async () => {
+test('the studio adds its own printed picture pages', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();
   setOrderCopyForTest();
-  const noMagnifier = DESIGNER_HTML.replace(/<img src="\{\{photo2detail1\}\}"[^>]*>/g, '')
-    .replaceAll('{{photo2detail1ColorName}}', '{{brand}}')
-    .replaceAll('{{photo2detail1Color}}', '{{invoice}}');
-  resetMockProvider({ reply: noMagnifier });
+  resetMockProvider({ reply: DESIGNER_HTML });
   const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
-  assert.equal(response.status, 502);
-  const body = await response.json();
-  assert.match(body.error.message, /magnifier plate/i);
+  const raw = await response.text();
+  assert.equal(response.status, 201, raw);
+  const body = JSON.parse(raw);
+  assert.ok(body.render.pageCount >= 5, 'designed pages plus the studio picture page');
+  const text = pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`));
+  const flat = normaliseText(text).toLowerCase();
+  assert.ok(flat.includes('whole picture'), 'the whole picture page is printed');
 });
 
 test('light text on a light page is rejected for contrast', { timeout: 240_000 }, async () => {
@@ -3797,6 +3798,21 @@ test('a giant decorative logo is rejected', { timeout: 240_000 }, async () => {
   assert.equal(response.status, 502);
   const body = await response.json();
   assert.match(body.error.message, /brand logo must be a small/i);
+});
+
+test('a circular magnifier is rejected in favour of the annotation', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const loupe = DESIGNER_HTML.replace(
+    '</body>',
+    '<div class="page"><div style="position:absolute;left:20mm;top:20mm;width:40mm;height:40mm;border-radius:50%;overflow:hidden;"><img src="{{photo1detail1}}" style="width:100%;height:100%;object-fit:cover;"></div></div></body>',
+  );
+  resetMockProvider({ reply: loupe });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error.message, /magnifier plate|circular magnifier/i);
 });
 
 test('oversized display type is rejected before it clips', { timeout: 240_000 }, async () => {

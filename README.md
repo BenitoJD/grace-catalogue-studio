@@ -15,7 +15,7 @@ The only external service is the language model chosen in Settings. Everything e
 1. A salesperson pastes the customer requirement into the chat and attaches the project photographs.
 2. The intake assistant pulls out the order and asks only for what is missing.
 3. Before designing, the chat shows the pictures back with numbered circles on the details worth magnifying and the colours read from them, and asks what to magnify. The client answers in the chat.
-4. The model designs and typesets a showroom brochure from the pictures: the kind a car or bike showroom hands over. Big hero photography, one idea per spread, named colour options like a paint card, feature callouts with magnified details, almost no text.
+4. The model designs and typesets a showroom brochure from the pictures: the kind a car or bike showroom hands over. Big hero photography, one idea per spread, named colour options like a paint card, feature callouts with dotted leaders and colour codes set outside the photograph, almost no text.
 4. The PDF is previewed page by page and can be printed, opened or shared.
 
 There is no template library and no pre-made layout. The model authors every page for that project.
@@ -31,11 +31,10 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **No order number in print.** The order number lives in the app and the database, never on a printed page.
 - **The logo leads.** On the cover the brand plate must be 55 to 100 mm wide, prominent and given real space; the body mark stays a small quiet sign.
 - **Every picture whole.** At least one uncropped copy of every supplied picture is guaranteed in the print, on its own whole frame appendix pages added after the designed pages. The model can crop for art direction, but the complete picture always exists in the book.
-- **Paint card callouts.** Colour callouts follow the reference catalogue style: a small ring on the exact point, a thin dashed leader line, and the colour code and name at the end of the line.
+- **Material callout pages, drawn by the studio.** No magnifier and no loupe. Every picture with a decoded detail gets a callout page: a small open ring on the exact point, a layered dashed leader line with an arrow to the outer edge, and the colour code and name printed on paper outside the photograph, like the paint card catalogue. The annotation is deterministic, so it can never be faint, clipped or missing.
 - **The taste comes from the pictures.** Every order gets its own art direction computed from its photographs: palette shares, tone (light and airy, calm, or deep and low lit), warmth, contrast and the focal details seen. The brief tells the designer to invent a fresh concept for that set and never reuse a house layout; the page ground, ink, deep tone, accent and hairline all come from the picture palette through the theme variables.
 - **Client words override, nothing else does.** If the customer asks for a colour, mood, motif, layout or detail in the chat, that request wins for that part of the book. Where the client is silent, the pictures decide everything.
 - **Every picture read.** The vision pass reads every picture in batches of four, so a hundred page PDF is analysed page by page, not just the first four.
-- **Magnifiers are print objects.** 55 to 75 mm across, 3.5 to 5 times zoom, crisp ring and inner hairline, 45 degree leader, caption in 7 to 8 pt small caps naming the detail, its colour name and code. A photographed page with a magnifier caption must carry a solid ground and an explicit contrasting text colour, and the standard contrast audit checks it.
 - **The mark stays quiet.** In the body the brand mark must be a small 8 to 14 mm sign, never a large logo, watermark or decoration over type. Large marks live only on the cover and closing plates.
 - **Contrast is enforced.** Dark text on a light ground, light text on a dark ground. Every explicit text colour is checked against the colour actually behind it, including bands and photograph scrims, before the brochure prints. A pale-on-pale or dark-on-dark page is rejected and asked for again.
 - **The theme comes from the pictures.** The paper, ink, deep tone and accent of every brochure are computed from the colours read out of the client's photographs and handed to the designer as the page palette. Two projects never share a house palette.
@@ -55,9 +54,9 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 
 ![The picture review: circled details and the palette](docs/screenshots/picture-review.png)
 
-- **Magnifier callouts.** Name a detail in the chat, such as a handle, an edge, a grain or the colour palette, and the model prints a circular loupe: the same photograph enlarged on that detail, a thin ring, a leader line and a small label. When pictures arrive without a named detail, the intake assistant asks which detail to magnify.
+- **Material callouts.** Name a detail in the chat, such as a handle, an edge, a grain or the colour palette. The studio then prints the callout page for that picture: a small open ring on the exact point, a dotted leader with an arrow to the outer edge, and the colour code and name on paper outside the photograph. No loupe, no crop, no words over the picture. When pictures arrive without a named detail, the details seen by the vision pass are annotated automatically.
 
-![The colour study with the palette strips and the loupe](docs/screenshots/palette-study.png)
+![The colour study with the palette strips and the callout](docs/screenshots/palette-study.png)
 
 ## The Pi agent
 
@@ -68,8 +67,8 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 - **Conversation state**: every chat has a Pi session stored in SQLite. The full transcript, including tool calls and tool results, is restored on the next turn and across restarts, so edits continue the same order instead of starting over.
 - **Guards**: one turn at a time per chat, one order per chat, the designer can only run for an existing order, and the model cannot create a second order by accident.
 - **Failures keep the work**: if a turn fails or runs long after the order is created, the order and any render are returned and saved, with a reply saying what happened. Nothing is thrown away and no duplicate order is made.
-- **Pages workspace**: a split screen with the document at 75 percent and the studio desk at 25 percent. It opens every picture and every PDF page in the app, with a page strip, zoom, marks pinned on the page, a live loupe preview, a marks panel with swatches and codes, and the same Pi conversation beside it. No external PDF viewer.
-- **Studio marks**: on any picture review the studio can tap the exact area, name the detail and its colour name and code. Marks are saved on the order and become authoritative loupe specifications for the designer, which must print their exact name and code.
+- **Pages workspace**: a split screen with the document at 75 percent and the studio desk at 25 percent. It opens every picture and every PDF page in the app, with a page strip, zoom, marks pinned on the page, a live callout preview, a marks panel with swatches and codes, and the same Pi conversation beside it. No external PDF viewer.
+- **Studio marks**: on any picture review the studio can tap the exact area, name the detail and its colour name and code. Marks are saved on the order and become authoritative callout specifications for the designer, which must print their exact name and code.
 - **ChatGPT style chat**: neutral canvas, a centered welcome, quiet suggestion chips, assistant answers as plain text, user messages in a soft grey bubble, and a floating rounded composer with a circular send. The model status and New order sit quietly in the header.
 - **Live progress**: while a turn runs, the server publishes each stage. The chat shows the current step (reading the pictures, creating the order, designing the pages, checking the print) with the elapsed seconds and a trail of the steps already done.
 - **Only path**: the chat is the agent. There is no second deterministic chat flow. If a turn fails, the chat reports the failure and keeps any order or render that was already made; the next message continues the same session.
@@ -110,9 +109,9 @@ Quality is preferred over speed: a 32,000 token explicit output cap on the desig
 
 The model writes the words and authors the pages itself as HTML and CSS in one reply: four pages for a quiet order, up to eight when the photographs and their palettes need the room. The server supplies the print box, fonts, brand assets, the picture palettes and the words through tokens, then checks the document before printing.
 
-The checks cover the page count, per page word limits, the copy printed once, every photograph used, every palette strip with its four named chips, a real magnifier plate with its colour name and code, a brand plate on the cover, a brand plate and contact plate on the closing page, a house motif, no external URL, and no unfilled token. A failure is asked for again with the exact problems; two failures print nothing.
+The checks cover the page count, per page word limits, the copy printed once, every photograph used, every palette strip with its four named chips, the material callout pages with their rings, dashed leaders, colour names and codes, a brand plate on the cover, a brand plate and contact plate on the closing page, a house motif, no external URL, and no unfilled token. A failure is asked for again with the exact problems, up to four attempts.
 
-The brochure carries the order's creation date. The story pages carry the copy, the colour pages carry the strips and chips, a premium spread carries the real magnifier loupe, and the closing page carries the brand and contact plates.
+The brochure carries the order's creation date. The story pages carry the copy, the colour pages carry the strips and chips, the material callout pages carry the ring, dashed leader and colour code outside the photograph, and the closing page carries the brand and contact plates.
 
 ## Brand assets only
 
