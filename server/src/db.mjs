@@ -58,7 +58,7 @@ export const ORDER_TEXT_FIELDS = [
 // trade rates and lets a render stand on its own without an order (the rate
 // card). Every change is appended as a new migration so an existing data
 // directory upgrades in place. Never edit an applied migration.
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 // orders.customerId and renders.orderId are RESTRICT: a customer with orders is
 // never deleted behind the API's back, so orders can not be orphaned. Deleting
@@ -330,6 +330,13 @@ export const MIGRATIONS = Object.freeze([
         );
       `);
       db.exec('CREATE INDEX IF NOT EXISTS assistant_sessions_order ON assistant_sessions(order_id);');
+    },
+  },
+  {
+    version: 14,
+    name: 'pamphlet or brochure output per order',
+    up(db) {
+      addColumnIfMissing(db, 'orders', 'design_format', "TEXT NOT NULL DEFAULT 'pamphlet'");
     },
   },
   {
@@ -607,6 +614,8 @@ function orderFromRow(row) {
     }
   })();
   order.designDirection = typeof order.design_direction === 'string' ? order.design_direction : '';
+  order.designFormat = order.design_format === 'brochure' ? 'brochure' : 'pamphlet';
+  delete order.design_format;
   delete order.design_direction;
   return order;
 }
@@ -622,6 +631,11 @@ export function listOrders(db) {
       delete order.copy_json;
       return order;
     });
+}
+
+export function setOrderDesignFormat(db, id, format) {
+  db.prepare('UPDATE orders SET design_format = ? WHERE id = ?').run(format === 'brochure' ? 'brochure' : 'pamphlet', id);
+  return getOrder(db, id);
 }
 
 export function setOrderAnnotations(db, id, annotations) {

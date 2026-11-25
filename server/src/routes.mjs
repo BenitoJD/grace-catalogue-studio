@@ -35,6 +35,7 @@ import {
   setOrderAttachments,
   setOrderAnnotations,
   setOrderCopy,
+  setOrderDesignFormat,
   setSetting,
   updateMaterial,
   updateOrder,
@@ -1017,6 +1018,15 @@ export function createApp(options) {
       patch.customerId = customerId.value;
     }
 
+    if ('designFormat' in parsed.body) {
+      const format = parsed.body.designFormat;
+      if (format !== 'pamphlet' && format !== 'brochure') {
+        return fail(c, 400, 'Field "designFormat" must be "pamphlet" or "brochure".');
+      }
+      setOrderDesignFormat(db, id, format);
+      return c.json(orderPayload(getOrder(db, id)));
+    }
+
     if ('annotations' in parsed.body) {
       const annotations = parsed.body.annotations;
       if (!Array.isArray(annotations) || annotations.length > 40) {
@@ -1617,6 +1627,17 @@ export function createApp(options) {
       typeof parsed.body.orderId === 'string' ? parsed.body.orderId.trim().slice(0, 100) : '';
     if (orderId !== '' && !getOrder(db, orderId)) return fail(c, 404, 'Order not found.');
 
+    let format = null;
+    if (parsed.body.format !== undefined) {
+      if (parsed.body.format !== 'pamphlet' && parsed.body.format !== 'brochure') {
+        return fail(c, 400, 'Field "format" must be "pamphlet" or "brochure".');
+      }
+      format = parsed.body.format;
+      if (orderId !== '') setOrderDesignFormat(db, orderId, format);
+    } else if (orderId !== '') {
+      format = getOrder(db, orderId).designFormat;
+    }
+
     const requestedSession =
       typeof parsed.body.sessionId === 'string' ? parsed.body.sessionId.trim().slice(0, 120) : '';
     const sessionId = requestedSession !== '' ? requestedSession : randomUUID();
@@ -1655,6 +1676,7 @@ export function createApp(options) {
         messages: cleanMessages,
         attachments: attachments.value,
         orderId: orderId === '' ? null : orderId,
+        format,
         previousMessages: storedSession?.messages ?? [],
         callApi,
         logger,
@@ -1847,6 +1869,15 @@ export function createApp(options) {
       }
     }
 
+    let format = order.designFormat;
+    if (body.format !== undefined) {
+      if (body.format !== 'pamphlet' && body.format !== 'brochure') {
+        return fail(c, 400, 'Field "format" must be "pamphlet" or "brochure".');
+      }
+      format = body.format;
+      if (format !== order.designFormat) order = setOrderDesignFormat(db, order.id, format);
+    }
+
     let editNote = '';
     if (body.edit !== undefined) {
       if (typeof body.edit !== 'string') {
@@ -1947,6 +1978,7 @@ export function createApp(options) {
         pictureReading: reading?.text ?? '',
         pictureAnalysis: reading?.photos ?? [],
         annotations: order.annotations ?? [],
+        format,
         previousHtml,
         editNote,
       });
@@ -1986,6 +2018,7 @@ export function createApp(options) {
             designTheme,
             order.annotations ?? [],
             Object.keys(photoDetails).length,
+            format,
           );
           acceptedReply = themedReply;
           html = compileGenerativeBrochure({
@@ -2077,6 +2110,7 @@ export function createApp(options) {
             polishedTheme,
             order.annotations ?? [],
             Object.keys(photoDetails).length,
+            format,
           );
           html = compileGenerativeBrochure({
             order,
@@ -2123,6 +2157,7 @@ export function createApp(options) {
               reviewedTheme,
               order.annotations ?? [],
               Object.keys(photoDetails).length,
+              format,
             );
             html = compileGenerativeBrochure({
               order,

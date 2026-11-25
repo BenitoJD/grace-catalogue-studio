@@ -200,6 +200,7 @@ export default function ChatScreen() {
   // fails, the session falls back to the deterministic flow instead of dying.
   const [assistantEnabled, setAssistantEnabled] = useState(false);
   const [assistantSessionId, setAssistantSessionId] = useState<string>(() => `chat-${Date.now()}`);
+  const [outputFormat, setOutputFormat] = useState<'pamphlet' | 'brochure'>('pamphlet');
   const [assistantProgress, setAssistantProgress] = useState<{ label: string; elapsedMs: number; steps: string[] } | null>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const assistantBroken = useRef(false);
@@ -259,6 +260,7 @@ export default function ChatScreen() {
         setActiveOrderNo(order.orderNo);
         setOrderCreated(true);
         setOrderFiles(order.attachments ?? []);
+        if (order.designFormat) setOutputFormat(order.designFormat);
         setAssistantSessionId(session.sessionId ?? `chat-${Date.now()}`);
         previousBubbleCount.current = Math.max(1, rendered.length);
         atBottomRef.current = true;
@@ -667,6 +669,7 @@ export default function ChatScreen() {
         messages: conversation,
         ...(activeOrderId ? { orderId: activeOrderId } : {}),
         sessionId: assistantSessionId,
+        format: outputFormat,
         ...(attachments.length > 0 ? { attachments } : {}),
       });
     } catch (error) {
@@ -1121,6 +1124,30 @@ export default function ChatScreen() {
               ) : null}
             </View>
           ) : null}
+
+          <View style={styles.formatRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Pamphlet format"
+              onPress={() => setOutputFormat('pamphlet')}
+              style={[styles.formatChip, outputFormat === 'pamphlet' && styles.formatChipActive]}>
+              <Text style={[styles.formatLabel, outputFormat === 'pamphlet' && styles.formatLabelActive]}>
+                Pamphlet
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Brochure format"
+              onPress={() => setOutputFormat('brochure')}
+              style={[styles.formatChip, outputFormat === 'brochure' && styles.formatChipActive]}>
+              <Text style={[styles.formatLabel, outputFormat === 'brochure' && styles.formatLabelActive]}>
+                Brochure
+              </Text>
+            </Pressable>
+            <Text style={styles.formatHint}>
+              {outputFormat === 'pamphlet' ? 'Small take home piece' : 'Larger art directed book'}
+            </Text>
+          </View>
 
           <View style={styles.composer}>
             <Pressable
@@ -2912,5 +2939,37 @@ const styles = StyleSheet.create({
   },
   fileChipNameUser: {
     color: colors.surface,
+  },
+  formatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 2,
+    paddingBottom: 2,
+  },
+  formatChip: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    backgroundColor: '#FFFFFF',
+  },
+  formatChipActive: {
+    backgroundColor: '#0D0D0D',
+    borderColor: '#0D0D0D',
+  },
+  formatLabel: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#6E6E73',
+  },
+  formatLabelActive: {
+    color: '#FFFFFF',
+  },
+  formatHint: {
+    marginLeft: 4,
+    fontSize: 11,
+    color: '#8E8E93',
   },
 });

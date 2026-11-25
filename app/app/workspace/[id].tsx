@@ -193,6 +193,7 @@ export default function WorkspaceScreen() {
       const result = await api.assistant({
         sessionId,
         orderId,
+        format: order?.designFormat ?? 'pamphlet',
         messages: outgoing.map((line) => ({ role: line.role, content: line.content })),
       });
       if (result.sessionId) setSessionId(result.sessionId);

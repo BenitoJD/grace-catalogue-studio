@@ -45,6 +45,7 @@ export interface AiDesign {
 }
 
 export interface AiBrochureBody {
+  format?: 'pamphlet' | 'brochure';
   brief?: string;
   direction?: string;
   copy?: BrochureCopy;
@@ -102,6 +103,7 @@ export interface Order {
   attachments?: OrderAttachment[];
   createdAt: string;
   annotations?: MarkedDetail[];
+  designFormat?: 'pamphlet' | 'brochure';
 }
 
 export interface BrochureCopy {
@@ -433,6 +435,7 @@ export const api = {
     messages: { role: 'user' | 'assistant'; content: string }[];
     orderId?: string;
     sessionId?: string;
+    format?: 'pamphlet' | 'brochure';
     attachments?: OrderAttachment[];
   }): Promise<AssistantReply> {
     return request<AssistantReply>('/api/assistant', {

@@ -17,7 +17,8 @@ const SYSTEM_PROMPT = [
   '2. The only fact you must ask for is the customer name. Ask "Who is the customer?" when it is unknown.',
   '3. Once you have the customer name, never wait: call create_order, then call design_brochure for that order. The chat shows the brochure once it exists.',
   '4. After an order exists, every sentence from the studio is an edit. Use update_order for words the customer said and design_brochure to re-compose the pages. Attach new pictures first with the edit if they arrive.',
-  '5. When the studio names a detail to magnify, pass it as the direction of design_brochure.',
+  '5. The studio can ask for a Pamphlet or a Brochure. Pamphlet is a small take home piece; Brochure is a larger art directed book. Default to the current order format, and when the studio names one, pass it as format to create_order or design_brochure.',
+  '6. When the studio names a detail to magnify, pass it as the direction of design_brochure.',
   '',
   'RULES',
   '- Keep replies to one or two short sentences. Warm, plain British Indian English. No em dashes and no en dashes.',
@@ -48,6 +49,7 @@ const TOOL_SPECS = [
         title: { type: 'string', description: 'The piece, read from the pictures.' },
         room: { type: 'string', description: 'The room, read from the pictures.' },
         brief: { type: 'string', description: 'One short sentence about what the customer asked.' },
+        format: { type: 'string', enum: ['pamphlet', 'brochure'], description: 'Output type the studio asked for.' },
       },
       required: ['customerName'],
       additionalProperties: false,
@@ -88,6 +90,7 @@ const TOOL_SPECS = [
           type: 'string',
           description: 'The studio sentence for the designer, including any detail to magnify.',
         },
+        format: { type: 'string', enum: ['pamphlet', 'brochure'], description: 'Pamphlet or brochure.' },
       },
       required: ['orderId'],
       additionalProperties: false,
@@ -196,6 +199,11 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
         state.orderId = order.id;
         state.orderNo = order.orderNo;
         state.order = order;
+        if (params.format === 'pamphlet' || params.format === 'brochure') {
+          const formatted = await call(`/api/orders/${encodeURIComponent(order.id)}`, { designFormat: params.format }, 'PATCH');
+          state.order = formatted;
+          state.format = formatted.designFormat ?? params.format;
+        }
         return textResult({ orderId: order.id, orderNo: order.orderNo, title: order.title, room: order.room });
       },
     },
@@ -223,10 +231,15 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
         onProgress({ stage: 'design', label: 'Designing the brochure pages' });
         const orderId = params.orderId ?? state.orderId;
         if (!orderId) throw new Error('Create the order before designing the brochure.');
+        const chosenFormat =
+          params.format === 'pamphlet' || params.format === 'brochure'
+            ? params.format
+            : state.format;
         const result = await call(`/api/orders/${encodeURIComponent(orderId)}/ai-brochure`, {
           ...(typeof params.direction === 'string' && params.direction.trim() !== ''
             ? { direction: params.direction.trim() }
             : {}),
+          ...(chosenFormat ? { format: chosenFormat } : {}),
         });
         state.render = result?.render ?? null;
         onProgress({ stage: 'print', label: 'Checking the print and the page images' });
@@ -478,6 +491,7 @@ export async function runAssistantTurn({
   messages,
   attachments = [],
   orderId = null,
+  format = null,
   previousMessages = [],
   callApi,
   logger,
@@ -500,7 +514,7 @@ export async function runAssistantTurn({
     streamFn = runtime.streamFn;
     apiKey = runtime.apiKey;
   }
-  const state = { orderId, orderNo: null, order: null, render: null, review: null, toolCalls: [] };
+  const state = { orderId, orderNo: null, order: null, render: null, review: null, format: format ?? null, toolCalls: [] };
   const tools = createStudioTools({ callApi, attachments, state, onProgress });
   const history = agentHistory(messages);
   const last = history.pop();

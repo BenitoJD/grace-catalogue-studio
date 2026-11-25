@@ -3608,7 +3608,7 @@ test('a longer brochure prints six pages when the content needs room', { timeout
 test('the pamphlet length follows the input, with a cover and a closing minimum', () => {
   const makePages = (count) =>
     Array.from({ length: count }, (_, index) => `<div class="page"><p>Page ${index + 1} carries some words for the count.</p></div>`).join('\n');
-  assert.throws(() => parseDesignerReply(`<html><body>${makePages(1)}</body></html>`, 2), /cover and a closing/);
+  assert.throws(() => parseDesignerReply(`<html><body>${makePages(1)}</body></html>`, 2), /at least 2 sides/);
 });
 
 test('each picture set gets its own art direction and the client can override it', () => {
@@ -3715,6 +3715,54 @@ test('the picture palette is the law of the book', () => {
   assert.equal(clientNamedColour('Client wants a deep green wardrobe'), true);
   assert.equal(clientNamedColour('Make it in #1B4D3E'), true);
   assert.equal(clientNamedColour('More air on the cover'), false);
+});
+
+test('an order can be a pamphlet or a brochure and the design follows it', { timeout: 300_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  const before = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
+  assert.equal(before.designFormat, 'pamphlet');
+  const switched = await patchJson(`${baseUrl}/api/orders/${orderId}`, { designFormat: 'brochure' });
+  assert.equal(switched.status, 200);
+  assert.equal((await switched.json()).designFormat, 'brochure');
+  resetMockProvider({ reply: DESIGNER_LONG_HTML });
+  const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, { format: 'brochure' });
+  const raw = await response.text();
+  assert.equal(response.status, 201, raw);
+  const prompt = lastProviderRequest().json.messages.map((message) => String(message.content ?? '')).join('\n');
+  assert.match(prompt, /Brochure, a larger art directed book/i);
+  const stored = await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json();
+  assert.equal(stored.designFormat, 'brochure');
+  await patchJson(`${baseUrl}/api/orders/${orderId}`, { designFormat: 'pamphlet' });
+});
+
+test('the chat passes the chosen format to the agent', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  let seen = null;
+  app.assistantRuntime.run = async (input) => {
+    seen = input.format;
+    return {
+      reply: 'Ready.',
+      orderId: null,
+      orderNo: null,
+      render: null,
+      toolCalls: [],
+      transcript: [{ role: 'user', content: 'Hello', timestamp: Date.now() }],
+    };
+  };
+  try {
+    const response = await postJson(`${baseUrl}/api/assistant`, {
+      sessionId: 'format-test',
+      format: 'brochure',
+      messages: [{ role: 'user', content: 'Make a brochure.' }],
+    });
+    assert.equal(response.status, 200);
+    assert.equal(seen, 'brochure');
+  } finally {
+    app.assistantRuntime.run = runAssistantTurn;
+  }
 });
 
 test('the whole style signature is read from the pictures', () => {

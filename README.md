@@ -31,6 +31,7 @@ The photographs are the source, not decoration. The brochure is a colour study, 
 - **A second art director pass.** After the designer produces a valid document, an art director prompt refines composition, hierarchy and rhythm. If the refinement breaks any print rule, the valid original is kept.
 - **No order number in print.** The order number lives in the app and the database, never on a printed page.
 - **The logo leads.** On the cover the brand plate must be 55 to 100 mm wide, prominent and given real space; the body mark stays a small quiet sign.
+- **Pamphlet or brochure, chosen per order.** The chat and the order page both offer Pamphlet and Brochure. Pamphlet is a small take home piece with minimal copy; Brochure is a larger art directed book with story spreads, colour plates and callouts. The format is stored on the order and the agent passes it to the designer, so an edit keeps the chosen output until the studio changes it.
 - **Length follows the input.** There is no target or cap on pages. A pamphlet needs at least a cover and a closing side, then as many sides as the pictures and story need. Every supplied picture is guaranteed at least one whole page; the studio adds a full picture side only for the pictures the design did not already show whole, so the page count is dynamic and no picture is ever left out.
 - **Every picture is the hero.** Each uploaded photo is printed whole and uncropped, never a cropped background, and the studio adds a full picture material callout page for every picture with decoded details. There is no thumbnail appendix and no keyword sheet.
 - **Material callout pages, drawn by the studio.** One page per picture with decoded details, the whole picture large, a small black ring on the exact point, a short black dashed leader with a black arrow, and the colour code and name outside the picture. Each callout takes the nearest side, top, bottom, left or right, so the line is as short as possible and the photograph keeps its space. No white halos, no loupe, no crop.
@@ -86,6 +87,8 @@ The chat is driven by the Pi agent harness (earendil-works/pi), as a Node SDK in
 ![The Pi agent chat, from picture to printed brochure](docs/screenshots/pi-chat.png)
 
 ![The chat home, ChatGPT style](docs/screenshots/chat-home.png)
+
+![Pamphlet or Brochure, chosen before the design runs](docs/screenshots/format-toggle.png)
 
 ![History: searchable cards with the pamphlet thumbnail and one tap actions](docs/screenshots/history.png)
 

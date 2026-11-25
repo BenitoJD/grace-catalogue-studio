@@ -187,8 +187,10 @@ const DESIGNER_SYSTEM = [
   'Colour page: treat the palette like paint chips in an automotive book. Strips at full measure, chips aligned in a row on the grid, names in small caps, codes small and quiet, one line of mood copy. No card frames and no shadows.',
   'The closing page is a quiet exhale: brand plate, contact plate, one line of thanks, a motif if it belongs. Nothing else.',
   '',
-  'PAMPHLET, NOT CATALOGUE',
-  'The customer holds this in their hands, folded and small. The photographs are the pamphlet: one dominant whole picture per side, a short line of type, and a lot of air. No index, no contents, no appendix, no keyword sheets, no thumbnail grids, no badge, no ribbon, no page furniture that does not earn its place. The cover is one picture and one title. The back closes with the brand and contact plates.',
+  'PAMPHLET OR BROCHURE, CHOSEN BY THE STUDIO',
+  'Pamphlet is a small take home piece: one dominant whole picture per side, a short line of type, a lot of air, minimal copy.',
+  'Brochure is a larger art directed book: an editorial cover, story spreads with real copy, one or more picture sides, colour plates and detail callouts, then a closing spread. It still has no fixed length; more pictures and more story earn more sides.',
+  'Never pad either format and never squeeze a picture to fit a page count. The cover is one picture and one title. Any closing side carries the brand and contact plates.',
   '',
   'DESIGN RULES',
   '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',
@@ -409,13 +411,14 @@ function copySummary(copy) {
   return `Headline ${headline.length} characters. Body ${words} words. Closing ${closing.length} characters.`;
 }
 
-function designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, annotations = [], previousHtml, editNote }) {
+function designContext({ order, brief, direction, format = 'pamphlet', copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, annotations = [], previousHtml, editNote }) {
   const photoLines = photos.map((_, index) => {
     const shape = photoShapes[index] ? ` (${photoShapes[index]})` : '';
     return `photo${index + 1}${shape}`;
   });
   const parts = [
     'ORDER',
+    `Output format: ${format === 'brochure' ? 'Brochure, a larger art directed book' : 'Pamphlet, a small take home piece'}`,
     `Title: {{title}}`,
     `Room: {{room}}`,
     `Customer: {{customer}}`,
@@ -600,8 +603,8 @@ export function buildPolishMessages({ html }) {
   ];
 }
 
-export function buildDesignerMessages({ order, brief = '', direction = '', copy, photos = [], photoShapes = [], photoPalettes = {}, pictureReading = '', pictureAnalysis = [], annotations = [], previousHtml = '', editNote = '' }) {
-  const user = designContext({ order, brief, direction, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, annotations, previousHtml, editNote });
+export function buildDesignerMessages({ order, brief = '', direction = '', format = 'pamphlet', copy, photos = [], photoShapes = [], photoPalettes = {}, pictureReading = '', pictureAnalysis = [], annotations = [], previousHtml = '', editNote = '' }) {
+  const user = designContext({ order, brief, direction, format, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, annotations, previousHtml, editNote });
   const messages = [
     { role: 'system', content: DESIGNER_SYSTEM },
     { role: 'user', content: user },
@@ -750,7 +753,7 @@ const SPEC_WORD_LIMIT = 300;
  * printing. The page wrappers are removed and rebuilt by the server, so the
  * body can never end up with content beside the pages.
  */
-export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], theme = PALETTE, markedDetails = [], calloutCount = 0) {
+export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], theme = PALETTE, markedDetails = [], calloutCount = 0, format = 'pamphlet') {
   const raw = typeof content === 'string' ? content : '';
   if (raw.trim() === '') {
     throw new LlmError('The model returned an empty brochure design.', { type: 'invalid_reply' });
@@ -770,9 +773,13 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
 
   const pages = pageSegments(bodyHtml);
   const issues = [];
-  // Length follows the input: no target, no cap, only a safety ceiling.
-  if (pages.length < MIN_DESIGN_PAGES) {
-    issues.push(`it has ${pages.length} page; a pamphlet needs at least a cover and a closing side`);
+  // Length follows the input: no target, no cap, only a safety ceiling and a
+  // format minimum (a pamphlet needs a cover and a close; a brochure has body).
+  const minPages = format === 'brochure' ? 6 : MIN_DESIGN_PAGES;
+  if (pages.length < minPages) {
+    issues.push(
+      `it has ${pages.length} page${pages.length === 1 ? '' : 's'}; a ${format} needs at least ${minPages} sides`,
+    );
   }
   if (pages.length > MAX_DESIGN_PAGES) {
     issues.push(`it has ${pages.length} pages, beyond the technical safety ceiling of ${MAX_DESIGN_PAGES}`);

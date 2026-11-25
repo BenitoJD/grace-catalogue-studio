@@ -104,6 +104,7 @@ export default function OrderDetailScreen() {
   const [palettes, setPalettes] = useState<OrderPalette[]>([]);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [direction, setDirection] = useState('');
+  const [outputFormat, setOutputFormat] = useState<'pamphlet' | 'brochure'>('pamphlet');
   const [designLoading, setDesignLoading] = useState(false);
   const [designError, setDesignError] = useState<string | null>(null);
   const [designStatus, setDesignStatus] = useState<string | null>(null);
@@ -114,6 +115,10 @@ export default function OrderDetailScreen() {
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (order?.designFormat) setOutputFormat(order.designFormat);
+  }, [order?.designFormat]);
 
   const loadPalettes = useCallback(async () => {
     if (!orderId) return;
@@ -184,7 +189,7 @@ export default function OrderDetailScreen() {
     setDesignStatus(null);
     setShareStatus(null);
     try {
-      const result = await api.aiBrochure(orderId, { direction });
+      const result = await api.aiBrochure(orderId, { direction, format: outputFormat });
       setRender(result.render);
       setOrder((current) =>
         current
@@ -197,7 +202,7 @@ export default function OrderDetailScreen() {
     } finally {
       setDesignLoading(false);
     }
-  }, [designLoading, direction, orderId]);
+  }, [designLoading, direction, orderId, outputFormat]);
 
   const draftNote = useCallback(async () => {
     if (!orderId || noteLoading) return;
@@ -309,10 +314,34 @@ export default function OrderDetailScreen() {
                   {render ? <Text style={text.caption}>{pageCountLabel(render.pageCount)}</Text> : null}
                 </View>
                 <Text style={[text.muted, styles.intro]}>
-                  The model writes the words and typesets the four pages from this order, the
-                  photographs and their colour palettes. The model composes every page for this order.
-                  composed for this piece.
+                  The model writes the words and composes every side for this order from its
+                  photographs and palettes. Pamphlet is a small take home piece; Brochure is a larger
+                  art directed book. Length follows the content.
                 </Text>
+
+                <View style={styles.formatRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Pamphlet format"
+                    onPress={() => setOutputFormat('pamphlet')}
+                    style={[styles.formatChip, outputFormat === 'pamphlet' && styles.formatChipActive]}>
+                    <Text style={[styles.formatLabel, outputFormat === 'pamphlet' && styles.formatLabelActive]}>
+                      Pamphlet
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Brochure format"
+                    onPress={() => setOutputFormat('brochure')}
+                    style={[styles.formatChip, outputFormat === 'brochure' && styles.formatChipActive]}>
+                    <Text style={[styles.formatLabel, outputFormat === 'brochure' && styles.formatLabelActive]}>
+                      Brochure
+                    </Text>
+                  </Pressable>
+                  <Text style={[text.caption, styles.formatHint]}>
+                    {outputFormat === 'pamphlet' ? 'Small take home piece' : 'Larger art directed book'}
+                  </Text>
+                </View>
 
                 <View style={styles.briefField}>
                   <Field
@@ -912,5 +941,35 @@ const styles = StyleSheet.create({
   },
   newPressed: {
     opacity: 0.65,
+  },
+  formatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+  },
+  formatChip: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  formatChipActive: {
+    backgroundColor: '#0D0D0D',
+    borderColor: '#0D0D0D',
+  },
+  formatLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6E6E73',
+  },
+  formatLabelActive: {
+    color: '#FFFFFF',
+  },
+  formatHint: {
+    marginLeft: 4,
+    color: '#8E8E93',
   },
 });
