@@ -42,7 +42,7 @@ import {
   setOrderCopy,
   setSetting,
 } from '../src/db.mjs';
-import { DESIGNER_TRIES, artDirectionFor, buildDesignerMessages, parseDesignerReply, parseQualityReview, pictureTaste, themeFromPalettes } from '../src/ai-brochure.mjs';
+import { DESIGNER_TRIES, applyPictureTheme, artDirectionFor, buildDesignerMessages, clientNamedColour, parseDesignerReply, parseQualityReview, pictureTaste, themeFromPalettes } from '../src/ai-brochure.mjs';
 import { resolveWeasyprint } from '../src/config.mjs';
 import { buildLlmCacheKey, cacheExpiryCutoff } from '../src/llm-cache.mjs';
 import { installEgressGuard, isAllowedEgressUrl } from '../src/egress.mjs';
@@ -101,6 +101,7 @@ process.env.LLM_VISION_MODE = 'auto';
 process.env.DESIGN_POLISH = 'off';
 process.env.DESIGN_QA_PASSES = '0';
 process.env.DESIGN_QUALITY = 'off';
+process.env.DESIGN_THEME_LOCK = 'off';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));
 const templatesDir = path.join(rootDir, 'templates');
@@ -3678,6 +3679,7 @@ test('a low art director score sends the pamphlet back for another round', { tim
     assert.ok(prompts.some((prompt) => /below the 8\/10 world class gate/i.test(prompt)), 'the fixes go back to the designer');
   } finally {
     process.env.DESIGN_QUALITY = 'off';
+process.env.DESIGN_THEME_LOCK = 'off';
   }
 });
 
@@ -3696,7 +3698,23 @@ test('the best art directed round is kept when no round reaches the gate', { tim
     assert.ok(body.render.pageCount >= 4, 'the best round is still printed');
   } finally {
     process.env.DESIGN_QUALITY = 'off';
+process.env.DESIGN_THEME_LOCK = 'off';
   }
+});
+
+test('the picture palette is the law of the book', () => {
+  const theme = themeFromPalettes({ photo1: ['#F8F2E7', '#E8DCC5', '#C9B78F', '#8A6A45'] });
+  const themed = applyPictureTheme(
+    '<div style="background:#FF00AA;color:#00FF00;">x</div><div style="color:#FFFFFF;">neutral</div>',
+    theme,
+  );
+  assert.equal(themed.includes('#FF00AA'), false, 'invented colour is remapped');
+  assert.equal(themed.includes('#00FF00'), false, 'invented text colour is remapped');
+  assert.ok(themed.includes('#FFFFFF'), 'neutral white is kept');
+  assert.ok(/var\(--|#[0-9A-F]{6}/i.test(themed));
+  assert.equal(clientNamedColour('Client wants a deep green wardrobe'), true);
+  assert.equal(clientNamedColour('Make it in #1B4D3E'), true);
+  assert.equal(clientNamedColour('More air on the cover'), false);
 });
 
 test('the visual taste is read from the supplied pictures', () => {
@@ -3915,6 +3933,7 @@ test('the print review pass checks alignment after the design', { timeout: 240_0
   } finally {
     process.env.DESIGN_QA_PASSES = '0';
 process.env.DESIGN_QUALITY = 'off';
+process.env.DESIGN_THEME_LOCK = 'off';
   }
 });
 
@@ -3998,6 +4017,7 @@ test('the art director pass refines a valid brochure', { timeout: 240_000 }, asy
     process.env.DESIGN_POLISH = 'off';
 process.env.DESIGN_QA_PASSES = '0';
 process.env.DESIGN_QUALITY = 'off';
+process.env.DESIGN_THEME_LOCK = 'off';
   }
 });
 

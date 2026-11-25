@@ -60,6 +60,8 @@ import {
   buildQualityMessages,
   parseQualityReview,
   QUALITY_THRESHOLD,
+  applyPictureTheme,
+  clientNamedColour,
   compileGenerativeBrochure,
   samplePhotoPlates,
   designLabel,
@@ -1891,6 +1893,16 @@ export function createApp(options) {
       }
     });
 
+    // The pictures are the law of the palette. Only an explicit colour request
+    // from the client may override the colours read from their own images.
+    const pictureTheme = themeFromPalettes(photoPalettes);
+    const clientChoseColour = clientNamedColour(
+      [direction, brief, order.designDirection ?? ''].join(' '),
+    );
+    const themeLockOn = String(process.env.DESIGN_THEME_LOCK ?? 'on').toLowerCase() !== 'off';
+    const withPictureTheme = (html) =>
+      !themeLockOn || clientChoseColour ? String(html) : applyPictureTheme(html, pictureTheme);
+
     try {
       // 1. Words. Studio edited copy wins, then the stored copy, then a fresh
       // pass with the usual quality repair.
@@ -1965,16 +1977,17 @@ export function createApp(options) {
         latencyMs = result.latencyMs;
         previousReply = result.content;
         try {
-          const designTheme = themeFromPalettes(photoPalettes);
+          const designTheme = pictureTheme;
+          const themedReply = withPictureTheme(result.content);
           const document = parseDesignerReply(
-            result.content,
+            themedReply,
             attached.length,
             palettePhotos,
             designTheme,
             order.annotations ?? [],
             Object.keys(photoDetails).length,
           );
-          acceptedReply = result.content;
+          acceptedReply = themedReply;
           html = compileGenerativeBrochure({
             order,
             materials: listMaterials(db),
@@ -2008,7 +2021,7 @@ export function createApp(options) {
                 if (verdict.score > bestScore) {
                   bestScore = verdict.score;
                   bestHtml = html;
-                  bestReply = result.content;
+                  bestReply = themedReply;
                 }
                 if (verdict.score < QUALITY_THRESHOLD) {
                   lastIssues = `The art director scored this ${verdict.score}/10, below the ${QUALITY_THRESHOLD}/10 world class gate. Apply these fixes: ${verdict.fixes.join('; ') || 'raise the art direction and composition'}`;
@@ -2055,9 +2068,10 @@ export function createApp(options) {
             temperature: 0.5,
             timeoutMs: 300_000,
           });
-          const polishedTheme = themeFromPalettes(photoPalettes);
+          const polishedTheme = pictureTheme;
+          const polishedReply = withPictureTheme(polished.content);
           const document = parseDesignerReply(
-            polished.content,
+            polishedReply,
             attached.length,
             palettePhotos,
             polishedTheme,
@@ -2076,6 +2090,7 @@ export function createApp(options) {
             pages: document.pages,
             styles: document.styles,
           });
+          acceptedReply = polishedReply;
           logger.info('The art director pass refined the brochure.');
         } catch (error) {
           // A polish pass must never lose a valid document.
@@ -2099,9 +2114,10 @@ export function createApp(options) {
               temperature: 0.35,
               timeoutMs: 300_000,
             });
-            const reviewedTheme = themeFromPalettes(photoPalettes);
+            const reviewedTheme = pictureTheme;
+            const reviewedReply = withPictureTheme(result.content);
             const document = parseDesignerReply(
-              result.content,
+              reviewedReply,
               attached.length,
               palettePhotos,
               reviewedTheme,
@@ -2120,7 +2136,7 @@ export function createApp(options) {
               pages: document.pages,
               styles: document.styles,
             });
-            reviewed = result.content;
+            reviewed = reviewedReply;
             logger.info('The print review pass refined the brochure.', { pass });
           } catch (error) {
             logger.warn('The print review pass was skipped.', {

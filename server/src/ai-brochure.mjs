@@ -1311,6 +1311,60 @@ export function pictureTaste(photoPalettes = {}) {
   return { tone, warmth, contrast, colours, lightness: Number((lightness * lightness).toFixed(2)) };
 }
 
+/**
+ * Make the pictures the law of the palette. Any literal colour the model
+ * invented that is not in the picture theme is remapped to the nearest theme
+ * colour, so a book can never drift into a house beige or a random accent.
+ */
+export function applyPictureTheme(html, theme) {
+  const source = String(html ?? '');
+  if (!theme) return source;
+  const allowed = [
+    theme.paper,
+    theme.ink,
+    theme.deep,
+    theme.accent,
+    theme.gold,
+    theme.hair,
+    theme.muted,
+    theme.onDark,
+  ].filter((hex) => hexRgb(hex));
+  const neutral = (hex) => {
+    const [r, g, b] = hexRgb(hex);
+    const max = Math.max(r, g, b) / 255;
+    const min = Math.min(r, g, b) / 255;
+    const light = (max + min) / 2;
+    return light > 0.9 || light < 0.08 || Math.max(r, g, b) - Math.min(r, g, b) < 26;
+  };
+  const distance = (left, right) => {
+    const [ar, ag, ab] = hexRgb(left);
+    const [br, bg, bb] = hexRgb(right);
+    return Math.hypot(ar - br, ag - bg, ab - bb);
+  };
+  const map = new Map();
+  return source.replace(/#[0-9a-fA-F]{6}\b/g, (match) => {
+    const hex = match.toUpperCase();
+    if (map.has(hex)) return map.get(hex);
+    if (neutral(hex) || allowed.some((colour) => distance(hex, colour) <= 40)) {
+      map.set(hex, match);
+      return match;
+    }
+    const nearest = [...allowed].sort((left, right) => distance(hex, left) - distance(hex, right))[0];
+    const replacement = nearest ?? match;
+    map.set(hex, replacement);
+    return replacement;
+  });
+}
+
+/** True when the client themselves named a colour or a hex code. */
+export function clientNamedColour(text) {
+  const value = String(text ?? '');
+  if (/#[0-9a-fA-F]{6}\b/.test(value)) return true;
+  const COLOUR_WORDS =
+    /\b(red|blue|green|black|white|cream|ivory|beige|brown|walnut|oak|teak|grey|gray|charcoal|gold|brass|copper|silver|sage|olive|navy|pink|rose|terracotta|mustard|teal|maroon|burgundy|lavender|peach|sand|stone|oat|taupe|espresso|cherry|maple|birch|ash|mint|emerald|sapphire)\b/i;
+  return COLOUR_WORDS.test(value);
+}
+
 export function themeFromPalettes(photoPalettes = {}) {
   const colours = Object.values(photoPalettes).flat().filter((hex) => hexRgb(hex));
   if (colours.length === 0) return { ...PALETTE };
