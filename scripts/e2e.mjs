@@ -630,6 +630,28 @@ try {
   check("test connection reports success", connected);
   await shot(page, `${shots}/06b-model-settings.png`);
 
+  // 4b2. first run: chat learns about a newly connected model on focus without
+  // a full reload. Remove the key, load chat, restore the key, return to chat.
+  await fetch(`${API}/api/llm/settings`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ apiKey: "" }),
+  });
+  await safeGoto(page, WEB, { waitUntil: "networkidle2" });
+  await sleep(2500);
+  check("a new install without a key asks for the model", await hasText(page, "Add model"));
+  await fetch(`${API}/api/llm/settings`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ endpoint: "http://127.0.0.1:8793/v1", model: "mock-flash", apiKey: "test-key" }),
+  });
+  await page.evaluate(() => document.querySelector('[aria-label="History"]')?.click());
+  await sleep(800);
+  await page.evaluate(() => document.querySelector('[aria-label="Chat"]')?.click());
+  await sleep(2500);
+  check("the chat rechecks the model when it regains focus", await hasText(page, "Model ready"));
+  check("the stale add model prompt is gone", !(await hasText(page, "Add model", 1000)));
+
   // 4c. the chat interface: dump the requirement, answer the gap, cook
   await safeGoto(page, WEB, { waitUntil: "networkidle2" });
   await sleep(2500);

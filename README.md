@@ -250,7 +250,7 @@ The studio ships presets for DeepSeek, OpenCode Zen Go, Command Code Provider, O
 ```bash
 npm test          # server suite
 npm run verify    # black box smoke test
-npm run e2e       # 96 browser checks
+npm run e2e       # 99 browser checks
 npm run typecheck
 npm run lint
 ```
