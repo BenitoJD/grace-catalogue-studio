@@ -529,26 +529,17 @@ try {
     "the pictures are reviewed before design",
     await waitForBodyText(page, "what I would magnify", 90000)
   );
-  await page
-    .waitForFunction(
-      () => document.querySelectorAll('[data-testid^="review-loupe-"]').length >= 3,
-      { timeout: 30000 }
-    )
-    .catch(() => {});
   check(
-    "the review names the magnified details in place",
-    await page.evaluate(() =>
-      /Magnified details: 1 [^·\n]+ · 2 [^·\n]+ · 3 [^\n]+/.test(document.body.innerText)
-    )
+    "the review offers marking every picture",
+    await page.evaluate(() => document.querySelectorAll('[aria-label^="Mark an area"]').length >= 1)
   );
   check(
-    "each magnifier is named with the colour inside it",
+    "every mark is named outside the picture with its colour",
     await page.evaluate(() => {
-      const line = document.body.innerText.match(
-        /Magnified details: 1 ([^·\n]+) · 2 ([^·\n]+) · 3 ([^\n]+)/
+      const items = [...document.querySelectorAll('[data-testid^="review-legend-"]')].map(
+        (item) => item.innerText.trim()
       );
-      if (!line) return false;
-      return [line[1], line[2], line[3]].every((name) => name.trim().length >= 3);
+      return items.length >= 3 && items.every((text) => /#[0-9A-F]{6}/.test(text) && text.length >= 8);
     })
   );
   await page.screenshot({ path: `${shots}/06h-picture-review.png` });
