@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
@@ -272,7 +272,11 @@ export default function ChatScreen() {
     };
   }, [params.orderId]);
 
-  useEffect(() => {
+  // The chat stays mounted when the studio opens Settings, so the model status
+  // is read again every time the chat is focused. Without this the header kept
+  // saying "Add model" and the chat kept asking for a key that was already
+  // saved, until the application was restarted.
+  const refreshModelStatus = useCallback(() => {
     let active = true;
     api
       .health()
@@ -294,6 +298,8 @@ export default function ChatScreen() {
       active = false;
     };
   }, []);
+
+  useFocusEffect(refreshModelStatus);
 
   useEffect(() => {
     anim.setValue(0);
@@ -3002,7 +3008,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.fill,
   },
   fileChipUser: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    // The chat bubble is a light neutral (#F4F4F4), so the chip needs a fill
+    // that reads on it and dark type. White on white was unreadable.
+    backgroundColor: colors.fill,
   },
   fileThumb: {
     width: 24,
@@ -3015,7 +3023,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   fileChipNameUser: {
-    color: colors.surface,
+    color: colors.ink,
   },
   formatRow: {
     flexDirection: 'row',

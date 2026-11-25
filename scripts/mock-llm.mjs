@@ -12,6 +12,12 @@ import { fileURLToPath } from 'node:url';
 const port = Number.parseInt(process.argv[2] ?? '8793', 10);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DESIGNER_HTML = readFileSync(path.join(here, 'fixtures', 'designer-reply.html'), 'utf8');
+// A brochure is a longer book than a pamphlet: the same fixture plus a detail
+// side and a quiet type side, so the brochure format can be exercised offline.
+const DESIGNER_BROCHURE_HTML = readFileSync(
+  path.join(here, 'fixtures', 'designer-reply-brochure.html'),
+  'utf8'
+);
 
 const CATALOG_PALETTES = [
   { paper: '#FBF3E4', ink: '#2A1512', deep: '#4A1116', accent: '#7C2A22', gold: '#C79A3A', hair: '#E3D2B8', muted: '#6B4A3E', onDark: '#FBF3E4' },
@@ -246,7 +252,9 @@ createServer(async (request, response) => {
         : isEditRequest
           ? JSON.stringify(EDIT)
           : isDesignRequest
-            ? DESIGNER_HTML
+            ? prompt.includes('output format: brochure')
+              ? DESIGNER_BROCHURE_HTML
+              : DESIGNER_HTML
             : isIntakeRequest
               ? JSON.stringify(intake)
               : isCopyRequest

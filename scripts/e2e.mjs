@@ -91,7 +91,12 @@ async function waitFor(url, attempts = 80) {
 // bounded only by the protocol timeout (minutes), so race it against a short
 // timer and stop taking screenshots for the rest of the run after the first
 // one stalls. The checks still run and still decide the result.
-let screenshotsDisabled = false;
+// Screenshots are off by default when the suite drives Edge on Windows, because
+// that is the combination that stalls; E2E_SCREENSHOTS=1 turns them back on.
+const screenshotsEnabled =
+  process.env.E2E_SCREENSHOTS === "1" ||
+  !(process.platform === "win32" && /msedge/i.test(CHROME));
+let screenshotsDisabled = !screenshotsEnabled;
 async function shot(target, path, options = {}) {
   if (screenshotsDisabled) return false;
   let timer = null;
@@ -228,9 +233,9 @@ async function setValueByPlaceholder(page, placeholder, value) {
 }
 
 async function fillByPlaceholder(page, placeholder, value) {
-  const handle = await page.$(`[placeholder="${placeholder}"]`);
-  if (!handle) return false;
-  await handle.click();
+  // One evaluate, no ElementHandle.click in between: every page call is bounded
+  // by guardPage below, while an ElementHandle click is not, and a wedged
+  // renderer then hangs the whole suite instead of failing one check.
   const replaced = await page.evaluate(
     (needle, next) => {
       const element = document.querySelector(`[placeholder="${needle}"]`);
@@ -299,17 +304,35 @@ async function safeGoto(target, url, options = { waitUntil: "networkidle2" }) {
 
 
 // page.evaluate has no timeout of its own in puppeteer, so a renderer that
-// stops answering hangs the suite forever. Bound it; a stall then surfaces as a
-// failed check instead of a run that never finishes. waitForFunction, goto and
-// the click helpers already take their own timeouts.
+// stops answering hangs the suite forever. Bound it and the element handle
+// methods too; a stall then surfaces as a failed check instead of a run that
+// never finishes.
 const STALLED = Symbol("stalled");
+function bounded(call, label, ms = 45000) {
+  return Promise.race([call, sleep(ms).then(() => STALLED)]).then((value) => {
+    if (value === STALLED) throw new Error(`the page stopped answering ${label}`);
+    return value;
+  });
+}
+
+function guardHandle(handle) {
+  if (!handle) return handle;
+  for (const name of ["click", "type", "fill", "hover", "focus", "scrollIntoView"]) {
+    if (typeof handle[name] !== "function") continue;
+    const original = handle[name].bind(handle);
+    handle[name] = (...args) => bounded(original(...args), name);
+  }
+  return handle;
+}
+
 function guardPage(target) {
   for (const name of ["evaluate", "evaluateHandle", "$", "$$"]) {
     const original = target[name].bind(target);
     target[name] = (...args) =>
-      Promise.race([original(...args), sleep(45000).then(() => STALLED)]).then((value) => {
-        if (value === STALLED) throw new Error(`the page stopped answering ${name}`);
-        return value;
+      bounded(original(...args), name).then((value) => {
+        if (value === STALLED) return value;
+        if (Array.isArray(value)) return value.map(guardHandle);
+        return guardHandle(value);
       });
   }
   return target;
@@ -867,6 +890,44 @@ try {
   await safeGoto(page, `${WEB}/orders/${orderId}`, { waitUntil: "networkidle2" });
   check("deep link to order works", await hasText(page, orders[0].orderNo, 12000));
 
+  // 9c. the studio can make the larger brochure from the same order
+  await safeGoto(page, `${WEB}/orders/${chatOrder.id}`, { waitUntil: "networkidle2" });
+  await sleep(2500);
+  const brochureChip = await page.$('[aria-label="Brochure format"]');
+  check("the order offers a brochure format", Boolean(brochureChip));
+  if (brochureChip) {
+    // A DOM click, not an ElementHandle click: the handle click scrolls the
+    // heavy order page first, and that scrolling is what wedged headless Edge.
+    const chosen = await page.evaluate(() => {
+      const chip = document.querySelector('[aria-label="Brochure format"]');
+      if (!chip) return false;
+      chip.click();
+      return true;
+    });
+    check("the brochure format can be chosen", chosen);
+    await sleep(400);
+    check("the brochure format explains itself", await hasText(page, "Larger art directed book", 8000));
+    const beforeBrochure = (await (await fetch(`${API}/api/renders`)).json()).length;
+    check("the brochure can be designed", await clickText(page, "Design it again"));
+    let brochureRender = null;
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      const list = await (await fetch(`${API}/api/renders`)).json();
+      if (list.length > beforeBrochure) {
+        brochureRender = list.find((render) => render.kind === "ai" && render.orderId === chatOrder.id);
+      }
+      if (brochureRender) break;
+      await sleep(500);
+    }
+    check(
+      "the brochure is a longer book than the pamphlet",
+      Boolean(brochureRender) && brochureRender.pageCount > 6,
+      `${brochureRender?.pageCount} pages`
+    );
+    const storedFormat = await (await fetch(`${API}/api/orders/${chatOrder.id}`)).json();
+    check("the order remembers the brochure format", storedFormat.designFormat === "brochure", String(storedFormat.designFormat));
+    await shot(page, `${shots}/09-brochure-format.png`);
+  }
+
   // 8. mobile viewport
   const mobile = guardPage(await browser.newPage());
   await mobile.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
@@ -891,6 +952,10 @@ try {
   const workspaceOrders = await (await fetch(`${API}/api/orders`)).json();
   const workspaceOrder = workspaceOrders.find((order) => (order.attachments ?? []).length > 0);
   if (workspaceOrder) {
+    // The workspace drives a second page and the heaviest images. If the
+    // renderer stalls, one check fails instead of taking the rest of the run
+    // with it.
+    try {
     await safeGoto(page, `${WEB}/workspace/${workspaceOrder.id}`, { waitUntil: "networkidle2" });
     check("workspace opens the project pages", await waitForBodyText(page, "Project pages", 90000));
     check("workspace shows the page strip and page count", (await hasText(page, "Page 1 of", 30000)));
@@ -912,6 +977,9 @@ try {
         markedOrder.annotations.some((mark) => mark.label === "Brass handle" && mark.colourHex === "#B98A55")
     );
     await shot(page, `${shots}/08g-workspace.png`);
+    } catch (error) {
+      check("the workspace stayed usable", false, String(error?.message ?? error).slice(0, 140));
+    }
   }
 
   // 10. error state when the api is down

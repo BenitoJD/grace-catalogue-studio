@@ -24,11 +24,20 @@ function normaliseBaseUrl(value: string): string {
  * - on the web in production, the app is served behind the same host as the API,
  *   so same origin is the safest default
  */
+// The ports the Expo dev server and the static dev server use. A page served
+// from one of these talks to the API that `npm run dev` starts on 8787.
+const DEVELOPMENT_PORTS = new Set(['', '8081', '8082', '19006']);
+
 function defaultBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
-    const host = window.location.hostname;
-    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
-    return isLocal ? 'http://localhost:8787' : window.location.origin;
+    const { hostname, port } = window.location;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+    // The desktop application serves this page from a loopback port of its own
+    // and proxies the API to it, so there the page origin is the base URL even
+    // though the host is 127.0.0.1. Only the development ports mean "the API
+    // is the separate server on 8787".
+    if (isLocal && DEVELOPMENT_PORTS.has(port)) return 'http://localhost:8787';
+    return window.location.origin;
   }
   return 'http://localhost:8787';
 }
