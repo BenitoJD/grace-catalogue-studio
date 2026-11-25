@@ -16,3 +16,6 @@ grace/
 .env.local
 .nuget/
 .dotnet-home/
+
+# local test artifacts
+test-runs/
