@@ -1535,6 +1535,10 @@ export function compileGenerativeBrochure({
 
   // Material callout pages, drawn by the server so the annotation is always
   // visible and always matches the paint card reference.
+  // Material callouts, drawn by the studio: black ring, black dashed leader to
+  // the nearest side only, and a compact label outside the picture. Lines stay
+  // short, so the picture keeps almost all of its space.
+  const IMG = { left: 43, top: 58, size: 130 };
   const annotationPages = [];
   for (const [key, details] of Object.entries(photoDetails)) {
     const match = /^photo(\d+)$/.exec(key);
@@ -1543,37 +1547,71 @@ export function compileGenerativeBrochure({
     const uri = photoTokens[index];
     if (!uri || !Array.isArray(details) || details.length === 0) continue;
     const used = details.slice(0, 3);
-    const marks = used
-      .map((detail) => {
-        const x = Math.min(92, Math.max(8, Number(detail.x ?? 50)));
-        const y = Math.min(88, Math.max(12, Number(detail.y ?? 50)));
-        return (
-          `<div style="position:absolute;left:${(x * 1.5).toFixed(1)}mm;top:${(y * 1.5).toFixed(1)}mm;width:3mm;height:3mm;margin:-1.5mm 0 0 -1.5mm;border:0.4mm solid #F8F2E7;box-shadow:0 0 0 0.35mm #1C1C1C;border-radius:50%;"></div>` +
-          `<div style="position:absolute;left:${(x * 1.5).toFixed(1)}mm;top:${(y * 1.5).toFixed(1)}mm;width:${(150 - x * 1.5).toFixed(1)}mm;border-top:0.9mm solid rgba(255,255,255,0.9);"></div>` +
-          `<div style="position:absolute;left:${(x * 1.5).toFixed(1)}mm;top:${(y * 1.5).toFixed(1)}mm;width:${(150 - x * 1.5).toFixed(1)}mm;border-top:0.35mm dashed #1C1C1C;"></div>`
-        );
+    const placements = [];
+    for (const detail of used) {
+      const x = Math.min(93, Math.max(7, Number(detail.x ?? 50)));
+      const y = Math.min(93, Math.max(7, Number(detail.y ?? 50)));
+      const px = IMG.left + (x / 100) * IMG.size;
+      const py = IMG.top + (y / 100) * IMG.size;
+      const distances = [
+        { side: 'left', d: px - IMG.left },
+        { side: 'right', d: IMG.left + IMG.size - px },
+        { side: 'top', d: py - IMG.top },
+        { side: 'bottom', d: IMG.top + IMG.size - py },
+      ].sort((left, right) => left.d - right.d);
+      placements.push({ detail, px, py, side: distances[0].side });
+    }
+    const marks = placements
+      .map(({ px, py }) => {
+        const x = px.toFixed(1);
+        const y = py.toFixed(1);
+        return `<div style="position:absolute;left:${x}mm;top:${y}mm;width:3mm;height:3mm;margin:-1.5mm 0 0 -1.5mm;border:0.4mm solid #000;border-radius:50%;"></div>`;
       })
       .join('');
-    const labels = used
-      .map((detail, position) => {
-        const y = Math.min(88, Math.max(12, Number(detail.y ?? 50)));
-        const top = 46 + y * 1.5 + position * 0.5;
+    const leaders = placements
+      .map(({ detail, px, py, side }) => {
+        const label = `${String(placements.indexOf(placements.find((entry) => entry.detail === detail)) + 1).padStart(2, '0')}`;
+        const code = `${escapeHtml(detail.name ?? 'Colour')} ${escapeHtml(detail.colour ?? '')}`;
+        const caption = escapeHtml(String(detail.label ?? 'Material detail')).slice(0, 30);
+        const text = `<span style="font-weight:700;letter-spacing:0.16em;">${label} · ${code}</span><br><span style="font-size:5.8pt;letter-spacing:0.1em;color:#4A4A4A;">${caption}</span>`;
+        const x = px.toFixed(1);
+        const y = py.toFixed(1);
+        if (side === 'right') {
+          return (
+            `<div style="position:absolute;left:${x}mm;top:${y}mm;width:${(IMG.left + IMG.size - px).toFixed(1)}mm;border-top:0.3mm dashed #000;"></div>` +
+            `<div style="position:absolute;left:${(IMG.left + IMG.size + 0.5).toFixed(1)}mm;top:${(py - 1.1).toFixed(1)}mm;width:0;height:0;border-top:1.1mm solid transparent;border-bottom:1.1mm solid transparent;border-left:2mm solid #000;"></div>` +
+            `<div style="position:absolute;left:177mm;top:${(py - 2.4).toFixed(1)}mm;width:36mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;">${text}</div>`
+          );
+        }
+        if (side === 'left') {
+          return (
+            `<div style="position:absolute;left:${IMG.left}mm;top:${y}mm;width:${(px - IMG.left).toFixed(1)}mm;border-top:0.3mm dashed #000;"></div>` +
+            `<div style="position:absolute;left:${(IMG.left - 2.5).toFixed(1)}mm;top:${(py - 1.1).toFixed(1)}mm;width:0;height:0;border-top:1.1mm solid transparent;border-bottom:1.1mm solid transparent;border-right:2mm solid #000;"></div>` +
+            `<div style="position:absolute;left:3mm;top:${(py - 2.4).toFixed(1)}mm;width:37mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;text-align:right;">${text}</div>`
+          );
+        }
+        if (side === 'top') {
+          return (
+            `<div style="position:absolute;left:${x}mm;top:${IMG.top}mm;height:${(py - IMG.top).toFixed(1)}mm;border-left:0.3mm dashed #000;"></div>` +
+            `<div style="position:absolute;left:${(px - 1.1).toFixed(1)}mm;top:${(IMG.top - 2.8).toFixed(1)}mm;width:0;height:0;border-left:1.1mm solid transparent;border-right:1.1mm solid transparent;border-bottom:2mm solid #000;"></div>` +
+            `<div style="position:absolute;left:${Math.min(178, Math.max(3, px - 17)).toFixed(1)}mm;top:40mm;width:34mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;text-align:center;">${text}</div>`
+          );
+        }
         return (
-          `<div style="position:absolute;left:168mm;top:${top.toFixed(1)}mm;width:3mm;height:3mm;border-top:0.5mm solid #1C1C1C;border-right:0.5mm solid #1C1C1C;transform:rotate(45deg);"></div>` +
-          `<div style="position:absolute;left:174mm;top:${top.toFixed(1)}mm;width:38mm;color:#1C1C1C;font-family:var(--body);font-size:6.2pt;line-height:1.5;letter-spacing:0.12em;text-transform:uppercase;">` +
-          `<span style="color:#8A7A66;">${String(position + 1).padStart(2, '0')} · ${escapeHtml(String(detail.label ?? 'Detail')).slice(0, 30)}</span><br>` +
-          `<span style="font-size:7pt;letter-spacing:0.16em;">${escapeHtml(detail.name ?? 'Colour')} ${escapeHtml(detail.colour ?? '')}</span></div>`
+          `<div style="position:absolute;left:${x}mm;top:${y}mm;height:${(IMG.top + IMG.size - py).toFixed(1)}mm;border-left:0.3mm dashed #000;"></div>` +
+          `<div style="position:absolute;left:${(px - 1.1).toFixed(1)}mm;top:${(IMG.top + IMG.size + 0.8).toFixed(1)}mm;width:0;height:0;border-left:1.1mm solid transparent;border-right:1.1mm solid transparent;border-top:2mm solid #000;"></div>` +
+          `<div style="position:absolute;left:${Math.min(178, Math.max(3, px - 17)).toFixed(1)}mm;top:${(IMG.top + IMG.size + 5).toFixed(1)}mm;width:34mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;text-align:center;">${text}</div>`
         );
       })
       .join('');
     annotationPages.push(
-      `<div style="position:absolute;inset:0;background:#F7F2E9;color:#1C1C1C;font-family:var(--body);">` +
-        `<div style="position:absolute;left:18mm;top:13mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Material notes · colour callouts</div>` +
-        `<div style="position:absolute;left:18mm;top:22mm;width:170mm;font-family:var(--display);font-size:22pt;line-height:1.05;">The colour, named where it happens.</div>` +
-        `<div style="position:absolute;left:18mm;top:46mm;width:150mm;height:150mm;background:#EFE7D8;overflow:hidden;">` +
+      `<div style="position:absolute;inset:0;background:#F7F2E9;color:#000;font-family:var(--body);">` +
+        `<div style="position:absolute;left:43mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Material notes · colour callouts</div>` +
+        `<div style="position:absolute;left:43mm;top:25mm;width:130mm;font-family:var(--display);font-size:18pt;line-height:1.05;">The colour, named where it happens.</div>` +
+        `<div style="position:absolute;left:${IMG.left}mm;top:${IMG.top}mm;width:${IMG.size}mm;height:${IMG.size}mm;background:#EFE7D8;overflow:hidden;">` +
         `<img src="${uri}" style="width:100%;height:100%;object-fit:contain;">${marks}</div>` +
-        labels +
-        `<div style="position:absolute;left:18mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
+        leaders +
+        `<div style="position:absolute;left:43mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
         `</div>`,
     );
   }
