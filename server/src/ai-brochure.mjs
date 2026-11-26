@@ -1738,16 +1738,16 @@ export function compileGenerativeBrochure({
         const text = `<span style="font-weight:600;letter-spacing:0.14em;">${number} · ${code}</span><br><span style="font-size:5.3pt;letter-spacing:0.12em;color:#5A5A5A;">${caption}</span>`;
         const style = `color:#000;font-family:var(--body);font-size:5.8pt;line-height:1.5;letter-spacing:0.05em;`;
         if (side === 'right') {
-          return `<div style="position:absolute;left:${(photoRight + 4).toFixed(1)}mm;top:${(py - 2.2).toFixed(1)}mm;width:${Math.max(20, Math.min(30, 212 - photoRight - 4)).toFixed(1)}mm;${style}text-align:left;">${text}</div>`;
+          return `<div style="position:absolute;left:${(photoRight + 8).toFixed(1)}mm;top:${(py - 2.2).toFixed(1)}mm;width:${Math.max(18, Math.min(26, 212 - photoRight - 8)).toFixed(1)}mm;${style}text-align:left;">${text}</div>`;
         }
         if (side === 'left') {
-          const width = Math.max(20, Math.min(30, photoLeft - 5));
-          return `<div style="position:absolute;left:${Math.max(2, photoLeft - 4 - width).toFixed(1)}mm;top:${(py - 2.2).toFixed(1)}mm;width:${width.toFixed(1)}mm;${style}text-align:right;">${text}</div>`;
+          const width = Math.max(18, Math.min(26, photoLeft - 8));
+          return `<div style="position:absolute;left:${Math.max(2, photoLeft - 8 - width).toFixed(1)}mm;top:${(py - 2.2).toFixed(1)}mm;width:${width.toFixed(1)}mm;${style}text-align:right;">${text}</div>`;
         }
         if (side === 'top') {
-          return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.max(44, photoTop - 11).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
+          return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.max(40, photoTop - 18).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
         }
-        return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.min(215, photoBottom + 3).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
+        return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.min(215, photoBottom + 9).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
       })
       .join('');
     const leaders = placements
@@ -1778,15 +1778,15 @@ export function compileGenerativeBrochure({
             `<div style="position:absolute;left:${(px - 1.4).toFixed(1)}mm;top:${(edge - 2.4).toFixed(1)}mm;width:0;height:0;border-left:1.4mm solid transparent;border-right:1.4mm solid transparent;border-top:2.4mm solid #000;"></div>`;
         };
         if (side === 'right') {
-          return hLine(px + 2.1, photoRight - px - 4.6) + arrow('right', photoRight);
+          return hLine(px + 2.1, photoRight + 4 - (px + 2.1)) + arrow('right', photoRight + 4);
         }
         if (side === 'left') {
-          return hLine(photoLeft + 2.4, px - photoLeft - 4.6) + arrow('left', photoLeft);
+          return hLine(photoLeft - 4, px - 2.1 - (photoLeft - 4)) + arrow('left', photoLeft - 4);
         }
         if (side === 'top') {
-          return vLine(x, photoTop + 2.4, py - photoTop - 4.7) + arrow('top', photoTop);
+          return vLine(x, photoTop - 10, py - (photoTop - 10)) + arrow('top', photoTop - 10);
         }
-        return vLine(x, py + 2.1, photoBottom - py - 4.7) + arrow('bottom', photoBottom);
+        return vLine(x, py + 2.1, photoBottom + 8 - (py + 2.1)) + arrow('bottom', photoBottom + 8);
       })
       .join('');
     const palette = Array.isArray(photoPalettes[key]) ? photoPalettes[key].slice(0, 4) : [];
@@ -1798,7 +1798,7 @@ export function compileGenerativeBrochure({
       )
       .join('');
     const hasBottomLabel = placements.some((entry) => entry.side === 'bottom');
-    const paletteTop = Math.min(244, photoBottom + (hasBottomLabel ? 16 : 10));
+    const paletteTop = Math.min(244, photoBottom + (hasBottomLabel ? 26 : 10));
     const materialLine = details
       .map((detail) => String(detail.label ?? '').trim())
       .filter(Boolean)
