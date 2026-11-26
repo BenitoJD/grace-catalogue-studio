@@ -1840,7 +1840,7 @@ export function compileGenerativeBrochure({
           return `<div style="position:absolute;left:${Math.max(2, photoLeft - 8 - width).toFixed(1)}mm;top:${(py - 2.2).toFixed(1)}mm;width:${width.toFixed(1)}mm;${style}text-align:right;">${text}</div>`;
         }
         if (side === 'top') {
-          return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.max(40, photoTop - 18).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
+          return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.max(40, photoTop - 22).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
         }
         return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.min(215, photoBottom + 9).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
       })
@@ -1879,7 +1879,7 @@ export function compileGenerativeBrochure({
           return hLine(photoLeft - 4, px - 2.1 - (photoLeft - 4)) + arrow('left', photoLeft - 4);
         }
         if (side === 'top') {
-          return vLine(x, photoTop - 10, py - (photoTop - 10)) + arrow('top', photoTop - 10);
+          return vLine(x, photoTop - 6, py - (photoTop - 6)) + arrow('top', photoTop - 6);
         }
         return vLine(x, py + 2.1, photoBottom + 8 - (py + 2.1)) + arrow('bottom', photoBottom + 8);
       })
