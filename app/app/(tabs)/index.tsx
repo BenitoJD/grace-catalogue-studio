@@ -1488,7 +1488,12 @@ function ReviewPhotoCard({
         colourName: markName.trim(),
         colourHex: hex,
       });
-      setMarkNote('Saved to this chat. It will be attached when the order is created.');
+      setMarkNote('Saved. Tap the picture to mark another detail.');
+      setPoint(null);
+      setMarkLabel('');
+      setMarkName('');
+      setMarkHex('');
+      setMarkSuggestions([]);
       setMarking(false);
       return;
     }
@@ -1507,8 +1512,13 @@ function ReviewPhotoCard({
           colourHex: hex,
         },
       ]);
-      setMarkNote('Saved. Press Send to design with your marked details.');
+      setMarkNote('Saved. Tap the picture to mark another detail.');
       onMarksSaved?.();
+      setPoint(null);
+      setMarkLabel('');
+      setMarkName('');
+      setMarkHex('');
+      setMarkSuggestions([]);
     } catch (error) {
       setMarkNote(error instanceof Error ? error.message : 'Marks could not be saved.');
     } finally {
@@ -1552,6 +1562,11 @@ function ReviewPhotoCard({
               y: Number.isFinite(localY) ? Math.min(100, Math.max(0, (localY / frame.height) * 100)) : 50,
             };
             setPoint(position);
+            setMarkLabel('');
+            setMarkName('');
+            setMarkHex('');
+            setMarkSuggestions([]);
+            setMarkNote('');
             setMarkOpen(true);
             void samplePoint(position);
           }}
