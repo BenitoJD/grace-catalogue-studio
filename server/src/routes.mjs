@@ -2460,7 +2460,17 @@ export function createApp(options) {
           filePaths: finalPages,
           logger,
         });
-        if (finalIssues && finalIssues.length > 0) {
+        if (finalIssues === null) {
+          designProgress('Final visual gate could not verify the print');
+          rmSync(path.join(dataDir, 'renders', `${renderId}.pdf`), { force: true });
+          for (const pageFile of finalPages) rmSync(pageFile, { force: true });
+          return fail(
+            c,
+            422,
+            'The final print could not be visually verified. Use a vision capable model in Settings; without it the studio cannot promise a premium print.',
+          );
+        }
+        if (finalIssues.length > 0) {
           const summary = finalIssues
             .slice(0, 5)
             .map((entry) => `page ${entry.page}: ${entry.issues.join('; ')}`)
