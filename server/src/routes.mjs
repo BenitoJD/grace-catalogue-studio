@@ -2446,6 +2446,35 @@ export function createApp(options) {
       designProgress('Printing the PDF');
       const rendered = await renderer.renderHtml({ html, renderId });
       designProgress(`Printing complete, ${rendered.pageCount} pages rendered`);
+
+      // Final gate: the delivered PDF is checked as printed page images. If the
+      // visual inspector sees a misaligned page the render is discarded and the
+      // caller gets the exact page problems, so no broken print is handed over.
+      if (String(process.env.DESIGN_VISUAL_QA ?? 'on').toLowerCase() !== 'off') {
+        const finalPages = Array.from({ length: rendered.pageCount }, (_, pageIndex) =>
+          path.join(dataDir, 'renders', `${renderId}-${pageIndex + 1}.png`),
+        );
+        const finalIssues = await inspectRenderedPages({
+          config,
+          requestChat,
+          filePaths: finalPages,
+          logger,
+        });
+        if (finalIssues && finalIssues.length > 0) {
+          const summary = finalIssues
+            .slice(0, 5)
+            .map((entry) => `page ${entry.page}: ${entry.issues.join('; ')}`)
+            .join(' | ');
+          designProgress('Final visual gate rejected the print', summary);
+          rmSync(path.join(dataDir, 'renders', `${renderId}.pdf`), { force: true });
+          for (const pageFile of finalPages) rmSync(pageFile, { force: true });
+          return fail(
+            c,
+            422,
+            `The visual inspector rejected the final print: ${summary}. It was not delivered.`,
+          );
+        }
+      }
       const design = {
         label: designLabel({ direction }),
         designed: true,
