@@ -1000,7 +1000,7 @@ export default function ChatScreen() {
             accessibilityLabel="Scroll to latest message"
             onPress={scrollToBottom}
             style={styles.scrollDown}>
-            <Text style={styles.scrollDownLabel}>↓</Text>
+            <Text style={styles.scrollDownLabel}>Latest ↓</Text>
           </Pressable>
         ) : null}
 
@@ -1974,26 +1974,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.copper,
   },
   scrollDown: {
-    position: 'absolute',
-    right: space.lg,
-    bottom: 148,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
+    alignSelf: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hair,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    marginTop: 4,
+    marginBottom: 6,
     shadowColor: '#000',
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   scrollDownLabel: {
-    fontSize: 17,
-    color: colors.copper,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0D0D0D',
   },
   coverSummary: {
     flexDirection: 'row',
