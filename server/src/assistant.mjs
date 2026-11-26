@@ -15,6 +15,7 @@ const SYSTEM_PROMPT = [
   'WORKFLOW',
   '1. When pictures are attached, call read_pictures first. Never ask the customer for the room or the piece: read them and say in one short sentence what you see, then ask them to confirm.',
   '2. The only fact you must ask for is the customer name. Ask "Who is the customer?" when it is unknown.',
+  'If no pictures are attached to the chat, ask the studio to attach the customer pictures. Do not create an order and do not design until at least one picture or PDF page is attached.',
   '3. Once you have the customer name, never wait: call create_order, then call design_brochure for that order. The chat shows the brochure once it exists.',
   '4. After an order exists, every sentence from the studio is an edit. Use update_order for words the customer said and design_brochure to re-compose the pages. Attach new pictures first with the edit if they arrive.',
   '5. The studio can ask for a Pamphlet or a Brochure. Pamphlet is a small take home piece; Brochure is a larger art directed book. Default to the current order format, and when the studio names one, pass it as format to create_order or design_brochure.',
@@ -185,6 +186,7 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
       executionMode: 'sequential',
       execute: async (_toolCallId, params) => {
         onProgress({ stage: 'order', label: 'Creating the order' });
+        if (attachments.length === 0) throw new Error('No pictures are attached yet. Ask the studio to attach the pictures first.');
         if (state.orderId) {
           return textResult({ orderId: state.orderId, orderNo: state.orderNo, note: 'Order already created.' });
         }
@@ -229,6 +231,7 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
       executionMode: 'sequential',
       execute: async (_toolCallId, params) => {
         onProgress({ stage: 'design', label: 'Designing the brochure pages' });
+        if (attachments.length === 0) throw new Error('No pictures are attached yet. Ask the studio to attach the pictures first.');
         const orderId = params.orderId ?? state.orderId;
         if (!orderId) throw new Error('Create the order before designing the brochure.');
         const chosenFormat =
@@ -418,12 +421,26 @@ export function createStudioStreamFn(config, fetchImpl = globalThis.fetch) {
       temperature: 0.2,
       ...(tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
     };
-    const response = await fetchImpl(`${base}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(150_000),
-    });
+    // A short network hiccup must not kill a long design turn. Retry a
+    // transport failure or a 5xx twice with a small backoff; a real 4xx is
+    // returned to the caller without retrying.
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    let response = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        response = await fetchImpl(`${base}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(150_000),
+        });
+        if (response.ok || (response.status >= 400 && response.status < 500)) break;
+      } catch (error) {
+        if (attempt === 3) throw error;
+      }
+      if (attempt < 3) await sleep(700 * attempt);
+    }
+    if (!response) throw new Error('The model provider could not be reached.');
     const raw = await response.text();
     if (!response.ok) {
       throw new Error(`The model refused the request (${response.status}): ${raw.slice(0, 240)}`);
@@ -544,6 +561,15 @@ export async function runAssistantTurn({
       if (toolCall.name === 'create_order' && state.orderId) {
         return { block: true, reason: 'The order already exists; edit it instead of creating another.' };
       }
+      if (
+        (toolCall.name === 'create_order' || toolCall.name === 'design_brochure') &&
+        attachments.length === 0
+      ) {
+        return {
+          block: true,
+          reason: 'No pictures are attached. Ask the studio to attach the customer pictures before creating the order or designing.',
+        };
+      }
       if (toolCall.name === 'design_brochure' && !state.orderId) {
         return { block: true, reason: 'Create the order before designing the brochure.' };
       }
@@ -634,6 +660,20 @@ function transcriptOf(agent) {
       } catch {
         return null;
       }
+    })
+    .filter(Boolean)
+    .map((message) => {
+      if (message.role !== 'user' || typeof message.content !== 'string') return message;
+      // The model prompt folds order facts and older turns into a context
+      // block. That block is internal: never store it, or History shows
+      // "Conversation so far:" and order ids to the customer.
+      const marker = '\n\nStudio: ';
+      const index = message.content.lastIndexOf(marker);
+      if (index >= 0) {
+        return { ...message, content: message.content.slice(index + marker.length).trim() };
+      }
+      if (message.content.startsWith('Conversation so far:')) return null;
+      return message;
     })
     .filter(Boolean);
 }

@@ -4911,6 +4911,7 @@ test('a second create_order in one turn is blocked', { timeout: 240_000 }, async
   const result = await runAssistantTurn({
     config: { model: 'faux', endpoint: 'http://faux.local/v1', apiKey: 'k' },
     messages: [{ role: 'user', content: 'A wardrobe for Meena.' }],
+    attachments: [{ url: '/media/fixture-room-1.png' }],
     callApi,
     modelsOverride: { models, model: faux.getModel(), apiKey: 'test' },
   });
@@ -4943,6 +4944,7 @@ test('a second Pi turn restores the transcript and designs the same order', { ti
   const first = await runAssistantTurn({
     config: { model: 'faux', endpoint: 'http://faux.local/v1', apiKey: 'k' },
     messages: [{ role: 'user', content: 'A wardrobe for Meena.' }],
+    attachments: [{ url: '/media/fixture-room-1.png' }],
     callApi,
     modelsOverride: { models, model: faux.getModel(), apiKey: 'test' },
   });
@@ -4965,6 +4967,7 @@ test('a second Pi turn restores the transcript and designs the same order', { ti
     ],
     previousMessages: first.transcript,
     orderId: 'order-1',
+    attachments: [{ url: '/media/fixture-room-1.png' }],
     callApi,
     modelsOverride: { models, model: faux.getModel(), apiKey: 'test' },
   });

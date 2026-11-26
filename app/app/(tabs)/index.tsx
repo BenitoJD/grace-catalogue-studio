@@ -233,7 +233,15 @@ export default function ChatScreen() {
         const latest = renders
           .filter((render) => render.orderId === orderId && render.kind === 'ai')
           .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))[0];
-        const rendered = session.messages.map((message) => ({
+        const visibleMessages = session.messages
+          .map((message) => {
+            const marker = '\n\nStudio: ';
+            const index = message.content.lastIndexOf(marker);
+            if (index >= 0) return { ...message, content: message.content.slice(index + marker.length).trim() };
+            return message;
+          })
+          .filter((message) => !message.content.startsWith('Conversation so far:'));
+        const rendered = visibleMessages.map((message) => ({
           id: nextId(),
           role: message.role,
           kind: 'text' as const,
