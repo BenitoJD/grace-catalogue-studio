@@ -997,6 +997,39 @@ export default function ChatScreen() {
                 activeOrderId={activeOrderId}
                 onMarksSaved={() => setInput("Design with my marked details.")}
                 onMarkQueued={(mark) => setPendingMarks((current) => [...current, mark])}
+                onMarkRemoved={(mark) => {
+                  setPendingMarks((current) =>
+                    current.filter(
+                      (queued) =>
+                        !(
+                          queued.photo === mark.photo &&
+                          queued.label === mark.label &&
+                          Math.abs(queued.x - mark.x) <= 3 &&
+                          Math.abs(queued.y - mark.y) <= 3
+                        )
+                    )
+                  );
+                  if (activeOrderId) {
+                    void api
+                      .getOrder(activeOrderId)
+                      .then((order) => {
+                        const existing = order.annotations ?? [];
+                        const next = existing.filter(
+                          (saved) =>
+                            !(
+                              saved.photo === mark.photo &&
+                              Math.abs(Number(saved.x) - mark.x) <= 3 &&
+                              Math.abs(Number(saved.y) - mark.y) <= 3
+                            )
+                        );
+                        if (next.length !== existing.length) {
+                          return api.updateAnnotations(activeOrderId, next);
+                        }
+                        return undefined;
+                      })
+                      .catch(() => {});
+                  }
+                }}
               />
             ))
           )}
@@ -1335,11 +1368,18 @@ function ReviewPhotoCard({
   orderId,
   onMarksSaved,
   onMarkQueued,
+  onMarkRemoved,
 }: {
   photo: ReviewPhoto;
   index: number;
   orderId: string | null;
   onMarksSaved?: () => void;
+  onMarkRemoved?: (mark: {
+    photo: string;
+    x: number;
+    y: number;
+    label: string;
+  }) => void;
   onMarkQueued?: (mark: {
     photo: string;
     x: number;
@@ -1361,6 +1401,25 @@ function ReviewPhotoCard({
     { label: string; x: number; y: number; colourHex: string; colourName: string }[]
   >([]);
   const [sampling, setSampling] = useState(false);
+  const [hiddenMarks, setHiddenMarks] = useState<string[]>([]);
+  const markKeyFor = (candidate: { x: number; y: number; label: string }, candidateIndex: number) =>
+    `${candidateIndex}-${candidate.x}-${candidate.y}-${candidate.label}`;
+  const visibleCandidates = photo.analysis.candidates.filter(
+    (candidate, candidateIndex) => !hiddenMarks.includes(markKeyFor(candidate, candidateIndex))
+  );
+  const removeMark = (candidate: { x: number; y: number; label: string }, candidateIndex: number) => {
+    setHiddenMarks((current) =>
+      current.includes(markKeyFor(candidate, candidateIndex))
+        ? current
+        : [...current, markKeyFor(candidate, candidateIndex)]
+    );
+    onMarkRemoved?.({
+      photo: `photo${index + 1}`,
+      x: candidate.x,
+      y: candidate.y,
+      label: candidate.label,
+    });
+  };
   const [marking, setMarking] = useState(false);
   const ready = frame.width > 0 && frame.height > 0;
   const samplePoint = async (position: { x: number; y: number }) => {
@@ -1474,7 +1533,7 @@ function ReviewPhotoCard({
           />
         </View>
         {ready
-          ? photo.analysis.candidates.map((candidate, candidateIndex) => {
+          ? visibleCandidates.map((candidate, candidateIndex) => {
               const cx = Math.min(94, Math.max(6, candidate.x));
               const cy = Math.min(92, Math.max(8, candidate.y));
               const distances = [
@@ -1509,17 +1568,44 @@ function ReviewPhotoCard({
         </Text>
       ) : null}
       {photo.analysis.candidates.length > 0 ? (
-        <Text style={styles.reviewSectionLabel}>Marks on this picture</Text>
+        <View style={styles.reviewSectionHead}>
+          <Text style={styles.reviewSectionLabel}>Marks on this picture</Text>
+          {visibleCandidates.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Clear marks on picture ${index + 1}`}
+              onPress={() => {
+                photo.analysis.candidates.forEach((candidate, candidateIndex) =>
+                  removeMark(candidate, candidateIndex)
+                );
+              }}>
+              <Text style={styles.reviewClearMarks}>Clear marks</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
-      {photo.analysis.candidates.length > 0 ? (
+      {visibleCandidates.length > 0 ? (
         <View style={styles.reviewLegend}>
-          {photo.analysis.candidates.map((candidate, candidateIndex) => (
-            <View key={`${candidate.id}-legend`} testID={`review-legend-${candidateIndex + 1}`} style={styles.reviewLegendItem}>
+          {visibleCandidates.map((candidate, candidateIndex) => (
+            <View
+              key={`${candidate.id}-legend`}
+              testID={`review-legend-${candidateIndex + 1}`}
+              style={styles.reviewLegendItem}>
               <Text style={styles.reviewLegendNumber}>{candidateIndex + 1}</Text>
               <View style={[styles.reviewLegendSwatch, { backgroundColor: candidate.hex }]} />
               <Text style={[text.caption, styles.reviewLegendText]} numberOfLines={1}>
                 {`${candidate.name} ${candidate.hex}`}
               </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove mark ${candidateIndex + 1} on picture ${index + 1}`}
+                hitSlop={8}
+                onPress={() => {
+                  const originalIndex = photo.analysis.candidates.indexOf(candidate);
+                  removeMark(candidate, originalIndex);
+                }}>
+                <Text style={styles.reviewRemoveMark}>×</Text>
+              </Pressable>
             </View>
           ))}
         </View>
@@ -1673,6 +1759,7 @@ function BubbleView({
   activeOrderId,
   onMarksSaved,
   onMarkQueued,
+  onMarkRemoved,
 }: {
   bubble: Bubble;
   copied: boolean;
@@ -1687,6 +1774,7 @@ function BubbleView({
     colourName: string;
     colourHex: string;
   }) => void;
+  onMarkRemoved: (mark: { photo: string; x: number; y: number; label: string }) => void;
 }) {
   if (bubble.kind === 'review') {
     return (
@@ -1705,6 +1793,7 @@ function BubbleView({
                 orderId={activeOrderId}
                 onMarksSaved={onMarksSaved}
                 onMarkQueued={onMarkQueued}
+                onMarkRemoved={onMarkRemoved}
               />
             ))}
             <Text style={[text.caption, styles.reviewHint]}>
@@ -3251,5 +3340,24 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: '#A0A0A5',
     fontVariant: ['tabular-nums'],
+  },
+  reviewSectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  reviewClearMarks: {
+    marginTop: 12,
+    marginBottom: 6,
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#6E6E73',
+  },
+  reviewRemoveMark: {
+    fontSize: 13,
+    lineHeight: 15,
+    color: '#8E8E93',
+    paddingHorizontal: 2,
   },
 });
