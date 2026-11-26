@@ -1689,8 +1689,8 @@ export function compileGenerativeBrochure({
         const x = (px - CALLOUT.left).toFixed(1);
         const y = (py - CALLOUT.top).toFixed(1);
         return (
-          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:4.8mm;height:4.8mm;margin:-2.4mm 0 0 -2.4mm;border:1.1mm solid #FFFFFF;border-radius:50%;"></div>` +
-          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:3mm;height:3mm;margin:-1.5mm 0 0 -1.5mm;border:0.4mm solid #000;border-radius:50%;"></div>`
+          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:3.2mm;height:3.2mm;margin:-1.6mm 0 0 -1.6mm;border:0.45mm solid #FFFFFF;border-radius:50%;"></div>` +
+          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:2.3mm;height:2.3mm;margin:-1.15mm 0 0 -1.15mm;border:0.28mm solid #000;border-radius:50%;"></div>`
         );
       })
       .join('');
@@ -1699,44 +1699,44 @@ export function compileGenerativeBrochure({
         const number = `${String(placements.findIndex((entry) => entry.detail === detail) + 1).padStart(2, '0')}`;
         const code = `${escapeHtml(detail.name ?? 'Colour')} ${escapeHtml(detail.colour ?? '')}`;
         const caption = escapeHtml(String(detail.label ?? 'Material detail')).slice(0, 30);
-        const text = `<span style="font-weight:700;letter-spacing:0.16em;">${number} · ${code}</span><br><span style="font-size:5.8pt;letter-spacing:0.1em;color:#4A4A4A;">${caption}</span>`;
+        const text = `<span style="font-weight:600;letter-spacing:0.14em;">${number} · ${code}</span><br><span style="font-size:5.4pt;letter-spacing:0.12em;color:#5A5A5A;">${caption}</span>`;
         const x = px.toFixed(1);
         const y = py.toFixed(1);
         const labelStyle = (left, top, width, align) =>
-          `position:absolute;left:${left}mm;top:${top}mm;width:${width}mm;color:#000;font-family:var(--body);font-size:6.1pt;line-height:1.45;letter-spacing:0.05em;text-align:${align};`;
+          `position:absolute;left:${left}mm;top:${top}mm;width:${width}mm;color:#000;font-family:var(--body);font-size:5.9pt;line-height:1.5;letter-spacing:0.06em;text-align:${align};`;
         const whiteLineHorizontal = (left, width) =>
-          `<div style="position:absolute;left:${left}mm;top:${y}mm;width:${width}mm;border-top:1.2mm solid #FFFFFF;"></div>` +
-          `<div style="position:absolute;left:${left}mm;top:${y}mm;width:${width}mm;border-top:0.35mm dashed #000;"></div>`;
+          `<div style="position:absolute;left:${left}mm;top:${y}mm;width:${width}mm;border-top:0.45mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${left}mm;top:${y}mm;width:${width}mm;border-top:0.32mm dotted #000;"></div>`;
         const whiteLineVertical = (left, top, height) =>
-          `<div style="position:absolute;left:${left}mm;top:${top}mm;height:${height}mm;border-left:1.2mm solid #FFFFFF;"></div>` +
-          `<div style="position:absolute;left:${left}mm;top:${top}mm;height:${height}mm;border-left:0.35mm dashed #000;"></div>`;
-        const arrowRight = (left) =>
-          `<div style="position:absolute;left:${left}mm;top:${(py - 1.7).toFixed(1)}mm;width:0;height:0;border-top:1.7mm solid transparent;border-bottom:1.7mm solid transparent;border-left:3mm solid #FFFFFF;"></div>` +
-          `<div style="position:absolute;left:${(left + 0.4).toFixed(1)}mm;top:${(py - 1.1).toFixed(1)}mm;width:0;height:0;border-top:1.1mm solid transparent;border-bottom:1.1mm solid transparent;border-left:2mm solid #000;"></div>`;
-        const arrowLeft = (left) =>
-          `<div style="position:absolute;left:${(left - 3).toFixed(1)}mm;top:${(py - 1.7).toFixed(1)}mm;width:0;height:0;border-top:1.7mm solid transparent;border-bottom:1.7mm solid transparent;border-right:3mm solid #FFFFFF;"></div>` +
-          `<div style="position:absolute;left:${(left - 2.4).toFixed(1)}mm;top:${(py - 1.1).toFixed(1)}mm;width:0;height:0;border-top:1.1mm solid transparent;border-bottom:1.1mm solid transparent;border-right:2mm solid #000;"></div>`;
-        const arrowUp = (left) =>
-          `<div style="position:absolute;left:${(left - 1.7).toFixed(1)}mm;top:${(py - 3.4).toFixed(1)}mm;width:0;height:0;border-left:1.7mm solid transparent;border-right:1.7mm solid transparent;border-bottom:3mm solid #FFFFFF;"></div>` +
-          `<div style="position:absolute;left:${(left - 1.1).toFixed(1)}mm;top:${(py - 3).toFixed(1)}mm;width:0;height:0;border-left:1.1mm solid transparent;border-right:1.1mm solid transparent;border-bottom:2mm solid #000;"></div>`;
-        const arrowDown = (left) =>
-          `<div style="position:absolute;left:${(left - 1.7).toFixed(1)}mm;top:${(py + 0.4).toFixed(1)}mm;width:0;height:0;border-left:1.7mm solid transparent;border-right:1.7mm solid transparent;border-top:3mm solid #FFFFFF;"></div>` +
-          `<div style="position:absolute;left:${(left - 1.1).toFixed(1)}mm;top:${(py + 0.8).toFixed(1)}mm;width:0;height:0;border-left:1.1mm solid transparent;border-right:1.1mm solid transparent;border-top:2mm solid #000;"></div>`;
+          `<div style="position:absolute;left:${left}mm;top:${top}mm;height:${height}mm;border-left:0.45mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${left}mm;top:${top}mm;height:${height}mm;border-left:0.32mm dotted #000;"></div>`;
+        const arrowRight = (edge) =>
+          `<div style="position:absolute;left:${(edge - 2.9).toFixed(1)}mm;top:${(py - 1.9).toFixed(1)}mm;width:0;height:0;border-top:1.9mm solid transparent;border-bottom:1.9mm solid transparent;border-left:3.2mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${(edge - 2.4).toFixed(1)}mm;top:${(py - 1.4).toFixed(1)}mm;width:0;height:0;border-top:1.4mm solid transparent;border-bottom:1.4mm solid transparent;border-left:2.4mm solid #000;"></div>`;
+        const arrowLeft = (edge) =>
+          `<div style="position:absolute;left:${(edge - 0.3).toFixed(1)}mm;top:${(py - 1.9).toFixed(1)}mm;width:0;height:0;border-top:1.9mm solid transparent;border-bottom:1.9mm solid transparent;border-right:3.2mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${edge.toFixed(1)}mm;top:${(py - 1.4).toFixed(1)}mm;width:0;height:0;border-top:1.4mm solid transparent;border-bottom:1.4mm solid transparent;border-right:2.4mm solid #000;"></div>`;
+        const arrowUp = (edge) =>
+          `<div style="position:absolute;left:${(px - 1.9).toFixed(1)}mm;top:${(edge - 0.4).toFixed(1)}mm;width:0;height:0;border-left:1.9mm solid transparent;border-right:1.9mm solid transparent;border-bottom:3.2mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${(px - 1.4).toFixed(1)}mm;top:${edge.toFixed(1)}mm;width:0;height:0;border-left:1.4mm solid transparent;border-right:1.4mm solid transparent;border-bottom:2.4mm solid #000;"></div>`;
+        const arrowDown = (edge) =>
+          `<div style="position:absolute;left:${(px - 1.9).toFixed(1)}mm;top:${(edge - 2.8).toFixed(1)}mm;width:0;height:0;border-left:1.9mm solid transparent;border-right:1.9mm solid transparent;border-top:3.2mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${(px - 1.4).toFixed(1)}mm;top:${(edge - 2.4).toFixed(1)}mm;width:0;height:0;border-left:1.4mm solid transparent;border-right:1.4mm solid transparent;border-top:2.4mm solid #000;"></div>`;
         if (side === 'right') {
-          return whiteLineHorizontal(x, Math.max(2, photoRight - px)) + arrowRight(photoRight) +
+          return whiteLineHorizontal((px + 2.1).toFixed(1), Math.max(1.5, photoRight - px - 4.5)) + arrowRight(photoRight + 0.6) +
             `<div style="${labelStyle(Math.min(184, photoRight + 4), py - 2.4, 28, 'left')}">${text}</div>`;
         }
         if (side === 'left') {
-          const width = Math.max(2, px - photoLeft);
+          const width = Math.max(1.5, px - photoLeft - 4.5);
           const labelWidth = Math.min(30, Math.max(18, photoLeft - 5));
-          return whiteLineHorizontal((photoLeft).toFixed(1), width) + arrowLeft(photoLeft) +
+          return whiteLineHorizontal((photoLeft + 2.4).toFixed(1), width) + arrowLeft(photoLeft + 0.2) +
             `<div style="${labelStyle(Math.max(3, photoLeft - 4 - labelWidth), py - 2.4, labelWidth, 'right')}">${text}</div>`;
         }
         if (side === 'top') {
-          return whiteLineVertical(x, Math.max(2, py - photoTop), Math.max(2, py - photoTop)) + arrowUp(px) +
+          return whiteLineVertical(x, (photoTop + 2.4).toFixed(1), Math.max(1.5, py - photoTop - 4.9)) + arrowUp(photoTop + 0.6) +
             `<div style="${labelStyle(Math.min(180, Math.max(3, px - 16)), Math.max(39, photoTop - 15), 32, 'center')}">${text}</div>`;
         }
-        return whiteLineVertical(x, y, Math.max(2, photoBottom - py)) + arrowDown(px) +
+        return whiteLineVertical(x, (py + 2.1).toFixed(1), Math.max(1.5, photoBottom - py - 4.9)) + arrowDown(photoBottom - 0.6) +
           `<div style="${labelStyle(Math.min(180, Math.max(3, px - 16)), Math.min(288, photoBottom + 5), 32, 'center')}">${text}</div>`;
       })
       .join('');
