@@ -1736,8 +1736,8 @@ export function compileGenerativeBrochure({
         const x = px.toFixed(1);
         const y = py.toFixed(1);
         return (
-          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:3.2mm;height:3.2mm;margin:-1.6mm 0 0 -1.6mm;border:0.45mm solid #FFFFFF;border-radius:50%;"></div>` +
-          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:2.2mm;height:2.2mm;margin:-1.1mm 0 0 -1.1mm;border:0.28mm solid #000;border-radius:50%;"></div>`
+          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:2.9mm;height:2.9mm;margin:-1.45mm 0 0 -1.45mm;border:0.22mm solid #FFFFFF;border-radius:50%;"></div>` +
+          `<div style="position:absolute;left:${x}mm;top:${y}mm;width:2.1mm;height:2.1mm;margin:-1.05mm 0 0 -1.05mm;border:0.22mm solid #000;border-radius:50%;"></div>`
         );
       })
       .join('');
@@ -1767,11 +1767,11 @@ export function compileGenerativeBrochure({
         const y = py.toFixed(1);
         const dot = (attrs) => `<div style="position:absolute;${attrs};border:0;"> </div>`;
         const hLine = (left, width) =>
-          `<div style="position:absolute;left:${left.toFixed(1)}mm;top:${y}mm;width:${Math.max(1.2, width).toFixed(1)}mm;border-top:0.45mm solid #FFFFFF;"></div>` +
-          `<div style="position:absolute;left:${left.toFixed(1)}mm;top:${y}mm;width:${Math.max(1.2, width).toFixed(1)}mm;border-top:0.3mm dotted #000;"></div>`;
+          `<div style="position:absolute;left:${left.toFixed(1)}mm;top:${y}mm;width:${Math.max(1.2, width).toFixed(1)}mm;border-top:0.18mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${left.toFixed(1)}mm;top:${y}mm;width:${Math.max(1.2, width).toFixed(1)}mm;border-top:0.2mm dotted #000;"></div>`;
         const vLine = (left, top, height) =>
-          `<div style="position:absolute;left:${left}mm;top:${top.toFixed(1)}mm;height:${Math.max(1.2, height).toFixed(1)}mm;border-left:0.45mm solid #FFFFFF;"></div>` +
-          `<div style="position:absolute;left:${left}mm;top:${top.toFixed(1)}mm;height:${Math.max(1.2, height).toFixed(1)}mm;border-left:0.3mm dotted #000;"></div>`;
+          `<div style="position:absolute;left:${left}mm;top:${top.toFixed(1)}mm;height:${Math.max(1.2, height).toFixed(1)}mm;border-left:0.18mm solid #FFFFFF;"></div>` +
+          `<div style="position:absolute;left:${left}mm;top:${top.toFixed(1)}mm;height:${Math.max(1.2, height).toFixed(1)}mm;border-left:0.2mm dotted #000;"></div>`;
         const arrow = (kind, edge) => {
           if (kind === 'right') {
             return `<div style="position:absolute;left:${(edge - 3).toFixed(1)}mm;top:${(py - 1.9).toFixed(1)}mm;width:0;height:0;border-top:1.9mm solid transparent;border-bottom:1.9mm solid transparent;border-left:3.2mm solid #FFFFFF;"></div>` +
