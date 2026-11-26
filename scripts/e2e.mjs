@@ -681,7 +681,7 @@ try {
   check("chat accepts the dump", await clickAria(page, "Send message"));
   check(
     "the pictures are reviewed before design",
-    await waitForBodyText(page, "what I would magnify", 90000)
+    await waitForBodyText(page, "what I read from your picture", 90000)
   );
   check(
     "the review offers marking every picture",
@@ -842,7 +842,7 @@ try {
     await setValueByPlaceholder(page, chatInput, "Another client needs a wardrobe for the guest room.")
   );
   check("chat takes the next customer", await clickAria(page, "Send message"));
-  await waitForBodyText(page, "what I would magnify", 90000);
+  await waitForBodyText(page, "what I read from your picture", 90000);
   await setValueByPlaceholder(page, chatInput, "You choose what to magnify.");
   check("chat takes the fresh magnify answer", await clickAria(page, "Send message"));
   const freshChat = await waitForBodyText(page, "the brochure is ready", 180000);

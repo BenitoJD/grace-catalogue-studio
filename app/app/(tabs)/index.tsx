@@ -720,7 +720,7 @@ export default function ChatScreen() {
               role: 'assistant' as const,
               kind: 'review' as const,
               content:
-                'Before I design, here is what I would magnify. Each circle is a magnified cut of your picture, named with the colour inside it.',
+                'Before I design, here is what I read from your picture: the marks worth making and the colours inside them. Nothing is magnified or cropped; the whole picture stays as it is.',
               at: stamp(),
               photos: result.review,
             },
@@ -821,7 +821,7 @@ export default function ChatScreen() {
                   role: 'assistant' as const,
                   kind: 'review' as const,
                   content:
-                    'Before I design, here is what I would magnify. Each circle is a magnified cut of your picture, named with the colour inside it.',
+                    'Before I design, here is what I read from your picture: the marks worth making and the colours inside them. Nothing is magnified or cropped; the whole picture stays as it is.',
                   at: stamp(),
                   photos: review.photos,
                 },
@@ -1441,6 +1441,9 @@ function ReviewPhotoCard({
         </Text>
       ) : null}
       {photo.analysis.candidates.length > 0 ? (
+        <Text style={styles.reviewSectionLabel}>Marks on this picture</Text>
+      ) : null}
+      {photo.analysis.candidates.length > 0 ? (
         <View style={styles.reviewLegend}>
           {photo.analysis.candidates.map((candidate, candidateIndex) => (
             <View key={`${candidate.id}-legend`} testID={`review-legend-${candidateIndex + 1}`} style={styles.reviewLegendItem}>
@@ -1453,6 +1456,7 @@ function ReviewPhotoCard({
           ))}
         </View>
       ) : null}
+      <Text style={styles.reviewSectionLabel}>Palette read from the picture</Text>
       <View style={styles.reviewPalette}>
         {photo.analysis.palette.map((swatch) => (
           <View key={swatch.hex} style={styles.reviewSwatch}>
@@ -2100,7 +2104,7 @@ const styles = StyleSheet.create({
     maxWidth: 860,
     alignSelf: 'center',
     paddingTop: space.sm,
-    paddingBottom: space.md,
+    paddingBottom: 32,
     gap: space.sm + 2,
   },
   rowLeft: {
@@ -2805,7 +2809,10 @@ const styles = StyleSheet.create({
   reviewFrameBox: {
     position: 'relative',
     width: '100%',
-    aspectRatio: 16 / 9,
+    height: 280,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#141210',
   },
   reviewFrame: {
     position: 'absolute',
@@ -2813,9 +2820,9 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 10,
+    borderRadius: 14,
     overflow: 'hidden',
-    backgroundColor: colors.fill,
+    backgroundColor: '#141210',
   },
   reviewImage: {
     width: '100%',
@@ -2898,10 +2905,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     overflow: 'hidden',
   },
+  reviewSectionLabel: {
+    marginTop: 12,
+    marginBottom: 6,
+    fontSize: 11.5,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    color: '#6E6E73',
+  },
   reviewPalette: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 4,
   },
   reviewSwatch: {
     width: 64,
