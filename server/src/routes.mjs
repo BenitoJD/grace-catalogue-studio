@@ -134,7 +134,7 @@ import { createLogger, parseLogLevel } from './logger.mjs';
 import { colourName, photoPalette, sampleColourAt } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
 import { detailPlatesFor } from './image-detail.mjs';
-import { readPicturesWithVision, visionEnabled } from './vision.mjs';
+import { inspectRenderedPages, readPicturesWithVision, visionEnabled } from './vision.mjs';
 import { runAssistantTurn } from './assistant.mjs';
 import {
   finishAssistantProgress,
@@ -2239,6 +2239,43 @@ export function createApp(options) {
             } catch (error) {
               if (error?.type === 'invalid_reply') throw error;
               logger.warn('The layout inspector could not run; the print checks still guard this design.', {
+                reason: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }
+
+          // Visual inspector: render the candidate to real page images and let
+          // the vision model look at the actual print, not just the markup.
+          if (html && String(process.env.DESIGN_VISUAL_QA ?? 'on').toLowerCase() !== 'off') {
+            try {
+              designProgress('Rendering a proof and inspecting every printed page');
+              const probeId = `qa-${Date.now().toString(36)}-${attempt}`;
+              const proof = await renderer.renderHtml({ html, renderId: probeId });
+              const proofFiles = Array.from({ length: proof.pageCount }, (_, pageIndex) =>
+                path.join(dataDir, 'renders', `${probeId}-${pageIndex + 1}.png`),
+              );
+              const visualIssues = await inspectRenderedPages({
+                config,
+                requestChat,
+                filePaths: proofFiles,
+                logger,
+              });
+              rmSync(path.join(dataDir, 'renders', `${probeId}.pdf`), { force: true });
+              for (const file of proofFiles) rmSync(file, { force: true });
+              if (visualIssues && visualIssues.length > 0) {
+                const summary = visualIssues
+                  .slice(0, 4)
+                  .map((entry) => `page ${entry.page}: ${entry.issues.join('; ')}`)
+                  .join(' | ');
+                designProgress(`Visual inspector rejected ${visualIssues.length} page(s)`, summary);
+                throw new LlmError(`The visual inspector rejected the print: ${summary}`, {
+                  type: 'invalid_reply',
+                });
+              }
+              designProgress('Visual inspector passed every printed page');
+            } catch (error) {
+              if (error?.type === 'invalid_reply') throw error;
+              logger.warn('The visual page inspector could not run.', {
                 reason: error instanceof Error ? error.message : String(error),
               });
             }

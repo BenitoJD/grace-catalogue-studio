@@ -177,6 +177,59 @@ async function readBatch({ config, requestChat, filePaths, logger }) {
 }
 
 /** Read every picture, batching four per call. Returns one insight per picture. */
+const LAYOUT_INSPECTOR_PROMPT = [
+  'You are the pre-press inspector of a premium print studio looking at the actual rendered pages of a brochure, not at HTML.',
+  'For every page, find real visual defects: two text blocks overlapping; text running under an image; clipped or hidden text; a block floating out of alignment with the page grid; margins that change from page to page; a large empty band; a stray mark, ring, arrow or colour chip; a caption that does not belong to its picture; any element that looks unfinished.',
+  'Ignore taste, wording, colour choices and photography quality. Report only layout and alignment defects you can actually see.',
+  'Reply with strict JSON only: {"pages":[{"page":1,"issues":["short concrete problem"]}]}. Include only pages with issues. If every page is clean reply {"pages":[]}.',
+].join(' ');
+
+export async function inspectRenderedPages({ config, requestChat, filePaths = [], logger }) {
+  if (!visionEnabled(config) || filePaths.length === 0) return null;
+  const images = filePaths.map((filePath) => thumbnailDataUri(filePath, 900)).filter(Boolean);
+  if (images.length === 0) return null;
+  try {
+    const result = await requestChat({
+      provider: config.provider,
+      endpoint: config.endpoint,
+      model: config.model,
+      apiKey: config.apiKey,
+      messages: [
+        { role: 'system', content: LAYOUT_INSPECTOR_PROMPT },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: `Inspect all ${images.length} rendered pages and reply with the JSON only.` },
+            ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
+          ],
+        },
+      ],
+      maxTokens: 1800,
+      temperature: 0.1,
+      timeoutMs: 180_000,
+    });
+    const text = String(result?.content ?? '').trim();
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start < 0 || end <= start) return null;
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    if (!Array.isArray(parsed?.pages)) return null;
+    return parsed.pages
+      .map((entry) => ({
+        page: Number.isFinite(entry?.page) ? Number(entry.page) : 0,
+        issues: Array.isArray(entry?.issues)
+          ? entry.issues.map((issue) => String(issue).replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 4)
+          : [],
+      }))
+      .filter((entry) => entry.issues.length > 0);
+  } catch (error) {
+    logger?.warn?.('The rendered page inspector could not run.', {
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
 export async function readPicturesWithVision({ config, requestChat, filePaths, logger }) {
   const all = Array.isArray(filePaths) ? filePaths.filter(Boolean) : [];
   if (all.length === 0) return null;
