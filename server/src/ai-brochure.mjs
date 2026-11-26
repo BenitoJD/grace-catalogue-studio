@@ -1693,7 +1693,7 @@ export function compileGenerativeBrochure({
   // geometry, so a ring always lands on the picture and never in the letterbox.
   // Every line has a white halo under the black mark so it reads on any
   // background: white joinery, dark walnut, marble or a photograph.
-  const PLATE = { left: 33, top: 60, width: 150, maxHeight: 150 };
+  const PLATE = { left: 33, top: 44, width: 160, maxHeight: 165 };
   const showsWholePicture = (pageHtml, number) => {
     const pattern = new RegExp(`<img[^>]*src="\\{\\{\\s*photo${number}\\s*\\}\\}"[^>]*>`, 'gi');
     for (const match of String(pageHtml).matchAll(pattern)) {
@@ -1817,29 +1817,15 @@ export function compileGenerativeBrochure({
       .join(' · ');
     annotationPages.push(
       `<div style="position:absolute;inset:0;background:#F7F2E9;color:#000;font-family:var(--body);">` +
-        `<div style="position:absolute;left:33mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Plate ${String(index + 1).padStart(2, '0')} · photograph, colours and material</div>` +
-        `<div style="position:absolute;left:33mm;top:25mm;width:150mm;font-family:var(--display);font-size:18pt;line-height:1.05;z-index:2;">The colour, named where it happens.</div><div style="position:absolute;left:33mm;top:47mm;width:150mm;font-size:7pt;letter-spacing:0.08em;line-height:1.5;color:#5A5A5A;">The entire photograph, the palette read from it, and the exact material points. Nothing is cropped.</div>` +
+        `<div style="position:absolute;left:33mm;top:20mm;font-size:6.4pt;letter-spacing:0.24em;text-transform:uppercase;color:#8A7A66;">Colour and material</div>` +
         `<img src="${uri}" style="position:absolute;left:${photoLeft.toFixed(1)}mm;top:${photoTop.toFixed(1)}mm;width:${displayWidth.toFixed(1)}mm;height:${displayHeight.toFixed(1)}mm;object-fit:cover;">` +
         marks + leaders + labels +
         (chips === ''
           ? ''
           : `<div style="position:absolute;left:33mm;top:${paletteTop.toFixed(0)}mm;width:150mm;display:flex;gap:4mm;">${chips}</div>`) +
-        `<div style="position:absolute;left:21mm;right:21mm;top:${(paletteTop + 40).toFixed(0)}mm;bottom:17mm;background:#1E1D1A;"></div>` +
-        `<div style="position:absolute;left:33mm;top:${(paletteTop + 46).toFixed(0)}mm;width:100mm;font-family:var(--display);font-size:19pt;line-height:1.05;color:#F1EBDF;">Read from the photograph.</div>` +
-        `<div style="position:absolute;right:33mm;bottom:24mm;font-family:var(--display);font-size:54pt;line-height:0.9;color:#3A362F;">${String(index + 1).padStart(2, '0')}</div>` +
-        `<div style="position:absolute;left:33mm;top:${(paletteTop + 62).toFixed(0)}mm;width:150mm;display:flex;justify-content:space-between;gap:10mm;">` +
-        `<div style="width:82mm;font-size:6.6pt;line-height:1.9;letter-spacing:0.06em;color:#F1EBDF;">` +
-        `<div style="font-size:5.6pt;letter-spacing:0.2em;text-transform:uppercase;color:#B9A98F;margin-bottom:2mm;">Material points, named</div>` +
-        (details.slice(0, 3).map((detail, detailIndex) => `<div>${String(detailIndex + 1).padStart(2, '0')} · ${escapeHtml(String(detail.label ?? 'detail'))} — ${escapeHtml(String(detail.name ?? ''))} ${escapeHtml(String(detail.colour ?? ''))}</div>`).join('') || '<div>The whole picture, kept uncropped.</div>') +
-        `</div>` +
-        `<div style="width:50mm;font-size:6.4pt;line-height:1.7;letter-spacing:0.06em;color:#CFC6B6;">` +
-        `<div style="font-size:5.6pt;letter-spacing:0.2em;text-transform:uppercase;color:#B9A98F;margin-bottom:2mm;">Uncropped</div>` +
-        `No crop, no invention. Every colour here is read from the photograph itself.<div style="margin-top:3mm;height:0.2mm;background:#5A5449;"></div>` +
-        `</div>` +
-        `</div>` +
-        `<div style="position:absolute;left:${PLATE.left}mm;right:${PLATE.left}mm;bottom:17mm;height:0.25mm;background:#5A5449;"></div>` +
-        `<div style="position:absolute;left:${PLATE.left}mm;bottom:9mm;font-size:6.1pt;letter-spacing:0.2em;text-transform:uppercase;color:#CFC6B6;">JACOB DESIGN STUDIO · NAGERCOIL · INTERIORS IN COLOUR</div>` +
-        `<div style="position:absolute;right:${PLATE.left}mm;bottom:9mm;font-size:6.1pt;letter-spacing:0.2em;text-transform:uppercase;color:#CFC6B6;">PLATE ${String(index + 1).padStart(2, '0')}</div>` +
+        `<div style="position:absolute;left:33mm;right:33mm;top:${Math.min(238, paletteTop + 38).toFixed(0)}mm;height:0.25mm;background:#D9D0C1;"></div>` +
+        `<div style="position:absolute;left:33mm;right:33mm;top:${Math.min(246, paletteTop + 46).toFixed(0)}mm;text-align:center;font-family:var(--display);font-size:15pt;line-height:1.2;color:#201F1C;">The room, in the colours it already holds.</div>` +
+        `<div style="position:absolute;left:33mm;right:33mm;bottom:10mm;text-align:center;font-size:6.2pt;letter-spacing:0.2em;text-transform:uppercase;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
         `</div>`,
     );
   }
