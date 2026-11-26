@@ -644,6 +644,27 @@ function checkDatabase(db) {
   }
 }
 
+// While a slow model call runs, keep the studio informed with short, real
+// status lines. The specific milestones still replace these when they happen.
+async function withDesignThinking(emit, labels, task) {
+  let index = 0;
+  emit(labels[0]);
+  const timer = setInterval(() => {
+    index = (index + 1) % labels.length;
+    try {
+      emit(labels[index]);
+    } catch {
+      // progress is advisory, never fatal
+    }
+  }, 6000);
+  if (typeof timer.unref === 'function') timer.unref();
+  try {
+    return await task();
+  } finally {
+    clearInterval(timer);
+  }
+}
+
 export function createApp(options) {
   const { db, dataDir, templatesDir } = options;
   configurePromptStore({
@@ -2139,7 +2160,19 @@ export function createApp(options) {
         designProgress(`Designing page set, round ${attempt} of ${DESIGNER_TRIES}`);
         const requestMessages =
           attempt === 1 ? messages : buildDesignerRepairMessages(messages, previousReply, lastIssues);
-        const result = await requestChat({
+        const result = await withDesignThinking(
+          designProgress,
+          [
+            'Reading the photographs and their light',
+            'Choosing the grid and the page rhythm',
+            'Composing the cover arrangement',
+            'Writing the story pages',
+            'Setting the colour plates',
+            'Aligning every block to the grid',
+            'Balancing margins and type scale',
+            'Reviewing the whole page sequence',
+          ],
+          () => requestChat({
           provider: config.provider,
           endpoint: config.endpoint,
           model: config.model,
@@ -2148,7 +2181,8 @@ export function createApp(options) {
           maxTokens: DESIGNER_MAX_TOKENS,
           temperature: DESIGNER_TEMPERATURE,
           timeoutMs: 300_000,
-        });
+          }),
+        );
         usedModel = result.model;
         latencyMs = result.latencyMs;
         previousReply = result.content;

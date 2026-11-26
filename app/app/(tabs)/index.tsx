@@ -676,7 +676,7 @@ export default function ChatScreen() {
           });
         })
         .catch(() => {});
-    }, 1200);
+    }, 500);
   }, []);
 
   const stopProgressPolling = useCallback(() => {
