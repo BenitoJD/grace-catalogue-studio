@@ -1829,7 +1829,21 @@ export function compileGenerativeBrochure({
         `</div>`,
     );
   }
-  const allPages = [...docPages, ...annotationPages.map(noDashes)];
+  // Every page carries the studio mark. It is stamped by the server, so the
+  // model can not omit it, and it sits on a small cream plate so it reads on
+  // cream, dark or photographic grounds without becoming a watermark.
+  let pageMark = '';
+  try {
+    const logoData = readFileSync(path.join(templatesDir, 'assets', 'jacob-mark.png')).toString('base64');
+    pageMark =
+      `<div class="page-brand" style="position:absolute;left:14mm;bottom:8mm;z-index:90;background:#F7F2E9;padding:1mm 1.8mm;">` +
+      `<img src="data:image/png;base64,${logoData}" style="display:block;width:8mm;height:auto;">` +
+      `</div>`;
+  } catch {
+    pageMark = '';
+  }
+  const withPageMark = (page) => (pageMark === '' ? page : page + pageMark);
+  const allPages = [...docPages.map(withPageMark), ...annotationPages.map(noDashes).map(withPageMark)];
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
