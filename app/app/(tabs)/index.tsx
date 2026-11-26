@@ -1533,83 +1533,34 @@ function ReviewPhotoCard({
             accessibilityLabel={`Review picture ${index + 1}`}
           />
         </View>
-        {ready
-          ? visibleCandidates.map((candidate, candidateIndex) => {
-              const cx = Math.min(94, Math.max(6, candidate.x));
-              const cy = Math.min(92, Math.max(8, candidate.y));
-              const distances = [
-                { side: 'left', value: cx },
-                { side: 'right', value: 100 - cx },
-                { side: 'top', value: cy },
-                { side: 'bottom', value: 100 - cy },
-              ].sort((left, right) => left.value - right.value);
-              const side = distances[0].side;
-              const leader =
-                side === 'right'
-                  ? { left: `${cx}%`, top: `${cy}%`, width: `${(100 - cx).toFixed(1)}%`, borderTopWidth: 1, borderTopColor: '#0D0D0D', borderStyle: 'dashed' as const }
-                  : side === 'left'
-                    ? { left: '0%', top: `${cy}%`, width: `${cx.toFixed(1)}%`, borderTopWidth: 1, borderTopColor: '#0D0D0D', borderStyle: 'dashed' as const }
-                    : side === 'top'
-                      ? { left: `${cx}%`, top: '0%', height: `${cy.toFixed(1)}%`, borderLeftWidth: 1, borderLeftColor: '#0D0D0D', borderStyle: 'dashed' as const }
-                      : { left: `${cx}%`, top: `${cy}%`, height: `${(100 - cy).toFixed(1)}%`, borderLeftWidth: 1, borderLeftColor: '#0D0D0D', borderStyle: 'dashed' as const };
-              return (
-                <View key={candidate.id} pointerEvents="none">
-                  <View testID={`review-point-${candidateIndex + 1}`} style={[styles.reviewPointRing, { left: `${cx}%`, top: `${cy}%` }]}>
-                    <Text style={styles.reviewPointRingLabel}>{candidateIndex + 1}</Text>
-                  </View>
-                  <View style={[styles.reviewLeader, leader]} />
-                </View>
-              );
-            })
-          : null}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          accessibilityRole="button"
+          accessibilityLabel={`Mark a point on picture ${index + 1}`}
+          onPress={(event) => {
+            const native = event.nativeEvent as unknown as {
+              locationX?: number;
+              locationY?: number;
+              offsetX?: number;
+              offsetY?: number;
+            };
+            const localX = Number(native.locationX ?? native.offsetX);
+            const localY = Number(native.locationY ?? native.offsetY);
+            if (frame.width <= 0 || frame.height <= 0) return;
+            const position = {
+              x: Number.isFinite(localX) ? Math.min(100, Math.max(0, (localX / frame.width) * 100)) : 50,
+              y: Number.isFinite(localY) ? Math.min(100, Math.max(0, (localY / frame.height) * 100)) : 50,
+            };
+            setPoint(position);
+            setMarkOpen(true);
+            void samplePoint(position);
+          }}
+        />
       </View>
       {photo.insight?.summary ? (
         <Text style={[text.caption, styles.reviewReadingLine]} numberOfLines={2}>
           {`What the model reads: ${photo.insight.summary}`}
         </Text>
-      ) : null}
-      {photo.analysis.candidates.length > 0 ? (
-        <View style={styles.reviewSectionHead}>
-          <Text style={styles.reviewSectionLabel}>Marks on this picture</Text>
-          {visibleCandidates.length > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Clear marks on picture ${index + 1}`}
-              onPress={() => {
-                photo.analysis.candidates.forEach((candidate, candidateIndex) =>
-                  removeMark(candidate, candidateIndex)
-                );
-              }}>
-              <Text style={styles.reviewClearMarks}>Clear marks</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
-      {visibleCandidates.length > 0 ? (
-        <View style={styles.reviewLegend}>
-          {visibleCandidates.map((candidate, candidateIndex) => (
-            <View
-              key={`${candidate.id}-legend`}
-              testID={`review-legend-${candidateIndex + 1}`}
-              style={styles.reviewLegendItem}>
-              <Text style={styles.reviewLegendNumber}>{candidateIndex + 1}</Text>
-              <View style={[styles.reviewLegendSwatch, { backgroundColor: candidate.hex }]} />
-              <Text style={[text.caption, styles.reviewLegendText]} numberOfLines={1}>
-                {`${candidate.name} ${candidate.hex}`}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove mark ${candidateIndex + 1} on picture ${index + 1}`}
-                hitSlop={8}
-                onPress={() => {
-                  const originalIndex = photo.analysis.candidates.indexOf(candidate);
-                  removeMark(candidate, originalIndex);
-                }}>
-                <Text style={styles.reviewRemoveMark}>×</Text>
-              </Pressable>
-            </View>
-          ))}
-        </View>
       ) : null}
       <Text style={styles.reviewSectionLabel}>Palette read from the picture</Text>
       <View style={styles.reviewPalette}>
@@ -1840,7 +1791,7 @@ function BubbleView({
               />
             ))}
             <Text style={[text.caption, styles.reviewHint]}>
-              Reply with the numbers you want magnified, name a detail, or say you choose.
+              Tap the picture to mark a detail. The colour, name and palette for that exact point appear for you.
             </Text>
           </View>
         </View>

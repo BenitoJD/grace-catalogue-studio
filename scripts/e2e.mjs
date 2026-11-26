@@ -689,13 +689,12 @@ try {
     await page.evaluate(() => document.querySelectorAll('[aria-label^="Mark an area"]').length >= 1)
   );
   check(
-    "every mark is named outside the picture with its colour",
-    await page.evaluate(() => {
-      const items = [...document.querySelectorAll('[data-testid^="review-legend-"]')].map(
-        (item) => item.innerText.trim()
-      );
-      return items.length >= 3 && items.every((text) => /#[0-9A-F]{6}/.test(text) && text.length >= 8);
-    })
+    "the review starts clean with no automatic marks",
+    await page.evaluate(
+      () =>
+        document.querySelectorAll('[data-testid^="review-legend-"]').length === 0 &&
+        document.querySelectorAll('[data-testid^="review-point-"]').length === 0
+    )
   );
   await shot(page, `${shots}/06h-picture-review.png`);
   await setValueByPlaceholder(page, chatInput, "Magnify 1 and 2. You choose the rest.");
