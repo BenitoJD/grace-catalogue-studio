@@ -140,7 +140,7 @@ export const DESIGNER_SYSTEM = [
   'THE PAGES, IN ORDER',
   'Every page must be full of real content. Do not leave a large empty band: pair a small picture with the reading, the palette, material notes or a second picture. Empty space is the most common failure.',
   '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
-  '2 to 7. Story, colour options and details. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. At least one page is the colour options page, laid out like a showroom paint card: for each photograph its colour strip, then four swatch chips, each with its NAME in caps, its hex value small, and one short line about the mood. Extra photographs earn extra pages, and every photograph must appear. The studio prints the material callouts itself, so design pages stay clean.',
+  '2 to 7. Story pages. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. Extra photographs earn extra pages, and every photograph must appear. The studio prints the palette, the material callouts and the colour plates itself on each picture plate page, so designer pages stay free of swatches and clean.',
   'Give one spread the premium brand treatment: a single photograph at full page, its colour name and code set quietly on paper, and almost nothing else on the page.',
   'Last. A composed back cover for the client file: one contact plate (it already carries the logo and name), the closing line set as a quiet large type moment, the Tamil studio line, one motif or hairline rule, the order number and date small. No second brand plate, no form, no large empty band. Compose it like a colophon, on a deep band or a cream field.',
   '',
@@ -160,7 +160,6 @@ export const DESIGNER_SYSTEM = [
   'The body is one piece of prose: set it in a comfortable measure, two or three columns at 8 to 9.5 pt, and let the paragraph flow. Do not cut it.',
   'Identity: {{brand}}, {{brandTamil}}, {{placeTamil}}, {{date}}, {{title}}, {{room}}, {{roomTamil}}, {{customer}}, {{phone}}, {{email}}, {{address}}. Never print an order number.',
   'Photographs: {{photo1}} and upward are ready to use as a CSS background-image or an <img> source. Crop with cover. Choose the strongest photograph for the cover.',
-  'Colour: every photograph has a palette strip {{photo1Palette}}, {{photo2Palette}} and so on, a ready made image of its colours. It also has single colours {{photo1Color1}} to {{photo1Color4}}, and their showroom names {{photo1Color1Name}} to {{photo1Color4Name}}, and so on for every photograph. Use the named colours as paint card chips, with the hex value small underneath.',
   'No loupe, ring, dot, leader line, arrow or colour caption is drawn by the designer. The studio adds the material callouts itself after the design. Keep every photograph clean.',
   'Assets: {{logo}} is the brand mark for light backgrounds and {{logoWhite}} is the same mark in white for dark backgrounds. {{brandPlateLight}} and {{brandPlateDark}} are ready made brand panels: the mark and the brand name on their own solid ground, light and dark. {{contactPlateLight}} and {{contactPlateDark}} add the phone, email and address. Because each plate carries its own background, it stays legible on any page. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs.',
   'The brand and the contact details must always read clearly. Put a brand plate on the cover and one contact plate on the closing page. The contact plate already carries the brand, so never add a second brand plate to the closing page. Use the light plate on cream pages and the dark plate on dark, colour or photographic pages. Never set the contact lines straight over a photograph.',
@@ -171,14 +170,12 @@ export const DESIGNER_SYSTEM = [
   '- The closing page carries one contact plate {{contactPlateLight}} or {{contactPlateDark}}, which already contains the company name. Do not add a separate brand plate or a second logo to the closing page.',
   '- {{headline}}, {{body}} and {{closing}} each exactly once, anywhere in the story pages.',
   '- Every photograph token from {{photo1}} to the last available must appear at least once.',
-  '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as paint card chips, each using its colour token and its colour NAME token, with its hex value small. This is the colour options spread of the showroom book.',
   '- Every photograph is a hero: wherever it is used, print it whole and uncropped, never a cropped background. The studio also prints each picture whole on its own material callout page. No contact sheet, no thumbnail appendix, no keyword page.',
   '- The last page: a large brand plate and a contact plate. Never print an order number.',
   '- Somewhere in the document: at least one house motif token.',
   '- No dimension, size, shutter count or specification value may appear. Those tokens do not exist and naming them rejects the document.',
   '- The photographs are the design source. Mirror their colours, light and warmth. The pages must look like they belong to the same project as the pictures.',
   '- No callouts on photographs. Never draw a loupe, crop, ring, dot, leader, arrow or colour label over or beside a photograph. The studio prints one clean callout plate for every picture. Design the picture side as a finished photographic page, with its colour named in the page copy only.',
-  '- When a colour page is used, print the colour strips and chips as paint cards on paper, never over a photograph.',
   '',
   'THE QUALITY BAR',
   'This is a small printed pamphlet the salesperson hands to the customer, art directed by one of the best print designers alive: image led, quiet, confident, with one clear idea for this project and no trace of a template. If a side could have come from Canva, a restaurant menu, a website or an AI image, it is wrong.',
@@ -192,7 +189,6 @@ export const DESIGNER_SYSTEM = [
   'Photographs are the hero: crop with intent, let them bleed, and use a solid scrim or band for any words that sit on them. Never make a photograph small and polite unless the page is deliberately quiet.',
   'The studio adds the material callout pages itself, with ring, dotted leader, arrow and colour code printed on paper. The designer never draws any of it.',
   'Frame photographs so a calm strip of paper remains at the outer edge of the page for the annotations. On a full bleed photograph, bring the leader line to the nearest margin and set the text there, never over the picture.',
-  'Colour page: treat the palette like paint chips in an automotive book. Strips at full measure, chips aligned in a row on the grid, names in small caps, codes small and quiet, one line of mood copy. No card frames and no shadows.',
   'The closing page is a composed back cover, not a form: one contact plate, one closing line, the Tamil line, one motif and a hairline grid. No second logo, no empty middle band.',
   '',
   'PAMPHLET OR BROCHURE, CHOSEN BY THE STUDIO',
@@ -207,6 +203,7 @@ export const DESIGNER_SYSTEM = [
   '- Any text over a photograph or a dark picture must sit inside a band, panel or scrim that carries its own near-opaque background colour inline, with the opposite text colour on it. Never set light words straight on a photo.',
   '- Put the background colour inline on the element or on an ancestor element, not only in a class, so the contrast check can verify it. It is checked before printing and low contrast is rejected.',
   '- Build a real typographic hierarchy: one display line, small caps labels with wide tracking, hairline rules, captions, folio numbers. Use white space as a material.',
+  '- NEVER print a palette strip, swatch row, colour chip or paint card on a designer page. The studio prints the palette on the plate for each picture. Designer pages hold photographs, headlines, copy, rules, folios and the brand only.',
   '- LAYOUT LAW. Every page is a full composition, edge to edge within the margins, with no unused area larger than a business card. Compose in normal flow or CSS grid. Never place one block over another. Text, palette strips, captions and notes must never overlap, touch or be clipped. A palette strip belongs in the flow below the copy, never absolutely positioned over it. Text blocks have natural height; never fix a text block height or hide its overflow. If a block does not fit, shorten the copy or move it to the next page, never overlap it.\n- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
   '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
   '- Colour strips are images, not pale samples: frame each one with a hairline rule or a keyline so it reads as a colour plate.',
@@ -223,7 +220,7 @@ export const DESIGNER_SYSTEM = [
   'Colours come as CSS variables already set from the picture palettes: --paper, --ink, --deep, --accent, --gold, --hair, --muted, --on-dark. Use these, and if you refine them keep them inside the same family, so the printed book carries the colour of the actual project rather than a house style. Keep the paper light and the ink dark.',
   '',
   'VOICE OF THE PAGES',
-  'Words are very few. The cover says almost nothing. The story carries the copy. The colour options name the paints. The detail page points at what is beautifully made. A reader should feel the room and its colours before reading a sentence. This is a showroom book, not a catalogue and not a specification sheet.',
+  'Words are very few. The cover says almost nothing. The story carries the copy. The studio plates carry the paints and the details. A reader should feel the room and its colours before reading a sentence. This is a showroom book, not a catalogue and not a specification sheet.',
 ].join('\n');
 
 const TAMIL_ROOMS = [
@@ -989,22 +986,6 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
     }
   });
 
-  // The colour study is the heart of this brochure: every decoded palette must
-  // be printed, with its chips.
-  for (const index of palettePhotos) {
-    if (!tokens.has(`photo${index}Palette`)) {
-      issues.push(`{{photo${index}Palette}} is missing; every photograph colour strip must be printed`);
-    }
-    for (let chip = 1; chip <= 4; chip += 1) {
-      if (countToken(whole, `photo${index}Color${chip}`) === 0) {
-        issues.push(`{{photo${index}Color${chip}}} is missing; print the four colours beside the strip`);
-      }
-      if (countToken(whole, `photo${index}Color${chip}Name`) === 0) {
-        issues.push(`{{photo${index}Color${chip}Name}} is missing; name every colour like a showroom paint card`);
-      }
-    }
-  }
-
   // The studio marked these areas by hand: their exact labels and colour codes
   // must appear in print, not a paraphrase.
   if (Array.isArray(markedDetails)) {
@@ -1074,8 +1055,8 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
       issues.push('the brochure body carries no brand mark');
     }
     for (const [offset, page] of middle.entries()) {
-      if (!/photo\d+/.test(page) && !/photo\d+Palette/.test(page)) {
-        issues.push(`page ${offset + 2} shows neither a photograph nor a colour strip`);
+      if (!/photo\d+/.test(page)) {
+        issues.push(`page ${offset + 2} shows no photograph`);
       }
     }
   }
@@ -1096,11 +1077,6 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
     }
     for (const token of COPY_TOKENS) {
       if (countToken(lastHtml, token) > 0) issues.push(`{{${token}}} belongs in the story, not the closing page`);
-    }
-    for (const index of palettePhotos) {
-      if (countToken(pages[last], `photo${index}Palette`) > 0) {
-        issues.push('the photograph colour strip belongs on a colour page, not the closing page');
-      }
     }
   }
 
@@ -1123,6 +1099,12 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
       issues.push(`page ${index + 1}: do not draw diagonal leaders or rotated annotation lines over a picture`);
     }
   });
+
+  // Palette strips are drawn by the studio on each picture plate. A designer
+  // page that carries palette tokens is putting colours on the wrong page.
+  if (/\{\{\s*photo\d+Palette\s*\}\}/i.test(whole)) {
+    issues.push('do not print palette strips on a page; the studio prints each picture palette on its plate');
+  }
 
   // Print documents should never carry the tells of a generated web page.
   pages.forEach((page, index) => {
