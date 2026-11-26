@@ -134,6 +134,7 @@ import { createLogger, parseLogLevel } from './logger.mjs';
 import { colourName, photoPalette, sampleColourAt } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
 import { detailPlatesFor, thumbnailDataUri } from './image-detail.mjs';
+import { layoutStudioBook } from './layout-engine.mjs';
 import { inspectRenderedPages, readPicturesWithVision, visionEnabled } from './vision.mjs';
 import { runAssistantTurn } from './assistant.mjs';
 import {
@@ -2116,6 +2117,56 @@ export function createApp(options) {
         config,
         logger,
       });
+
+      // Studio layout engine: content from the writer, geometry from the grid.
+      // No freeform HTML and no token contract for the designer.
+      if (String(process.env.DESIGN_ENGINE ?? '').trim().toLowerCase() === 'studio') {
+        designProgress('Studio layout engine composing measured pages');
+        const pages = layoutStudioBook({
+          order,
+          copy,
+          photos: attached,
+          photoPalettes,
+          pictureAnalysis: reading?.photos ?? [],
+          format,
+        });
+        const engineHtml = compileGenerativeBrochure({
+          order,
+          materials: listMaterials(db),
+          templatesDir,
+          dataDir,
+          attachmentImages: attached,
+          photoPalettes,
+          photoDetails,
+          copy,
+          pages,
+          styles: '',
+        });
+        const renderId = newRenderId();
+        const rendered = await renderer.renderHtml({ html: engineHtml, renderId });
+        const design = {
+          label: 'Studio grid layout',
+          designed: true,
+          direction,
+        };
+        const render = createRender(db, {
+          id: renderId,
+          orderId: order.id,
+          kind: 'ai',
+          pageCount: rendered.pageCount,
+          pdfUrl: rendered.pdfUrl,
+          pageUrls: rendered.pageUrls,
+          templateId: null,
+          design,
+          html: engineHtml,
+        });
+        setOrderCopy(db, order.id, copy);
+        designProgress(`Layout engine printed ${rendered.pageCount} pages`);
+        return c.json(
+          { render, design, copy, direction, model: 'studio-layout', latencyMs: 0 },
+          201,
+        );
+      }
       const messages = buildDesignerMessages({
         order,
         brief,

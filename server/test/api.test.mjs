@@ -3586,6 +3586,28 @@ test('two generated brochures print different pages', { timeout: 240_000 }, asyn
   assert.notEqual(firstPage, secondPage, 'a different palette prints a different story page');
 });
 
+test('the studio layout engine composes a measured book without a designer model', { timeout: 300_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  setOrderCopyForTest();
+  process.env.DESIGN_ENGINE = 'studio';
+  try {
+    const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
+    const raw = await response.text();
+    assert.equal(response.status, 201, raw);
+    const body = JSON.parse(raw);
+    assert.equal(body.render.kind, 'ai');
+    assert.equal(body.design.label, 'Studio grid layout');
+    assert.ok(body.render.pageCount >= 5, `expected at least five pages, got ${body.render.pageCount}`);
+    const text = normaliseText(pdfText(path.join(dataDir, 'renders', `${body.render.id}.pdf`)));
+    assert.ok(text.toLowerCase().includes(BROCHURE_COPY.headline.toLowerCase()), 'the headline prints');
+    assert.equal(text.includes('JDS-'), false, 'the order number is never printed');
+    assert.match(body.render.design.label, /Studio grid layout/);
+  } finally {
+    delete process.env.DESIGN_ENGINE;
+  }
+});
+
 test('a longer brochure prints six pages when the content needs room', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();

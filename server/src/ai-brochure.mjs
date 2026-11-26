@@ -23,10 +23,11 @@ import { contrastIssues as pageContrastIssues } from './contrast.mjs';
 
 // Quality first: a generous explicit cap. Omitting max_tokens lets some
 // providers fall back to a small default and truncate the HTML.
-export const DESIGNER_MAX_TOKENS = 32000;
+export const DESIGNER_MAX_TOKENS = 64000;
+export const DESIGNER_MAX_CHARS = 180_000;
 export const DESIGNER_TEMPERATURE = 0.85;
 export const DESIGNER_TRIES = 6;
-export const DESIGNER_MAX_CHARS = 90_000;
+
 
 const BRAND = {
   name: 'Jacob Design Studio',
@@ -824,7 +825,7 @@ function tokenList(html) {
 // up to eight. The first page is always the cover and the last always the
 // specification; everything between is story and materials.
 export const MIN_DESIGN_PAGES = 2;
-export const MAX_DESIGN_PAGES = 64;
+export const MAX_DESIGN_PAGES = 200;
 const COVER_WORD_LIMIT = 60;
 const MIDDLE_WORD_LIMIT = 280;
 const SPEC_WORD_LIMIT = 300;
