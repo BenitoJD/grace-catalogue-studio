@@ -163,6 +163,17 @@ export interface LlmSettings {
   updatedAt: string | null;
 }
 
+
+export interface StudioPrompt {
+  id: string;
+  key: string;
+  label: string;
+  description: string;
+  value: string;
+  isDefault: boolean;
+  updatedAt?: string | null;
+}
+
 export interface LlmProvider {
   id: string;
   label: string;
@@ -527,6 +538,25 @@ export const api = {
       timeoutMs: RENDER_TIMEOUT_MS,
     });
   },
+  getPrompts(): Promise<{ prompts: StudioPrompt[] }> {
+    return request('/api/prompts', { timeoutMs: 20000 });
+  },
+
+  savePrompt(id: string, value: string): Promise<{ prompt: StudioPrompt }> {
+    return request(`/api/prompts/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: { value },
+      timeoutMs: 20000,
+    });
+  },
+
+  resetPrompt(id: string): Promise<{ prompt: StudioPrompt }> {
+    return request(`/api/prompts/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      timeoutMs: 20000,
+    });
+  },
+
   getLlmSettings(): Promise<LlmSettings> {
     return request<LlmSettings>('/api/llm/settings');
   },

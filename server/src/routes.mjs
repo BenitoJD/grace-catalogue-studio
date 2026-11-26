@@ -19,6 +19,7 @@ import {
   getCustomer,
   getLlmCache,
   getMaterial,
+  getSetting,
   getAssistantSession,
   getOrder,
   getRender,
@@ -41,6 +42,16 @@ import {
   updateOrder,
 } from './db.mjs';
 import { publicProviders } from './providers.mjs';
+import { SYSTEM_PROMPT } from './assistant.mjs';
+import { DESIGNER_SYSTEM, QUALITY_SYSTEM } from './ai-brochure.mjs';
+import { VISION_PROMPT } from './vision.mjs';
+import {
+  configurePromptStore,
+  listPrompts,
+  registerPromptDefaults,
+  resetPrompt,
+  savePrompt,
+} from './prompts.mjs';
 import {
   DEFAULT_NOTE_LIMIT_PER_MIN,
   DEFAULT_RATE_LIMIT_PER_MIN,
@@ -633,6 +644,17 @@ function checkDatabase(db) {
 
 export function createApp(options) {
   const { db, dataDir, templatesDir } = options;
+  configurePromptStore({
+    get: (key) => getSetting(db, key),
+    set: (key, value) => setSetting(db, key, value),
+    remove: (key) => deleteSetting(db, key),
+  });
+  registerPromptDefaults({
+    assistant: SYSTEM_PROMPT,
+    designer: DESIGNER_SYSTEM,
+    vision: VISION_PROMPT,
+    quality: QUALITY_SYSTEM,
+  });
   const rendersDir = path.join(dataDir, 'renders');
   const weasyprintBin = options.weasyprintBin ?? 'weasyprint';
   const pdftoppmBin = options.pdftoppmBin ?? 'pdftoppm';
@@ -1218,6 +1240,27 @@ export function createApp(options) {
   // The provider catalog is public: presets, their default models and where to
   // create a key. No secrets are involved.
   app.get('/api/llm/providers', (c) => c.json({ providers: publicProviders() }));
+
+  // The internal instructions, shown in full so the studio can read and edit
+  // them. Value null resets a prompt to the built in text.
+  app.get('/api/prompts', (c) => c.json({ prompts: listPrompts() }));
+
+  app.put('/api/prompts/:id', async (c) => {
+    const parsed = await readJsonObject(c);
+    if (parsed.error) return fail(c, 400, parsed.error);
+    const body = parsed.body ?? {};
+    if (typeof body.value !== 'string') return fail(c, 400, 'A prompt needs a text value.');
+    if (body.value.length > 60_000) return fail(c, 400, 'That prompt is too long.');
+    const prompt = savePrompt(c.req.param('id'), body.value);
+    if (!prompt) return fail(c, 404, 'Unknown prompt.');
+    return c.json({ prompt });
+  });
+
+  app.delete('/api/prompts/:id', (c) => {
+    const prompt = resetPrompt(c.req.param('id'));
+    if (!prompt) return fail(c, 404, 'Unknown prompt.');
+    return c.json({ prompt });
+  });
 
   // No key is ever returned: hasKey only says whether one is available.
   app.get('/api/llm/settings', (c) =>

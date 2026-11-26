@@ -925,7 +925,16 @@ export function putDesignCatalog(db, { version, expected, designs, sampleCopy })
 
 // The runtime configuration keys this build knows about. Keeping the list here
 // means a typo can not quietly create a setting nothing ever reads.
-export const SETTING_KEYS = Object.freeze(['llm_provider', 'llm_endpoint', 'llm_model', 'llm_api_key']);
+export const SETTING_KEYS = Object.freeze([
+  'llm_provider',
+  'llm_endpoint',
+  'llm_model',
+  'llm_api_key',
+  'prompt_assistant',
+  'prompt_designer',
+  'prompt_vision',
+  'prompt_quality',
+]);
 const SETTING_KEY_SET = new Set(SETTING_KEYS);
 
 function settingFromRow(row) {

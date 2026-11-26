@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -13,6 +13,7 @@ import {
   testLlmConnection,
   type LlmProvider,
   type LlmSettings,
+  type StudioPrompt,
 } from '@/lib/api';
 import { colors, layout, shared, space, text } from '@/lib/theme';
 import { TamilLine } from '@/components/TamilLine';
@@ -28,6 +29,10 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
 
   const [settings, setSettings] = useState<LlmSettings | null>(null);
+  const [prompts, setPrompts] = useState<StudioPrompt[]>([]);
+  const [promptsLoading, setPromptsLoading] = useState(true);
+  const [promptBusyId, setPromptBusyId] = useState<string | null>(null);
+  const [promptStatus, setPromptStatus] = useState<Status>(null);
   const [providers, setProviders] = useState<LlmProvider[]>([]);
   const [providerId, setProviderId] = useState('custom');
   const [settingsLoading, setSettingsLoading] = useState(true);
@@ -57,6 +62,52 @@ export default function SettingsScreen() {
       setSettingsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getPrompts()
+      .then((result) => {
+        if (active) setPrompts(result.prompts);
+      })
+      .catch((error) => {
+        if (active) setPromptStatus({ tone: 'bad', message: errorMessage(error, 'The prompts could not be loaded.') });
+      })
+      .finally(() => {
+        if (active) setPromptsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const saveStudioPrompt = async (prompt: StudioPrompt) => {
+    setPromptBusyId(prompt.id);
+    setPromptStatus(null);
+    try {
+      const result = await api.savePrompt(prompt.id, prompt.value);
+      setPrompts((current) => current.map((item) => (item.id === result.prompt.id ? result.prompt : item)));
+      setPromptStatus({ tone: 'good', message: `${result.prompt.label} saved. It applies from the next turn.` });
+    } catch (error) {
+      setPromptStatus({ tone: 'bad', message: errorMessage(error, 'The prompt could not be saved.') });
+    } finally {
+      setPromptBusyId(null);
+    }
+  };
+
+  const resetStudioPrompt = async (prompt: StudioPrompt) => {
+    setPromptBusyId(prompt.id);
+    setPromptStatus(null);
+    try {
+      const result = await api.resetPrompt(prompt.id);
+      setPrompts((current) => current.map((item) => (item.id === result.prompt.id ? result.prompt : item)));
+      setPromptStatus({ tone: 'good', message: `${result.prompt.label} reset to the built in text.` });
+    } catch (error) {
+      setPromptStatus({ tone: 'bad', message: errorMessage(error, 'The prompt could not be reset.') });
+    } finally {
+      setPromptBusyId(null);
+    }
+  };
 
   useEffect(() => {
     // First load on mount. The section starts in its loading state.
@@ -319,6 +370,72 @@ export default function SettingsScreen() {
 
 
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Studio prompts</Text>
+            <Text style={styles.sectionHint}>
+              These are the exact internal instructions used by the studio. Read them, edit them and
+              save. Edits are stored on this computer and apply from the next turn. Reset restores
+              the built in text.
+            </Text>
+            {promptsLoading ? <LoadingState label="Loading studio prompts." /> : null}
+            {promptStatus ? (
+              <Text
+                style={[
+                  text.value,
+                  styles.status,
+                  promptStatus.tone === 'good' ? styles.statusGood : styles.statusBad,
+                ]}
+                accessibilityLiveRegion="polite">
+                {promptStatus.message}
+              </Text>
+            ) : null}
+            {prompts.map((prompt) => (
+              <View key={prompt.id} style={styles.promptCard}>
+                <View style={styles.promptHead}>
+                  <Text style={styles.promptLabel}>{prompt.label}</Text>
+                  <Text style={styles.promptState}>{prompt.isDefault ? 'Built in' : 'Edited'}</Text>
+                </View>
+                <Text style={[text.caption, styles.promptDescription]}>{prompt.description}</Text>
+                <TextInput
+                  style={styles.promptInput}
+                  value={prompt.value}
+                  onChangeText={(value) =>
+                    setPrompts((current) =>
+                      current.map((item) => (item.id === prompt.id ? { ...item, value } : item))
+                    )
+                  }
+                  multiline
+                  textAlignVertical="top"
+                  accessibilityLabel={`${prompt.label} prompt`}
+                />
+                <View style={styles.promptActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Save ${prompt.label} prompt`}
+                    disabled={promptBusyId === prompt.id}
+                    onPress={() => void saveStudioPrompt(prompt)}
+                    style={({ pressed }) => [styles.promptSave, pressed && styles.promptPressed]}>
+                    <Text style={styles.promptSaveLabel}>
+                      {promptBusyId === prompt.id ? 'Saving' : 'Save prompt'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Reset ${prompt.label} prompt`}
+                    disabled={prompt.isDefault || promptBusyId === prompt.id}
+                    onPress={() => void resetStudioPrompt(prompt)}
+                    style={({ pressed }) => [
+                      styles.promptReset,
+                      prompt.isDefault && styles.promptResetDisabled,
+                      pressed && styles.promptPressed,
+                    ]}>
+                    <Text style={styles.promptResetLabel}>Reset</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>This app</Text>
             <InfoRow label="Version" value={APP_VERSION} />
             <InfoRow label="Platform" value={PLATFORM_LABEL} />
@@ -559,5 +676,80 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: space.xl,
+  },
+  promptCard: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: '#FFFFFF',
+    gap: 8,
+  },
+  promptHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  promptLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0D0D0D',
+  },
+  promptState: {
+    fontSize: 11,
+    color: '#8E8E93',
+  },
+  promptDescription: {
+    color: '#6E6E73',
+  },
+  promptInput: {
+    minHeight: 160,
+    maxHeight: 300,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 12.5,
+    lineHeight: 19,
+    color: '#0D0D0D',
+    backgroundColor: '#FAFAFA',
+  },
+  promptActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  promptSave: {
+    backgroundColor: '#0D0D0D',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  promptSaveLabel: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  promptReset: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  promptResetDisabled: {
+    opacity: 0.45,
+  },
+  promptResetLabel: {
+    color: '#0D0D0D',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  promptPressed: {
+    opacity: 0.75,
   },
 });

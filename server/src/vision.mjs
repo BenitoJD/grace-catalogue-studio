@@ -4,6 +4,7 @@
 // model never breaks the app: the call fails softly and the deterministic
 // reading takes over.
 import { thumbnailDataUri } from './image-detail.mjs';
+import { resolvePrompt } from './prompts.mjs';
 
 // Models that are known to accept image content on an OpenAI compatible
 // endpoint. Used only in "auto" mode; "on" mode always attempts the call.
@@ -47,7 +48,7 @@ export function visionEnabled(config, env = process.env) {
   return true;
 }
 
-const VISION_PROMPT = [
+export const VISION_PROMPT = [
   'You are the picture analyst at Jacob Design Studio, an interior and joinery workshop.',
   'You receive one or more photographs of one customer project, in order.',
   'Reply with strict JSON only, exactly this shape:',
@@ -119,7 +120,7 @@ const CACHE_LIMIT = 40;
 const unsupportedModels = new Set();
 
 function cacheKey(config, filePaths) {
-  return `${config?.model ?? ''}|${filePaths.join('|')}`;
+  return `${config?.model ?? ''}|${resolvePrompt('vision', VISION_PROMPT)}|${filePaths.join('|')}`;
 }
 
 // Every picture is read, in batches of four per model call, so a project with
@@ -143,7 +144,7 @@ async function readBatch({ config, requestChat, filePaths, logger }) {
         model: config.model,
         apiKey: config.apiKey,
         messages: [
-          { role: 'system', content: VISION_PROMPT },
+          { role: 'system', content: resolvePrompt('vision', VISION_PROMPT) },
           {
             role: 'user',
             content: [

@@ -4975,6 +4975,30 @@ test('a second Pi turn restores the transcript and designs the same order', { ti
   assert.ok(calls.includes('/api/orders/order-1/ai-brochure'));
 });
 
+test('the internal prompts are listed, editable and resettable', async () => {
+  const listed = await (await fetch(`${baseUrl}/api/prompts`)).json();
+  assert.equal(listed.prompts.length, 4);
+  const designer = listed.prompts.find((prompt) => prompt.id === 'designer');
+  assert.ok(designer);
+  assert.ok(designer.value.length > 200);
+  assert.equal(designer.isDefault, true);
+  const saved = await fetch(`${baseUrl}/api/prompts/designer`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ value: 'CUSTOM DESIGNER PROMPT' }),
+  });
+  assert.equal(saved.status, 200);
+  const after = await (await fetch(`${baseUrl}/api/prompts`)).json();
+  assert.equal(after.prompts.find((prompt) => prompt.id === 'designer').value, 'CUSTOM DESIGNER PROMPT');
+  assert.equal(after.prompts.find((prompt) => prompt.id === 'designer').isDefault, false);
+  const reset = await fetch(`${baseUrl}/api/prompts/designer`, { method: 'DELETE' });
+  assert.equal(reset.status, 200);
+  const back = await (await fetch(`${baseUrl}/api/prompts`)).json();
+  assert.equal(back.prompts.find((prompt) => prompt.id === 'designer').isDefault, true);
+  const bad = await fetch(`${baseUrl}/api/prompts/nope`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value: 'x' }) });
+  assert.equal(bad.status, 404);
+});
+
 test('a tapped point returns the colour that is actually there', async () => {
   writeFixtureMedia();
   const sample = await postJson(`${baseUrl}/api/visual-sample`, {

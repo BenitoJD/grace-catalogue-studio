@@ -17,6 +17,7 @@ import path from 'node:path';
 import { LlmError, clean } from './llm.mjs';
 import { buildVoucherValues, escapeHtml, paletteStripPng } from './render.mjs';
 import { colourName } from './image-palette.mjs';
+import { resolvePrompt } from './prompts.mjs';
 import { brandPlateTokens } from './brand-lockup.mjs';
 import { contrastIssues as pageContrastIssues } from './contrast.mjs';
 
@@ -120,7 +121,7 @@ const RAW_TOKENS = new Set([
   'arch',
 ]);
 
-const DESIGNER_SYSTEM = [
+export const DESIGNER_SYSTEM = [
   'You are the art director, typographer and print designer for Jacob Design Studio, a wardrobe and furniture workshop in Nagercoil, Tamil Nadu.',
   'You design and typeset one printed brochure for one order. Reply with one complete HTML document and nothing else.',
   '',
@@ -557,7 +558,7 @@ export const QUALITY_SYSTEM = [
 export function buildQualityMessages({ html, round = 1, styleNotes = '' }) {
   const inspiration = String(styleNotes ?? '').trim();
   return [
-    { role: 'system', content: QUALITY_SYSTEM },
+    { role: 'system', content: resolvePrompt('quality', QUALITY_SYSTEM) },
     {
       role: 'user',
       content:
@@ -632,7 +633,7 @@ export function buildPolishMessages({ html }) {
 export function buildDesignerMessages({ order, brief = '', direction = '', format = 'pamphlet', copy, photos = [], photoShapes = [], photoPalettes = {}, pictureReading = '', pictureAnalysis = [], annotations = [], previousHtml = '', editNote = '' }) {
   const user = designContext({ order, brief, direction, format, copy, photos, photoShapes, photoPalettes, pictureReading, pictureAnalysis, annotations, previousHtml, editNote });
   const messages = [
-    { role: 'system', content: DESIGNER_SYSTEM },
+    { role: 'system', content: resolvePrompt('designer', DESIGNER_SYSTEM) },
     { role: 'user', content: user },
   ];
   if (editNote && clean(previousHtml) !== '') {

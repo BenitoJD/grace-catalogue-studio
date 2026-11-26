@@ -5,6 +5,7 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import { getCurrentTools } from '@earendil-works/pi-ai';
 import { providerHeaders } from './llm.mjs';
+import { resolvePrompt } from './prompts.mjs';
 
 const ASSISTANT_TIMEOUT_MS = 90 * 60 * 1000;
 
@@ -551,7 +552,7 @@ export async function runAssistantTurn({
     .slice(-60);
   const agent = new Agent({
     initialState: {
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: resolvePrompt('assistant', SYSTEM_PROMPT),
       model,
       tools,
       messages: restored,
