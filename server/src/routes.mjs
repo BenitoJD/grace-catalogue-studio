@@ -1723,6 +1723,7 @@ export function createApp(options) {
         attachments: attachments.value,
         orderId: orderId === '' ? null : orderId,
         format,
+        sessionId,
         previousMessages: storedSession?.messages ?? [],
         callApi,
         logger,
@@ -1983,6 +1984,14 @@ export function createApp(options) {
       if (format !== order.designFormat) order = setOrderDesignFormat(db, order.id, format);
     }
 
+    const progressSessionId =
+      typeof body.progressSessionId === 'string' ? body.progressSessionId.trim().slice(0, 160) : '';
+    const designProgress = (label, detail = '') => {
+      if (progressSessionId === '') return;
+      setAssistantProgress(progressSessionId, { stage: 'design', label, detail });
+    };
+    designProgress('Preparing the page grid and the picture set');
+
     let editNote = '';
     if (body.edit !== undefined) {
       if (typeof body.edit !== 'string') {
@@ -2113,6 +2122,7 @@ export function createApp(options) {
       let previousReply = '';
       let lastIssues = '';
       for (let attempt = 1; attempt <= DESIGNER_TRIES && !html; attempt += 1) {
+        designProgress(`Designing page set, round ${attempt} of ${DESIGNER_TRIES}`);
         const requestMessages =
           attempt === 1 ? messages : buildDesignerRepairMessages(messages, previousReply, lastIssues);
         const result = await requestChat({
@@ -2165,12 +2175,14 @@ export function createApp(options) {
                 temperature: 0.2,
                 timeoutMs: 180_000,
               });
+              designProgress('Print checks passed, the art director is reviewing');
               const verdict = parseQualityReview(judged.content);
               if (verdict) {
                 logger.info('The art director judged the pamphlet.', {
                   attempt,
                   score: verdict.score,
                 });
+                designProgress(`Art director scored ${verdict.score}/10`);
                 if (verdict.score > bestScore) {
                   bestScore = verdict.score;
                   bestHtml = html;
@@ -2178,6 +2190,7 @@ export function createApp(options) {
                 }
                 if (verdict.score < QUALITY_THRESHOLD) {
                   lastIssues = `The art director scored this ${verdict.score}/10, below the ${QUALITY_THRESHOLD}/10 world class gate. Apply these fixes: ${verdict.fixes.join('; ') || 'raise the art direction and composition'}`;
+                  designProgress(`Applying the art director fixes: ${verdict.fixes.slice(0, 2).join('; ') || 'raise the composition'}`.slice(0, 180));
                   logger.info('The art director asked for another design round.', {
                     attempt,
                     score: verdict.score,
@@ -2211,6 +2224,7 @@ export function createApp(options) {
       }
       if (html && acceptedReply !== '' && String(process.env.DESIGN_POLISH ?? 'on').toLowerCase() !== 'off') {
         try {
+          designProgress('Polishing the type, margins and picture scale');
           const polished = await requestChat({
             provider: config.provider,
             endpoint: config.endpoint,
@@ -2255,6 +2269,7 @@ export function createApp(options) {
       }
 
       const qaPasses = Number.parseInt(process.env.DESIGN_QA_PASSES ?? '2', 10);
+      designProgress(`Final alignment check, ${qaPasses} pass${qaPasses === 1 ? '' : 'es'}`);
       if (html && acceptedReply !== '' && Number.isFinite(qaPasses) && qaPasses > 0) {
         let reviewed = acceptedReply;
         for (let pass = 1; pass <= Math.min(qaPasses, 4); pass += 1) {
@@ -2311,7 +2326,9 @@ export function createApp(options) {
 
       // 4. Print it and remember the document for the next chat edit.
       const renderId = newRenderId();
+      designProgress('Printing the PDF');
       const rendered = await renderer.renderHtml({ html, renderId });
+      designProgress(`Printing complete, ${rendered.pageCount} pages rendered`);
       const design = {
         label: designLabel({ direction }),
         designed: true,

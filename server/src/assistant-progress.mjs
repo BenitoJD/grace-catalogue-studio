@@ -23,6 +23,22 @@ export function setAssistantProgress(sessionId, update) {
     if (existing) existing.label = update.label ?? existing.label;
     else steps.push({ stage: update.stage, label: update.label ?? update.stage, at: now });
   }
+  // A full activity feed, one line per real action. Steps are stage summary,
+  // events are what the studio wants to read: round, score, fixes, print.
+  const events = Array.isArray(previous?.events) ? [...previous.events] : [];
+  const label = update.label ?? update.event;
+  if (typeof label === 'string' && label.trim() !== '') {
+    const last = events[events.length - 1];
+    if (!last || last.label !== label.trim()) {
+      events.push({
+        label: label.trim(),
+        detail: update.detail ?? '',
+        stage: update.stage ?? previous?.stage ?? 'working',
+        at: now,
+      });
+      while (events.length > 30) events.shift();
+    }
+  }
   sessions.set(id, {
     sessionId: id,
     stage: update.stage ?? previous?.stage ?? 'working',
@@ -32,6 +48,7 @@ export function setAssistantProgress(sessionId, update) {
     updatedAt: now,
     finished: update.finished ?? false,
     steps,
+    events,
   });
 }
 
@@ -39,7 +56,7 @@ export function getAssistantProgress(sessionId) {
   prune();
   const value = sessions.get(String(sessionId ?? '').trim());
   if (!value) return null;
-  return { ...value, elapsedMs: Date.now() - value.startedAt };
+  return { ...value, events: Array.isArray(value.events) ? value.events : [], elapsedMs: Date.now() - value.startedAt };
 }
 
 export function finishAssistantProgress(sessionId, update = {}) {

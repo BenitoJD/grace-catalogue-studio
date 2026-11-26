@@ -213,6 +213,7 @@ export interface AssistantProgress {
   elapsedMs: number;
   finished: boolean;
   steps: { stage: string; label: string; at: number }[];
+  events: { stage: string; label: string; detail?: string; at: number }[];
 }
 
 export interface AssistantReply {

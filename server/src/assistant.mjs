@@ -256,6 +256,7 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
             ? { direction: params.direction.trim() }
             : {}),
           ...(chosenFormat ? { format: chosenFormat } : {}),
+          ...(state.sessionId ? { progressSessionId: state.sessionId } : {}),
         });
         state.render = result?.render ?? null;
         onProgress({ stage: 'print', label: 'Checking the print and the page images' });
@@ -522,6 +523,7 @@ export async function runAssistantTurn({
   attachments = [],
   orderId = null,
   format = null,
+  sessionId = null,
   previousMessages = [],
   callApi,
   logger,
@@ -544,7 +546,7 @@ export async function runAssistantTurn({
     streamFn = runtime.streamFn;
     apiKey = runtime.apiKey;
   }
-  const state = { orderId, orderNo: null, order: null, render: null, review: null, format: format ?? null, toolCalls: [] };
+  const state = { orderId, orderNo: null, order: null, render: null, review: null, format: format ?? null, sessionId, toolCalls: [] };
   const tools = createStudioTools({ callApi, attachments, state, onProgress });
   const history = agentHistory(messages);
   const last = history.pop();

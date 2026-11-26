@@ -204,7 +204,12 @@ export default function ChatScreen() {
   const [assistantEnabled, setAssistantEnabled] = useState(false);
   const [assistantSessionId, setAssistantSessionId] = useState<string>(() => `chat-${Date.now()}`);
   const [outputFormat, setOutputFormat] = useState<'pamphlet' | 'brochure'>('pamphlet');
-  const [assistantProgress, setAssistantProgress] = useState<{ label: string; elapsedMs: number; steps: string[] } | null>(null);
+  const [assistantProgress, setAssistantProgress] = useState<{
+    label: string;
+    elapsedMs: number;
+    steps: string[];
+    events: { label: string; at: number }[];
+  } | null>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const assistantBroken = useRef(false);
   const [skipping, setSkipping] = useState(false);
@@ -667,6 +672,7 @@ export default function ChatScreen() {
             label: progress.label,
             elapsedMs: progress.elapsedMs,
             steps: progress.steps.map((step) => step.label),
+            events: (progress.events ?? []).map((event) => ({ label: event.label, at: event.at })),
           });
         })
         .catch(() => {});
@@ -1013,10 +1019,21 @@ export default function ChatScreen() {
                           : 'Reading'
                   }
                 />
-                {sending && assistantProgress && assistantProgress.steps.length > 1 ? (
-                  <Text style={[text.caption, styles.agentSteps]}>
-                    {assistantProgress.steps.join(' · ')}
-                  </Text>
+                {sending && assistantProgress && assistantProgress.events.length > 0 ? (
+                  <View style={styles.agentFeed} accessibilityLiveRegion="polite">
+                    <Text style={styles.agentFeedTitle}>What the studio is doing</Text>
+                    {assistantProgress.events.slice(-6).map((event, eventIndex) => (
+                      <View key={`${event.at}-${eventIndex}`} style={styles.agentFeedRow}>
+                        <View style={styles.agentFeedDot} />
+                        <Text style={styles.agentFeedText} numberOfLines={2}>
+                          {event.label}
+                        </Text>
+                        <Text style={styles.agentFeedTime}>
+                          {`${Math.max(0, Math.round((event.at - (assistantProgress.events[0]?.at ?? event.at)) / 1000))}s`}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 ) : null}
               </View>
             </View>
@@ -3193,5 +3210,46 @@ const styles = StyleSheet.create({
   reviewLegendText: {
     color: '#0D0D0D',
     fontSize: 10,
+  },
+  agentFeed: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    borderRadius: 12,
+    backgroundColor: '#FAFAF9',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 6,
+    maxWidth: 460,
+  },
+  agentFeedTitle: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: '#8A8A8E',
+    marginBottom: 2,
+  },
+  agentFeedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  agentFeedDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#B98A55',
+  },
+  agentFeedText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#3C3C43',
+  },
+  agentFeedTime: {
+    fontSize: 10.5,
+    color: '#A0A0A5',
+    fontVariant: ['tabular-nums'],
   },
 });
