@@ -1401,6 +1401,7 @@ function ReviewPhotoCard({
     { label: string; x: number; y: number; colourHex: string; colourName: string }[]
   >([]);
   const [sampling, setSampling] = useState(false);
+  const [markZoom, setMarkZoom] = useState(1);
   const [hiddenMarks, setHiddenMarks] = useState<string[]>([]);
   const markKeyFor = (candidate: { x: number; y: number; label: string }, candidateIndex: number) =>
     `${candidateIndex}-${candidate.x}-${candidate.y}-${candidate.label}`;
@@ -1649,7 +1650,7 @@ function ReviewPhotoCard({
               onLayout={(event) => setMarkFrame(event.nativeEvent.layout)}>
               <Image
                 source={{ uri: fileUrl(photo.previewUrl ?? photo.url) }}
-                style={styles.markImage}
+                style={[styles.markImage, { transform: [{ scale: markZoom }] }]}
                 resizeMode="contain"
               />
               <Pressable
@@ -1664,12 +1665,18 @@ function ReviewPhotoCard({
                   const localX = Number(native.locationX ?? native.offsetX);
                   const localY = Number(native.locationY ?? native.offsetY);
                   if (markFrame.width <= 0 || markFrame.height <= 0) return;
+                  // The picture is scaled around its centre, so map the tap back
+                  // to the unzoomed picture before saving the percentage.
+                  const centerX = markFrame.width / 2;
+                  const centerY = markFrame.height / 2;
+                  const imageX = centerX + (Number(localX) - centerX) / markZoom;
+                  const imageY = centerY + (Number(localY) - centerY) / markZoom;
                   const position = {
-                    x: Number.isFinite(localX)
-                      ? Math.min(100, Math.max(0, (localX / markFrame.width) * 100))
+                    x: Number.isFinite(imageX)
+                      ? Math.min(100, Math.max(0, (imageX / markFrame.width) * 100))
                       : 50,
-                    y: Number.isFinite(localY)
-                      ? Math.min(100, Math.max(0, (localY / markFrame.height) * 100))
+                    y: Number.isFinite(imageY)
+                      ? Math.min(100, Math.max(0, (imageY / markFrame.height) * 100))
                       : 50,
                   };
                   setPoint(position);
@@ -1677,7 +1684,15 @@ function ReviewPhotoCard({
                 }}
               />
               {point ? (
-                <View style={[styles.markPoint, { left: `${point.x}%`, top: `${point.y}%` }]} />
+                <View
+                  style={[
+                    styles.markPoint,
+                    {
+                      left: `${50 + (point.x - 50) * markZoom}%`,
+                      top: `${50 + (point.y - 50) * markZoom}%`,
+                    },
+                  ]}
+                />
               ) : null}
             </View>
             {sampling ? (
@@ -1708,6 +1723,34 @@ function ReviewPhotoCard({
                 </View>
               </View>
             ) : null}
+            <View style={styles.markZoomBar}>
+              <Text style={[text.caption, styles.markZoomLabel]}>Zoom</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Zoom out of the mark picture"
+                onPress={() => setMarkZoom((current) => Math.max(1, Number((current - 0.5).toFixed(1))))}
+                style={styles.markZoomButton}>
+                <Text style={styles.markZoomButtonLabel}>−</Text>
+              </Pressable>
+              <Text style={styles.markZoomValue}>{`${markZoom.toFixed(1)}×`}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Zoom into the mark picture"
+                onPress={() => setMarkZoom((current) => Math.min(4, Number((current + 0.5).toFixed(1))))}
+                style={styles.markZoomButton}>
+                <Text style={styles.markZoomButtonLabel}>+</Text>
+              </Pressable>
+              {markZoom > 1 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset mark picture zoom"
+                  onPress={() => setMarkZoom(1)}
+                  style={styles.markZoomReset}>
+                  <Text style={styles.markZoomResetLabel}>Reset</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
             <View style={styles.markFields}>
               <TextInput
                 style={styles.markField}
@@ -3359,5 +3402,48 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     color: '#8E8E93',
     paddingHorizontal: 2,
+  },
+  markZoomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  markZoomLabel: {
+    color: '#6E6E73',
+    marginRight: 2,
+  },
+  markZoomButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  markZoomButtonLabel: {
+    fontSize: 17,
+    lineHeight: 19,
+    color: '#0D0D0D',
+  },
+  markZoomValue: {
+    minWidth: 38,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0D0D0D',
+    fontVariant: ['tabular-nums'],
+  },
+  markZoomReset: {
+    marginLeft: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  markZoomResetLabel: {
+    fontSize: 12,
+    color: '#6E6E73',
+    fontWeight: '600',
   },
 });
