@@ -277,6 +277,7 @@ const api = startProcess(process.execPath, ["server/src/index.mjs"], {
   DESIGN_POLISH: "off",
   DESIGN_QA_PASSES: "0",
   DESIGN_QUALITY: "off",
+    DESIGN_PAGE_QA: "off",
   DESIGN_THEME_LOCK: "off"
 });
 const web = startProcess(process.execPath, ["scripts/serve-web.mjs", "8081"]);

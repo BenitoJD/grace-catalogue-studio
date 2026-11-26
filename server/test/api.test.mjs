@@ -101,6 +101,7 @@ process.env.LLM_VISION_MODE = 'auto';
 process.env.DESIGN_POLISH = 'off';
 process.env.DESIGN_QA_PASSES = '0';
 process.env.DESIGN_QUALITY = 'off';
+process.env.DESIGN_PAGE_QA = 'off';
 process.env.DESIGN_THEME_LOCK = 'off';
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url));

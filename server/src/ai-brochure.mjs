@@ -201,7 +201,7 @@ export const DESIGNER_SYSTEM = [
   '- Any text over a photograph or a dark picture must sit inside a band, panel or scrim that carries its own near-opaque background colour inline, with the opposite text colour on it. Never set light words straight on a photo.',
   '- Put the background colour inline on the element or on an ancestor element, not only in a class, so the contrast check can verify it. It is checked before printing and low contrast is rejected.',
   '- Build a real typographic hierarchy: one display line, small caps labels with wide tracking, hairline rules, captions, folio numbers. Use white space as a material.',
-  '- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
+  '- LAYOUT LAW. Compose in normal flow or CSS grid. Never place one block over another. Text, palette strips, captions and notes must never overlap, touch or be clipped. A palette strip belongs in the flow below the copy, never absolutely positioned over it. Text blocks have natural height; never fix a text block height or hide its overflow. If a block does not fit, shorten the copy or move it to the next page, never overlap it.\n- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
   '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
   '- Colour strips are images, not pale samples: frame each one with a hairline rule or a keyline so it reads as a colour plate.',
   '- Tamil is set tight and whole: never letter-space, uppercase or small-cap a Tamil line, and never set it below 7.5 pt. Keep Tamil in a line of its own.',
@@ -555,6 +555,46 @@ export const QUALITY_SYSTEM = [
   'Reply with strict JSON only: {"score": 8, "fixes": ["one concrete instruction", "another"]}.',
   'The fixes must be concrete art direction that the designer can apply to the document, not general praise.',
 ].join(' ');
+
+export const PAGE_QA_SYSTEM = [
+  'You are the pre-press layout inspector of a premium print studio.',
+  'You receive the complete HTML of a designed pamphlet or brochure. Inspect EVERY page one by one, as if it were already printed.',
+  'A page fails if any of these are true: a text block overlaps another text block, a palette strip, a caption, an image or a rule; text is clipped, cut off or hidden behind a block; a colour strip sits on top of copy; a large empty band is left unfinished; a block looks half placed; a page reads like an unfinished draft.',
+  'Do not judge taste, wording or colour. Only layout integrity and page completion.',
+  'Reply with strict JSON only: {"pages":[{"page":1,"issues":["short concrete problem"]}]}. Include only pages that have issues. If every page is clean reply {"pages":[]}.',
+].join(' ');
+
+export function buildPageQaMessages({ html, pageCount = 0 }) {
+  return [
+    { role: 'system', content: PAGE_QA_SYSTEM },
+    {
+      role: 'user',
+      content: `Inspect all ${pageCount} pages of this document and reply with the JSON only.\n\n${html}`,
+    },
+  ];
+}
+
+export function parsePageQa(content) {
+  const text = String(content ?? '').trim();
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  if (!parsed || !Array.isArray(parsed.pages)) return null;
+  return parsed.pages
+    .map((entry) => ({
+      page: Number.isFinite(entry?.page) ? Number(entry.page) : 0,
+      issues: Array.isArray(entry?.issues)
+        ? entry.issues.map((issue) => String(issue).replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 4)
+        : [],
+    }))
+    .filter((entry) => entry.issues.length > 0);
+}
 
 export function buildQualityMessages({ html, round = 1, styleNotes = '' }) {
   const inspiration = String(styleNotes ?? '').trim();

@@ -69,6 +69,8 @@ import {
   buildDesignerRepairMessages,
   buildPolishMessages,
   buildQaMessages,
+  buildPageQaMessages,
+  parsePageQa,
   buildQualityMessages,
   parseQualityReview,
   QUALITY_THRESHOLD,
@@ -2163,6 +2165,38 @@ export function createApp(options) {
             pages: document.pages,
             styles: document.styles,
           });
+          if (html && String(process.env.DESIGN_PAGE_QA ?? 'on').toLowerCase() !== 'off') {
+            try {
+              designProgress('Layout inspector checking every page');
+              const inspected = await requestChat({
+                provider: config.provider,
+                endpoint: config.endpoint,
+                model: config.model,
+                apiKey: config.apiKey,
+                messages: buildPageQaMessages({ html, pageCount: document.pages.length }),
+                maxTokens: 2400,
+                temperature: 0.1,
+                timeoutMs: 240_000,
+              });
+              const pageIssues = parsePageQa(inspected.content);
+              if (pageIssues && pageIssues.length > 0) {
+                const summary = pageIssues
+                  .slice(0, 4)
+                  .map((entry) => `page ${entry.page}: ${entry.issues.join('; ')}`)
+                  .join(' | ');
+                designProgress(`Layout inspector rejected ${pageIssues.length} page(s)`, summary);
+                throw new LlmError(`The layout inspector rejected the document: ${summary}`, {
+                  type: 'invalid_reply',
+                });
+              }
+              designProgress('Layout inspector passed every page');
+            } catch (error) {
+              if (error?.type === 'invalid_reply') throw error;
+              logger.warn('The layout inspector could not run; the print checks still guard this design.', {
+                reason: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }
           if (html && String(process.env.DESIGN_QUALITY ?? 'on').toLowerCase() !== 'off') {
             try {
               const judged = await requestChat({
