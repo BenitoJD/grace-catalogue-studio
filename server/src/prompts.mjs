@@ -3,6 +3,9 @@
 // consumer resolves the live text at call time.
 
 const defaults = new Map();
+// Bump when any built in prompt changes. A saved override from an older
+// version is ignored, so new studio rules always reach the designer.
+export const PROMPT_VERSION = '2026-11-26-1';
 let store = {
   get: () => null,
   set: () => {},
@@ -68,7 +71,11 @@ export function defaultPrompt(id) {
 export function resolvePrompt(id, fallback = '') {
   try {
     const stored = store.get(PROMPT_KEYS[id]);
-    if (typeof stored === 'string' && stored.trim() !== '') return stored;
+    const version = store.get(`${PROMPT_KEYS[id]}_version`);
+    const versionValue = version && typeof version === 'object' ? version.value : version;
+    if (typeof stored === 'string' && stored.trim() !== '' && versionValue === PROMPT_VERSION) {
+      return stored;
+    }
   } catch {
     // A settings read problem must never stop a design.
   }
@@ -80,8 +87,11 @@ export function listPrompts() {
     const builtIn = defaultPrompt(entry.id);
     let value = null;
     let updatedAt = null;
+    let versionValue = null;
     try {
       const setting = store.get(entry.key);
+      const version = store.get(`${entry.key}_version`);
+      versionValue = version && typeof version === 'object' ? version.value : version;
       if (setting && typeof setting === 'object') {
         value = typeof setting.value === 'string' && setting.value.trim() !== '' ? setting.value : null;
         updatedAt = setting.updatedAt ?? null;
@@ -91,10 +101,12 @@ export function listPrompts() {
     } catch {
       value = null;
     }
+    const stale = value !== null && versionValue !== PROMPT_VERSION;
     return {
       ...entry,
       value: value ?? builtIn,
       isDefault: value === null,
+      stale,
       updatedAt,
     };
   });
@@ -109,6 +121,7 @@ export function savePrompt(id, value) {
     return listPrompts().find((candidate) => candidate.id === id) ?? null;
   }
   store.set(entry.key, text.slice(0, 60_000));
+  store.set(`${entry.key}_version`, PROMPT_VERSION);
   return listPrompts().find((candidate) => candidate.id === id) ?? null;
 }
 
@@ -116,5 +129,6 @@ export function resetPrompt(id) {
   const entry = PROMPT_CATALOG.find((candidate) => candidate.id === id);
   if (!entry) return null;
   store.remove(entry.key);
+  store.remove(`${entry.key}_version`);
   return listPrompts().find((candidate) => candidate.id === id) ?? null;
 }

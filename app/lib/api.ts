@@ -171,6 +171,7 @@ export interface StudioPrompt {
   description: string;
   value: string;
   isDefault: boolean;
+  stale?: boolean;
   updatedAt?: string | null;
 }
 

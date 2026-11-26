@@ -934,6 +934,10 @@ export const SETTING_KEYS = Object.freeze([
   'prompt_designer',
   'prompt_vision',
   'prompt_quality',
+  'prompt_assistant_version',
+  'prompt_designer_version',
+  'prompt_vision_version',
+  'prompt_quality_version',
 ]);
 const SETTING_KEY_SET = new Set(SETTING_KEYS);
 

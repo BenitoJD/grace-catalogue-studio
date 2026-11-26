@@ -390,6 +390,12 @@ export default function SettingsScreen() {
                   <Text style={styles.promptState}>{prompt.isDefault ? 'Built in' : 'Edited'}</Text>
                 </View>
                 <Text style={[text.caption, styles.promptDescription]}>{prompt.description}</Text>
+                {prompt.stale ? (
+                  <Text style={[text.caption, styles.promptStale]}>
+                    This saved edit is out of date, so the current studio rules are in use. Reset to
+                    load them into the editor.
+                  </Text>
+                ) : null}
                 <TextInput
                   style={styles.promptInput}
                   value={prompt.value}
@@ -728,5 +734,8 @@ const styles = StyleSheet.create({
   },
   promptPressed: {
     opacity: 0.75,
+  },
+  promptStale: {
+    color: '#A05A2C',
   },
 });
