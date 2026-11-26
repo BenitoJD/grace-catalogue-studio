@@ -888,7 +888,7 @@ try {
   // 6. settings tab
   await safeGoto(page, `${WEB}/settings`, { waitUntil: "networkidle2" });
   check("settings screen opens", await hasText(page, "Settings"));
-  check("settings says the app runs locally", await hasText(page, "This computer, entirely"));
+  check("settings says the app runs locally", await hasText(page, "Everything runs on this computer"));
   check("settings never mentions an api server", !(await hasText(page, "API base", 1000)));
 
   // 7. deep link straight into an order

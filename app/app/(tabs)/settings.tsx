@@ -1,6 +1,5 @@
-import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -18,10 +17,6 @@ import {
 import { colors, layout, shared, space, text } from '@/lib/theme';
 import { TamilLine } from '@/components/TamilLine';
 
-const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
-const SDK_VERSION = Constants.expoConfig?.sdkVersion ?? '58';
-const PLATFORM_LABEL =
-  Platform.select({ ios: 'iOS', android: 'Android', web: 'Web', default: 'Native' }) ?? 'Native';
 
 type Status = { tone: 'good' | 'bad'; message: string } | null;
 
@@ -436,16 +431,6 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>This app</Text>
-            <InfoRow label="Version" value={APP_VERSION} />
-            <InfoRow label="Platform" value={PLATFORM_LABEL} />
-            <InfoRow label="Runs on" value="This computer, entirely" />
-            <InfoRow label="Data" value="Stays on this device" />
-            <InfoRow label="Expo SDK" value={SDK_VERSION} />
-          </View>
-
-
-          <View style={styles.section}>
             <Text style={styles.sectionTitle}>About</Text>
             <Text style={[text.body, styles.aboutTitle]}>Jacob Design Studio, Nagercoil</Text>
             <Text style={[text.muted, styles.about]}>
@@ -461,14 +446,6 @@ export default function SettingsScreen() {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   content: {
