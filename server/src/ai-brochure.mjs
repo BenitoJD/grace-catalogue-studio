@@ -205,6 +205,7 @@ export const DESIGNER_SYSTEM = [
   '- Build a real typographic hierarchy: one display line, small caps labels with wide tracking, hairline rules, captions, folio numbers. Use white space as a material.',
   '- NEVER set text inside a black or dark filled rectangle. No black caption bars, no dark text boxes, no dark colour-callout panels. Text sits directly on the paper, or on the full-page dark ground. The only dark fills allowed are a full-page ground and the brand or contact plate.',
   '- NEVER print a palette strip, swatch row, colour chip or paint card on a designer page. The studio prints the palette on the plate for each picture. Designer pages hold photographs, headlines, copy, rules, folios and the brand only.',
+  '- NEVER run text under a photograph. Copy and pictures occupy separate columns or separate bands.',
   '- NO OVERLAPPING TEXT. Two text blocks may never share the same area. Use separate grid columns with a visible gutter, never columns that run into each other. If a paragraph is longer than its column, move it to the next column or the next page; never let it cross another block.',
   '- LAYOUT LAW. Every page is a full composition, edge to edge within the margins, with no unused area larger than a business card. Compose in normal flow or CSS grid. Never place one block over another. Text, palette strips, captions and notes must never overlap, touch or be clipped. A palette strip belongs in the flow below the copy, never absolutely positioned over it. Text blocks have natural height; never fix a text block height or hide its overflow. If a block does not fit, shorten the copy or move it to the next page, never overlap it.\n- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
   '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
@@ -935,6 +936,30 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
             issues.push(`page ${index + 1}: two text blocks overlap; separate them onto the grid columns`);
             a = boxes.length;
             break;
+          }
+        }
+      }
+      // Type must never run under a picture. Measure image boxes and reject any
+      // overlap with a text block.
+      const imageBoxes = [];
+      for (const match of page.matchAll(/<img[^>]*style="([^"]*)"[^>]*>/gi)) {
+        const style = match[1];
+        if (!/position\s*:\s*absolute/i.test(style)) continue;
+        const left = /(?:^|;)\s*left\s*:\s*([0-9.]+)mm/i.exec(style);
+        const top = /(?:^|;)\s*top\s*:\s*([0-9.]+)mm/i.exec(style);
+        const width = /(?:^|;)\s*width\s*:\s*([0-9.]+)mm/i.exec(style);
+        const height = /(?:^|;)\s*height\s*:\s*([0-9.]+)mm/i.exec(style);
+        if (!left || !top || !width || !height) continue;
+        if (Number(width[1]) > 200 || Number(height[1]) > 200) continue;
+        imageBoxes.push({ x: Number(left[1]), y: Number(top[1]), w: Number(width[1]), h: Number(height[1]) });
+      }
+      for (const box of boxes) {
+        for (const imageBox of imageBoxes) {
+          const ox = Math.min(box.x + box.w, imageBox.x + imageBox.w) - Math.max(box.x, imageBox.x);
+          const oy = Math.min(box.y + box.h, imageBox.y + imageBox.h) - Math.max(box.y, imageBox.y);
+          if (ox > 3 && oy > 3 && ox * oy > box.w * box.h * 0.15) {
+            issues.push(`page ${index + 1}: text runs under a picture; give the copy its own column`);
+            return issues;
           }
         }
       }
