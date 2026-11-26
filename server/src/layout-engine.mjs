@@ -292,6 +292,7 @@ export function layoutStudioBook({
   photoPalettes = {},
   pictureAnalysis = [],
   format = 'pamphlet',
+  plan = null,
 }) {
   const body = cleanText(copy.body ?? '');
   const headline = cleanText(copy.headline ?? '');
@@ -300,9 +301,28 @@ export function layoutStudioBook({
   const paletteFor = (index) => (Array.isArray(photoPalettes[`photo${index + 1}`]) ? photoPalettes[`photo${index + 1}`] : []);
   const namesFor = (index) => paletteFor(index).map((hex) => colourName(hex));
 
+  const totalPhotos = Math.max(1, photos.length);
+  const photoNumber = (value) => {
+    const number = Number.parseInt(String(value ?? ''), 10);
+    return Number.isInteger(number) && number >= 1 && number <= totalPhotos ? number : 1;
+  };
+  const plannedPages = Array.isArray(plan?.picturePages) ? plan.picturePages : [];
+  const plannedOrder = [];
+  const plannedCaptions = new Map();
+  for (const entry of plannedPages) {
+    const number = photoNumber(entry?.photo);
+    if (plannedOrder.includes(number)) continue;
+    plannedOrder.push(number);
+    const caption = cleanText(entry?.caption ?? '');
+    if (caption !== '') plannedCaptions.set(number, caption);
+  }
+  for (let number = 1; number <= totalPhotos; number += 1) {
+    if (!plannedOrder.includes(number)) plannedOrder.push(number);
+  }
+  const coverNumber = photoNumber(plan?.coverPhoto);
   const pages = [];
   let pageNumber = 1;
-  pages.push(coverPage({ order, photo: '{{photo1}}', theme: null }));
+  pages.push(coverPage({ order, photo: `{{photo${coverNumber}}}`, theme: null }));
   pageNumber += 1;
 
   const chunks = fitCopy(body, { widthMm: spanWidth(6), fontPt: 9.2, maxLines: 24 });
@@ -312,7 +332,7 @@ export function layoutStudioBook({
     const photoIndex = row;
     pages.push(
       storyPage({
-        photo: photos[photoIndex] ? `{{photo${photoIndex + 1}}}` : null,
+        photo: row === 0 && plannedOrder.length > 0 ? null : null,
         kickerText: row === 0 ? 'The story' : 'The story, continued',
         title: row === 0 ? headline : 'A room held together by its materials.',
         chunks: rowChunks,
@@ -323,11 +343,12 @@ export function layoutStudioBook({
     pageNumber += 1;
   }
 
-  for (let index = 0; index < photos.length; index += 1) {
+  for (const number of plannedOrder) {
+    const index = number - 1;
     pages.push(
       picturePage({
-        photo: `{{photo${index + 1}}}`,
-        caption: captionFor(index),
+        photo: `{{photo${number}}}`,
+        caption: plannedCaptions.get(number) ?? captionFor(index),
         palette: paletteFor(index).slice(0, 4),
         names: namesFor(index),
         pageNumber,

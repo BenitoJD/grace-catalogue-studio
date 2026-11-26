@@ -3591,6 +3591,7 @@ test('the studio layout engine composes a measured book without a designer model
   await configureLlm();
   setOrderCopyForTest();
   process.env.DESIGN_ENGINE = 'studio';
+  process.env.DESIGN_PLANNER = 'off';
   try {
     const response = await postJson(`${baseUrl}/api/orders/${orderId}/ai-brochure`, {});
     const raw = await response.text();
@@ -3605,6 +3606,7 @@ test('the studio layout engine composes a measured book without a designer model
     assert.match(body.render.design.label, /Studio grid layout/);
   } finally {
     delete process.env.DESIGN_ENGINE;
+    delete process.env.DESIGN_PLANNER;
   }
 });
 

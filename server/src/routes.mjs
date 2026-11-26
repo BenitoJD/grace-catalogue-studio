@@ -135,6 +135,7 @@ import { colourName, photoPalette, sampleColourAt } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
 import { detailPlatesFor, thumbnailDataUri } from './image-detail.mjs';
 import { layoutStudioBook } from './layout-engine.mjs';
+import { planBookWithModel } from './content-planner.mjs';
 import { inspectRenderedPages, readPicturesWithVision, visionEnabled } from './vision.mjs';
 import { runAssistantTurn } from './assistant.mjs';
 import {
@@ -2122,6 +2123,20 @@ export function createApp(options) {
       // No freeform HTML and no token contract for the designer.
       if (String(process.env.DESIGN_ENGINE ?? '').trim().toLowerCase() === 'studio') {
         designProgress('Studio layout engine composing measured pages');
+        let plan = null;
+        if (String(process.env.DESIGN_PLANNER ?? 'on').trim().toLowerCase() !== 'off') {
+          designProgress('Picture editor choosing the cover and the picture sequence');
+          plan = await planBookWithModel({
+            config,
+            requestChat,
+            order,
+            copy,
+            pictureAnalysis: reading?.photos ?? [],
+            format,
+            logger,
+          });
+          if (plan) designProgress('Picture sequence chosen');
+        }
         const pages = layoutStudioBook({
           order,
           copy,
@@ -2129,6 +2144,7 @@ export function createApp(options) {
           photoPalettes,
           pictureAnalysis: reading?.photos ?? [],
           format,
+          plan,
         });
         const engineHtml = compileGenerativeBrochure({
           order,

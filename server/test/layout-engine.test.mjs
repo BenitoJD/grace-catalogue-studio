@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { parseBookPlan } from '../src/content-planner.mjs';
 import {
   PAGE,
   columnX,
@@ -102,4 +103,58 @@ test('column geometry stays on the 12 column grid', () => {
     assert.ok(Math.abs(columnX(column) - (21 + (column - 1) * (PAGE.column + PAGE.gutter))) < 0.01);
   }
   assert.ok(Math.abs(columnX(12) + PAGE.column - 195) < 0.05);
+});
+
+test('the picture plan chooses the cover and the picture page order', () => {
+  const plan = {
+    coverPhoto: 2,
+    picturePages: [
+      { photo: 3, caption: 'The window seat, oak and linen.' },
+      { photo: 1, caption: 'Walnut shutters in the morning light.' },
+    ],
+  };
+  const pages = layoutStudioBook({
+    order: { title: 'Wardrobe', room: 'Master Bedroom' },
+    copy: {
+      headline: 'A quiet wardrobe',
+      body: 'Cream shutters and walnut frames. '.repeat(12),
+      closing: 'Thank you.',
+    },
+    photos: ['a', 'b', 'c'],
+    photoPalettes: {
+      photo1: ['#F8F2E7', '#C9B996', '#794617', '#1AA3C8'],
+      photo2: ['#EDE5C8', '#AC9B84', '#5C3A21', '#B98A55'],
+      photo3: ['#F2EEE6', '#D4C7B2', '#3B3A36', '#9C6B43'],
+    },
+    pictureAnalysis: [{ summary: 'A' }, { summary: 'B' }, { summary: 'C' }],
+    plan,
+  });
+  const all = pages.join('\n');
+  const cover = pages[0];
+  assert.match(cover, /<img src="\{\{photo2\}\}"/);
+  assert.ok(all.includes('The window seat, oak and linen.'));
+  const picturePages = pages.filter((page) => page.includes('The room, in the colours it already holds.'));
+  assert.equal(picturePages.length, 3);
+  assert.match(picturePages[0], /<img src="\{\{photo3\}\}"/);
+  assert.match(picturePages[1], /<img src="\{\{photo1\}\}"/);
+  assert.match(picturePages[2], /<img src="\{\{photo2\}\}"/);
+  const used = new Set([...all.matchAll(/<img src="\{\{photo(\d+)\}\}"/g)].map((match) => match[1]));
+  assert.deepEqual([...used].sort(), ['1', '2', '3']);
+});
+
+test('the content planner parser only accepts real photos and real captions', () => {
+  const plan = parseBookPlan(
+    JSON.stringify({
+      coverPhoto: 2,
+      picturePages: [
+        { photo: 1, caption: 'Oak shutters, morning light.' },
+        { photo: 2, caption: 'duplicate cover photo' },
+        { photo: 9, caption: 'not a photo' },
+        { photo: 3, caption: '' },
+      ],
+    }),
+    3,
+  );
+  assert.deepEqual(plan, { coverPhoto: 2, picturePages: [{ photo: 1, caption: 'Oak shutters, morning light.' }] });
+  assert.equal(parseBookPlan('not json', 3), null);
 });
