@@ -962,6 +962,13 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
   for (let index = 1; index <= photoCount; index += 1) {
     if (!tokens.has(`photo${index}`)) {
       issues.push(`{{photo${index}}} is supplied but never used; every photograph must appear`);
+      continue;
+    }
+    // A photo token must sit in an img src. Printed as text it leaks the
+    // local file path into the PDF.
+    const placed = new RegExp(`<img[^>]*src="\\{\\{\\s*photo${index}\\s*\\}\\}"`, 'i').test(whole);
+    if (!placed) {
+      issues.push(`{{photo${index}}} must be placed as an image, not printed as text`);
     }
   }
 
