@@ -880,6 +880,30 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
     if (printedWords(page) < 3) {
       issues.push(`page ${index + 1} is almost empty`);
     }
+    // Mechanical emptiness: measure where the real content stops on the page.
+    // A page whose lower third is bare paper is rejected, whatever the model
+    // says about its own composition.
+    if (index > 0 && index < pages.length - 1) {
+      const tops = [];
+      for (const match of page.matchAll(/<[a-z][^>]*style="([^"]*)"[^>]*>/gi)) {
+        const style = match[1];
+        if (!/position\s*:\s*absolute/i.test(style)) continue;
+        const top = /(?:^|;)\s*top\s*:\s*([0-9.]+)mm/i.exec(style);
+        const height = /(?:^|;)\s*height\s*:\s*([0-9.]+)mm/i.exec(style);
+        if (!top) continue;
+        const start = Number(top[1]);
+        if (!Number.isFinite(start) || start > 280) continue;
+        const size = height ? Number(height[1]) : 8;
+        if (start + size < 18) continue;
+        tops.push(start + Math.min(size, 120));
+      }
+      if (tops.length >= 5) {
+        const lowest = Math.max(...tops);
+        if (lowest < 170) {
+          issues.push(`page ${index + 1} leaves the lower part of the page empty; fill it with relevant content`);
+        }
+      }
+    }
   }
 
   const whole = pages.join('\n');
