@@ -3738,6 +3738,37 @@ test('an order can be a pamphlet or a brochure and the design follows it', { tim
   await patchJson(`${baseUrl}/api/orders/${orderId}`, { designFormat: 'pamphlet' });
 });
 
+test('an edit turn carries the order pictures even when no files are sent', { timeout: 240_000 }, async () => {
+  resetLlmState();
+  await configureLlm();
+  let seen = null;
+  app.assistantRuntime.run = async (input) => {
+    seen = input.attachments;
+    return {
+      reply: 'Updated.',
+      orderId,
+      orderNo: 'JDS-2026-011',
+      render: null,
+      toolCalls: [],
+      transcript: [{ role: 'user', content: 'Make it walnut', timestamp: Date.now() }],
+    };
+  };
+  try {
+    const response = await postJson(`${baseUrl}/api/assistant`, {
+      sessionId: 'edit-attachments-test',
+      orderId,
+      messages: [{ role: 'user', content: 'Make the shutters dark walnut.' }],
+    });
+    assert.equal(response.status, 200);
+    assert.ok(Array.isArray(seen));
+    assert.ok(seen.length > 0, 'the order pictures travel with an edit turn');
+    const expected = (await (await fetch(`${baseUrl}/api/orders/${orderId}`)).json()).attachments ?? [];
+    assert.equal(seen.length, expected.length);
+  } finally {
+    app.assistantRuntime.run = runAssistantTurn;
+  }
+});
+
 test('the chat passes the chosen format to the agent', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm();
@@ -4837,7 +4868,8 @@ test('the chat assistant endpoint runs a turn and returns the studio result', { 
   const seen = [];
   app.assistantRuntime.run = async (input) => {
     seen.push(input);
-    assert.equal(input.attachments.length, 0);
+    if (input.orderId) assert.ok(input.attachments.length > 0, 'an edit carries the order pictures');
+    else assert.equal(input.attachments.length, 0);
     assert.ok(input.messages.some((message) => message.content.includes('Wardrobe')));
     return {
       ...fake,

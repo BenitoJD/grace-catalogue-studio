@@ -1717,12 +1717,24 @@ export function createApp(options) {
       }
     }
 
+    // An edit arrives with no files. The order's own pictures must travel with
+    // the turn, or the tools think there are no pictures and refuse to edit.
+    const orderPictures =
+      orderId === '' ? [] : (getOrder(db, orderId)?.attachments ?? []);
+    const seenAttachment = new Set();
+    const turnAttachments = [...orderPictures, ...attachments.value].filter((file) => {
+      const key = String(file?.url ?? file?.name ?? '');
+      if (key === '' || seenAttachment.has(key)) return false;
+      seenAttachment.add(key);
+      return true;
+    });
+
     const callApi = (path, init) => app.fetch(new Request(`http://studio.local${path}`, init));
     try {
       const result = await assistantRuntime.run({
         config,
         messages: cleanMessages,
-        attachments: attachments.value,
+        attachments: turnAttachments,
         orderId: orderId === '' ? null : orderId,
         format,
         sessionId,
