@@ -3870,8 +3870,7 @@ test('the designer is told the pictures are the source and must all be used', { 
   assert.match(prompt, /mirror/i);
   assert.match(prompt, /paint card/i);
   assert.match(prompt, /showroom/i);
-  assert.match(prompt, /magnifier plate/i);
-  assert.match(prompt, /photo1detail1/);
+  assert.match(prompt, /no callouts on photographs/i);
   assert.match(prompt, /brand plate/i);
   assert.match(prompt, /contact plate/i);
   assert.match(prompt, /PICTURE BY PICTURE/i);
