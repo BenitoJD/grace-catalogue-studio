@@ -28,6 +28,7 @@ const SYSTEM_PROMPT = [
   '- Never invent a customer name, a price, a date, a dimension or a material.',
   '- Do not describe how the software works. Talk about the project.',
   '- Use tools instead of saying you cannot do something.',
+  '- The picture reader returns the palette and details even when the model cannot see. Never say the pictures cannot be opened when that data exists; read the room and piece from it, or ask the studio to describe them in one sentence.',
   '- After design_brochure, reply with one short sentence that the brochure is ready and its page count.',
 ].join('\n');
 
@@ -158,9 +159,19 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
         if (pictures.length === 0) {
           return textResult({ pictures: [], note: 'No pictures are attached to this chat.' });
         }
-        const review = await call('/api/analyze-images', {
-          images: pictures.map((file) => file.url),
-        });
+        let review = null;
+        let readerNote = '';
+        try {
+          review = await call('/api/analyze-images', {
+            images: pictures.map((file) => file.url),
+          });
+        } catch (error) {
+          // A reader problem must not turn into "I cannot open the pictures".
+          // Tell the model what happened and let it ask for a resend instead.
+          readerNote =
+            'The automatic picture reader could not open these files. Ask the studio to send the pictures again as JPG or PNG, or describe the room in one sentence.';
+          state.readerError = error instanceof Error ? error.message : String(error);
+        }
         state.review = review?.photos ?? [];
         let studioMarks = [];
         if (state.orderId) {
@@ -172,6 +183,7 @@ export function createStudioTools({ callApi, attachments, state, onProgress = ()
           }
         }
         return textResult({
+          note: readerNote,
           studioMarks,
           pictures: (review?.photos ?? []).map((photo) => ({
             name: photo.label ?? photo.name,

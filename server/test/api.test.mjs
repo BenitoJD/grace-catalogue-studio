@@ -4735,6 +4735,27 @@ test('a vision model reads the actual picture for the confirmation', { timeout: 
   assert.match(intakePrompt, /Colours seen/i);
 });
 
+test('the picture reading still describes a picture when vision fails', async () => {
+  resetLlmState();
+  await configureLlm({ model: 'gpt-4o' });
+  resetMockProvider({ reply: 'not json at all' });
+  const upload = await (
+    await postJson(`${baseUrl}/api/media`, {
+      data: FIXTURE_PNG_BASE64,
+      name: 'fallback-picture.png',
+      contentType: 'image/png',
+    })
+  ).json();
+  const response = await postJson(`${baseUrl}/api/analyze-images`, { images: [upload.url] });
+  const raw = await response.text();
+  assert.equal(response.status, 200, raw);
+  const body = JSON.parse(raw);
+  assert.equal(body.photos.length, 1);
+  assert.ok(body.photos[0].insight);
+  assert.match(body.photos[0].insight.summary, /picture/);
+  assert.ok(Array.isArray(body.photos[0].insight.colours));
+});
+
 test('the picture review is labelled by the vision model', { timeout: 240_000 }, async () => {
   resetLlmState();
   await configureLlm({ model: 'gpt-4o' });

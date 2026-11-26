@@ -2712,6 +2712,22 @@ export function createApp(options) {
         });
       }
     }
+    // Vision is optional. When the chosen model cannot see, the deterministic
+    // reading still describes the picture so the studio can proceed instead of
+    // hearing that the pictures could not be opened.
+    photos.forEach((photo) => {
+      if (photo.insight) return;
+      const analysis = photo.analysis ?? {};
+      const paletteNames = (analysis.palette ?? []).slice(0, 3).map((entry) => entry.name).filter(Boolean);
+      const labels = (analysis.candidates ?? []).slice(0, 3).map((candidate) => candidate.label).filter(Boolean);
+      photo.insight = {
+        summary: `A ${analysis.orientation ?? 'interior'} picture${labels.length > 0 ? ` with ${labels.join(', ')}` : ''}${paletteNames.length > 0 ? `, read in ${paletteNames.join(', ')}` : ''}.`,
+        piece: '',
+        room: '',
+        colours: paletteNames,
+      };
+    });
+
     return c.json({ photos });
   });
 
