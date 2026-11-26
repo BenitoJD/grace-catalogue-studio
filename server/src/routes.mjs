@@ -133,7 +133,7 @@ import {
 import { createLogger, parseLogLevel } from './logger.mjs';
 import { colourName, photoPalette, sampleColourAt } from './image-palette.mjs';
 import { analyseImage } from './image-analysis.mjs';
-import { detailPlatesFor } from './image-detail.mjs';
+import { detailPlatesFor, thumbnailDataUri } from './image-detail.mjs';
 import { inspectRenderedPages, readPicturesWithVision, visionEnabled } from './vision.mjs';
 import { runAssistantTurn } from './assistant.mjs';
 import {
@@ -2156,10 +2156,18 @@ export function createApp(options) {
       let bestScore = 0;
       let previousReply = '';
       let lastIssues = '';
+      let visualProofFiles = [];
       for (let attempt = 1; attempt <= DESIGNER_TRIES && !html; attempt += 1) {
         designProgress(`Designing page set, round ${attempt} of ${DESIGNER_TRIES}`);
         const requestMessages =
-          attempt === 1 ? messages : buildDesignerRepairMessages(messages, previousReply, lastIssues);
+          attempt === 1
+            ? messages
+            : buildDesignerRepairMessages(
+                messages,
+                previousReply,
+                lastIssues,
+                visualProofFiles.map((file) => thumbnailDataUri(file, 900)).filter(Boolean),
+              );
         const result = await withDesignThinking(
           designProgress,
           [
@@ -2261,8 +2269,11 @@ export function createApp(options) {
                 logger,
               });
               rmSync(path.join(dataDir, 'renders', `${probeId}.pdf`), { force: true });
-              for (const file of proofFiles) rmSync(file, { force: true });
+              for (const file of visualProofFiles) rmSync(file, { force: true });
               if (visualIssues && visualIssues.length > 0) {
+                // Keep these page images for the next repair round, so the
+                // designer can see the rejected print while it fixes it.
+                visualProofFiles = proofFiles;
                 const summary = visualIssues
                   .slice(0, 4)
                   .map((entry) => `page ${entry.page}: ${entry.issues.join('; ')}`)
@@ -2272,6 +2283,8 @@ export function createApp(options) {
                   type: 'invalid_reply',
                 });
               }
+              for (const file of proofFiles) rmSync(file, { force: true });
+              visualProofFiles = [];
               designProgress('Visual inspector passed every printed page');
             } catch (error) {
               if (error?.type === 'invalid_reply') throw error;
@@ -2339,6 +2352,8 @@ export function createApp(options) {
           threshold: QUALITY_THRESHOLD,
         });
       }
+      for (const file of visualProofFiles) rmSync(file, { force: true });
+      visualProofFiles = [];
       if (html && acceptedReply !== '' && String(process.env.DESIGN_POLISH ?? 'on').toLowerCase() !== 'off') {
         try {
           designProgress('Polishing the type, margins and picture scale');

@@ -692,20 +692,27 @@ export function buildDesignerMessages({ order, brief = '', direction = '', forma
   return messages;
 }
 
-export function buildDesignerRepairMessages(messages, previous, issues) {
+export function buildDesignerRepairMessages(messages, previous, issues, pageImages = []) {
   const problems = Array.isArray(issues)
     ? issues
     : [String(issues ?? 'the document could not be printed').replace(/^The brochure design failed the print checks: /, '')];
   const repaired = [...messages];
   if (previous) repaired.push({ role: 'assistant', content: String(previous).slice(0, 40_000) });
-  repaired.push({
-    role: 'user',
-    content: [
-      `That document was rejected by the print checks: ${problems.join('; ')}.`,
-      'Reply with the complete corrected HTML document only. Keep the design and fix exactly these problems.',
-      'The body still needs at least a cover and a closing <div class="page">, the required tokens, and no external references.',
-    ].join(' '),
-  });
+  const instruction = [
+    `That document was rejected by the print checks: ${problems.join('; ')}.`,
+    pageImages.length > 0
+      ? 'Those are the rendered pages above, page 1 first. Look at each one and fix only what is actually wrong on the page, then reply with the complete corrected HTML document only.'
+      : 'Reply with the complete corrected HTML document only. Keep the design and fix exactly these problems.',
+    'The body still needs at least a cover and a closing <div class="page">, the required tokens, and no external references.',
+  ].join(' ');
+  const content =
+    pageImages.length > 0
+      ? [
+          { type: 'text', text: instruction },
+          ...pageImages.map((url) => ({ type: 'image_url', image_url: { url } })),
+        ]
+      : instruction;
+  repaired.push({ role: 'user', content });
   return repaired;
 }
 
