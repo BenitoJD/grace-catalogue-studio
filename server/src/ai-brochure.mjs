@@ -203,6 +203,7 @@ export const DESIGNER_SYSTEM = [
   '- Any text over a photograph or a dark picture must sit inside a band, panel or scrim that carries its own near-opaque background colour inline, with the opposite text colour on it. Never set light words straight on a photo.',
   '- Put the background colour inline on the element or on an ancestor element, not only in a class, so the contrast check can verify it. It is checked before printing and low contrast is rejected.',
   '- Build a real typographic hierarchy: one display line, small caps labels with wide tracking, hairline rules, captions, folio numbers. Use white space as a material.',
+  '- NEVER set text inside a black or dark filled rectangle. No black caption bars, no dark text boxes, no dark colour-callout panels. Text sits directly on the paper, or on the full-page dark ground. The only dark fills allowed are a full-page ground and the brand or contact plate.',
   '- NEVER print a palette strip, swatch row, colour chip or paint card on a designer page. The studio prints the palette on the plate for each picture. Designer pages hold photographs, headlines, copy, rules, folios and the brand only.',
   '- LAYOUT LAW. Every page is a full composition, edge to edge within the margins, with no unused area larger than a business card. Compose in normal flow or CSS grid. Never place one block over another. Text, palette strips, captions and notes must never overlap, touch or be clipped. A palette strip belongs in the flow below the copy, never absolutely positioned over it. Text blocks have natural height; never fix a text block height or hide its overflow. If a block does not fit, shorten the copy or move it to the next page, never overlap it.\n- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
   '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
@@ -1106,6 +1107,16 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
       issues.push(`page ${index + 1}: do not draw diagonal leaders or rotated annotation lines over a picture`);
     }
   });
+
+  // Black caption bars and dark text panels look cheap on paper. Only a full
+  // page ground or a brand plate may be dark.
+  for (const match of whole.matchAll(/<div[^>]*style="[^"]*background\s*:\s*#(?:0[0-9a-f]|1[0-9a-f]|2[0-9a-f])[0-9a-f]{3}[^"]*"[^>]*>([\s\S]{0,400}?)<\/div>/gi)) {
+    const text = match[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (text.length >= 3) {
+      issues.push('do not set text inside a black or dark filled box; set it on the paper');
+      break;
+    }
+  }
 
   // Palette strips are drawn by the studio on each picture plate. A designer
   // page that carries palette tokens is putting colours on the wrong page.
