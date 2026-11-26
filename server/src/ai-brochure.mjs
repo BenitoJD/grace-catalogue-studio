@@ -1638,13 +1638,24 @@ export function compileGenerativeBrochure({
   // Every line has a white halo under the black mark so it reads on any
   // background: white joinery, dark walnut, marble or a photograph.
   const CALLOUT = { left: 33, top: 58, size: 150 };
+  const showsWholePicture = (pageHtml, number) => {
+    const pattern = new RegExp(`<img[^>]*src="\\{\\{\\s*photo${number}\\s*\\}\\}"[^>]*>`, 'gi');
+    for (const match of String(pageHtml).matchAll(pattern)) {
+      const style = /style="([^"]*)"/i.exec(match[0])?.[1] ?? '';
+      const widthMm = Number(/width\s*:\s*([0-9.]+)mm/i.exec(style)?.[1] ?? 0);
+      if (/background-size\s*:\s*contain/i.test(style) && widthMm >= 120) return true;
+    }
+    return false;
+  };
   const annotationPages = [];
-  for (const [key, details] of Object.entries(photoDetails)) {
-    const match = /^photo(\d+)$/.exec(key);
-    if (!match) continue;
-    const index = Number.parseInt(match[1], 10) - 1;
+  for (let index = 0; index < photoTokens.length; index += 1) {
     const uri = photoTokens[index];
-    if (!uri || !Array.isArray(details) || details.length === 0) continue;
+    if (!uri) continue;
+    const key = `photo${index + 1}`;
+    const details = Array.isArray(photoDetails[key]) ? photoDetails[key] : [];
+    // One page per picture carries both the whole picture and its colours.
+    // A picture already shown whole with no details gets no extra plate.
+    if (details.length === 0 && pages.some((page) => showsWholePicture(page, index + 1))) continue;
     const natural = pictureSizeFromDataUri(uri) ?? { width: 1, height: 1 };
     const scale = Math.min(CALLOUT.size / natural.width, CALLOUT.size / natural.height);
     const displayWidth = Math.max(20, natural.width * scale);
@@ -1728,76 +1739,38 @@ export function compileGenerativeBrochure({
           `<div style="${labelStyle(Math.min(180, Math.max(3, px - 16)), Math.min(288, photoBottom + 5), 32, 'center')}">${text}</div>`;
       })
       .join('');
-    annotationPages.push(
-      `<div style="position:absolute;inset:0;background:#F7F2E9;color:#000;font-family:var(--body);">` +
-        `<div style="position:absolute;left:33mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Material notes · colour callouts</div>` +
-        `<div style="position:absolute;left:33mm;top:25mm;width:150mm;font-family:var(--display);font-size:18pt;line-height:1.05;">The colour, named where it happens.</div>` +
-        `<div style="position:absolute;left:${CALLOUT.left}mm;top:${CALLOUT.top}mm;width:${CALLOUT.size}mm;height:${CALLOUT.size}mm;background:#EFE7D8;overflow:hidden;">` +
-        `<img src="${uri}" style="position:absolute;left:${offsetX.toFixed(1)}mm;top:${offsetY.toFixed(1)}mm;width:${displayWidth.toFixed(1)}mm;height:${displayHeight.toFixed(1)}mm;">${marks}</div>` +
-        leaders +
-        `<div style="position:absolute;left:33mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
-        `</div>`,
-    );
-  }
-  // Guarantee: every supplied picture appears whole at least once. A picture
-  // is already whole on its material callout page or on a designed page; only
-  // the ones the design cropped away get a dedicated full picture side, so the
-  // pamphlet grows with the input instead of forcing a fixed page count.
-  const showsWholePicture = (pageHtml, number) => {
-    const imagePattern = new RegExp(`<img[^>]*src="\\{\\{\\s*photo${number}\\s*\\}\\}"[^>]*>`, 'gi');
-    for (const match of String(pageHtml).matchAll(imagePattern)) {
-      const style = /style="([^"]*)"/i.exec(match[0])?.[1] ?? '';
-      const widthMm = Number(/width\s*:\s*([0-9.]+)mm/i.exec(style)?.[1] ?? 0);
-      const heightMm = Number(/height\s*:\s*([0-9.]+)mm/i.exec(style)?.[1] ?? 0);
-      const widthPercent = Number(/width\s*:\s*([0-9.]+)%/i.exec(style)?.[1] ?? 0);
-      if (/object-fit\s*:\s*contain/i.test(style) && (widthMm >= 120 || heightMm >= 120 || widthPercent >= 90)) {
-        return true;
-      }
-    }
-    const backgroundPattern = new RegExp(`<div[^>]*background-image\\s*:\\s*url\\(\\s*\\{\\{photo${number}\\}\\}\\)[^>]*>`, 'gi');
-    for (const match of String(pageHtml).matchAll(backgroundPattern)) {
-      const style = /style="([^"]*)"/i.exec(match[0])?.[1] ?? '';
-      const widthMm = Number(/width\s*:\s*([0-9.]+)mm/i.exec(style)?.[1] ?? 0);
-      if (/background-size\s*:\s*contain/i.test(style) && widthMm >= 120) return true;
-    }
-    return false;
-  };
-  const detailPhotoIndexes = new Set(
-    Object.keys(photoDetails)
-      .map((key) => Number.parseInt(String(key).replace('photo', ''), 10))
-      .filter((value) => Number.isInteger(value)),
-  );
-  const fullPicturePages = [];
-  for (let number = 1; number <= photoTokens.length; number += 1) {
-    if (detailPhotoIndexes.has(number)) continue;
-    if (pages.some((page) => showsWholePicture(page, number))) continue;
-    const uri = photoTokens[number - 1];
-    if (!uri) continue;
-    const key = `photo${number}`;
     const palette = Array.isArray(photoPalettes[key]) ? photoPalettes[key].slice(0, 4) : [];
     const chips = palette
       .map(
         (hex) =>
-          `<div style="width:31mm;"><div style="height:20mm;background:${hex};"></div>` +
-          `<div style="margin-top:2mm;font-size:6pt;letter-spacing:0.14em;text-transform:uppercase;color:#000;">${escapeHtml(colourName(hex))}<br><span style="color:#6E6E73;">${hex}</span></div></div>`,
+          `<div style="width:33mm;"><div style="height:16mm;background:${hex};border:0.2mm solid #D9D0C1;"></div>` +
+          `<div style="margin-top:2mm;font-size:5.8pt;line-height:1.35;letter-spacing:0.08em;color:#000;">${escapeHtml(colourName(hex))}<br><span style="color:#6E6E73;">${hex}</span></div></div>`,
       )
       .join('');
-    fullPicturePages.push(
-      `<div style="position:absolute;inset:0;background:var(--paper);color:#000;font-family:var(--body);">` +
-        `<div style="position:absolute;left:28mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Material study</div>` +
-        `<div style="position:absolute;left:28mm;top:25mm;width:160mm;font-family:var(--display);font-size:20pt;line-height:1.05;">The finish, read in full.</div>` +
-        `<div style="position:absolute;left:28mm;top:52mm;width:160mm;height:134mm;background:#EFE7D8;">` +
-        `<img src="${uri}" style="width:100%;height:100%;object-fit:contain;"></div>` +
-        `<div style="position:absolute;left:28mm;top:194mm;width:160mm;display:flex;gap:5mm;">${chips}</div>` +
-        `<div style="position:absolute;left:28mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
+    const materialLine = details
+      .map((detail) => String(detail.label ?? '').trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(' · ');
+    const paletteTop = Math.max(190, Math.min(248, Math.round(photoBottom + 22)));
+    annotationPages.push(
+      `<div style="position:absolute;inset:0;background:#F7F2E9;color:#000;font-family:var(--body);">` +
+        `<div style="position:absolute;left:33mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Plate ${String(index + 1).padStart(2, '0')} · whole picture, colours and material</div>` +
+        `<div style="position:absolute;left:33mm;top:25mm;width:150mm;font-family:var(--display);font-size:18pt;line-height:1.05;">The colour, named where it happens.</div>` +
+        `<div style="position:absolute;left:${CALLOUT.left}mm;top:${CALLOUT.top}mm;width:${CALLOUT.size}mm;height:${CALLOUT.size}mm;background:#EFE7D8;overflow:hidden;">` +
+        `<img src="${uri}" style="position:absolute;left:${offsetX.toFixed(1)}mm;top:${offsetY.toFixed(1)}mm;width:${displayWidth.toFixed(1)}mm;height:${displayHeight.toFixed(1)}mm;">${marks}</div>` +
+        leaders +
+        (chips === ''
+          ? ''
+          : `<div style="position:absolute;left:33mm;top:${paletteTop}mm;width:150mm;display:flex;gap:4mm;">${chips}</div>`) +
+        (materialLine === ''
+          ? ''
+          : `<div style="position:absolute;left:33mm;top:${paletteTop + 30}mm;width:150mm;font-size:6.4pt;line-height:1.6;letter-spacing:0.08em;color:#4A4A4A;">${escapeHtml(materialLine)}</div>`) +
+        `<div style="position:absolute;left:33mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
         `</div>`,
     );
   }
-  const allPages = [
-    ...docPages,
-    ...annotationPages.map(noDashes),
-    ...fullPicturePages.map(noDashes),
-  ];
+  const allPages = [...docPages, ...annotationPages.map(noDashes)];
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(values.title)}</title>
 <link rel="stylesheet" href="../fonts/brand.css">
