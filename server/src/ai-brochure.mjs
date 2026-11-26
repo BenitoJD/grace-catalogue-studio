@@ -1749,9 +1749,9 @@ export function compileGenerativeBrochure({
           return `<div style="position:absolute;left:${Math.max(2, photoLeft - 4 - width).toFixed(1)}mm;top:${(py - 2.2).toFixed(1)}mm;width:${width.toFixed(1)}mm;${style}text-align:right;">${text}</div>`;
         }
         if (side === 'top') {
-          return `<div style="position:absolute;left:${Math.min(180, Math.max(2, px - 16)).toFixed(1)}mm;top:${Math.max(44, photoTop - 11).toFixed(1)}mm;width:32mm;${style}text-align:center;">${text}</div>`;
+          return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.max(44, photoTop - 11).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
         }
-        return `<div style="position:absolute;left:${Math.min(180, Math.max(2, px - 16)).toFixed(1)}mm;top:${Math.min(215, photoBottom + 3).toFixed(1)}mm;width:32mm;${style}text-align:center;">${text}</div>`;
+        return `<div style="position:absolute;left:${px.toFixed(1)}mm;top:${Math.min(215, photoBottom + 3).toFixed(1)}mm;transform:translateX(-50%);white-space:nowrap;${style}text-align:center;">${text}</div>`;
       })
       .join('');
     const leaders = placements
