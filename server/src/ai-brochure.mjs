@@ -201,14 +201,14 @@ export const DESIGNER_SYSTEM = [
   '- Any text over a photograph or a dark picture must sit inside a band, panel or scrim that carries its own near-opaque background colour inline, with the opposite text colour on it. Never set light words straight on a photo.',
   '- Put the background colour inline on the element or on an ancestor element, not only in a class, so the contrast check can verify it. It is checked before printing and low contrast is rejected.',
   '- Build a real typographic hierarchy: one display line, small caps labels with wide tracking, hairline rules, captions, folio numbers. Use white space as a material.',
-  '- LAYOUT LAW. Compose in normal flow or CSS grid. Never place one block over another. Text, palette strips, captions and notes must never overlap, touch or be clipped. A palette strip belongs in the flow below the copy, never absolutely positioned over it. Text blocks have natural height; never fix a text block height or hide its overflow. If a block does not fit, shorten the copy or move it to the next page, never overlap it.\n- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
+  '- LAYOUT LAW. Every page is a full composition, edge to edge within the margins, with no unused area larger than a business card. Compose in normal flow or CSS grid. Never place one block over another. Text, palette strips, captions and notes must never overlap, touch or be clipped. A palette strip belongs in the flow below the copy, never absolutely positioned over it. Text blocks have natural height; never fix a text block height or hide its overflow. If a block does not fit, shorten the copy or move it to the next page, never overlap it.\n- Compose each page. Vary alignment, scale and the position of the photograph. The cover should not be the generic centred logo, title, framed photo and footer stack; react to the photograph instead. Try type across the image low, a tall split, a masthead, an arch, an asymmetric page with a deep quiet margin.',
   '- Never set light text straight on a photograph unless it sits on a dark scrim, a solid band or a genuinely quiet dark area of the picture. The renderer can not see how bright the photograph is, so assume it is pale.',
   '- Colour strips are images, not pale samples: frame each one with a hairline rule or a keyline so it reads as a colour plate.',
   '- Tamil is set tight and whole: never letter-space, uppercase or small-cap a Tamil line, and never set it below 7.5 pt. Keep Tamil in a line of its own.',
   '- The mark in the body is a small quiet sign, 8 to 14 mm wide, set in a corner or a footer, never a large graphic, never a watermark and never behind or over a title. Large marks belong only on the cover and closing plates.',
   '- Ornament once or twice in the whole document, at a corner or a rule: a jaali strip along one edge, a lotus under a title, an arch around a photograph. Never all motifs on one page.',
   '- The cover is the loudest page, the story is the warmest, and the colour pages are a quiet chromatic study.',
-  '- NO DEAD SPACE. A large empty band, especially in the middle or the bottom of a page, is a failure, not luxury. Every page must feel packed with purpose. If a page holds one small photograph, it must also carry the headline, the reading, material notes, a colour study or a second picture at full size, so the composition fills the page. White space is margin and pause, never a void. Use the whole safe area and keep the last line at least 18 mm above the trim. Never pad a page count; instead make every page full.',
+  '- NO EMPTY SPACE. Free space is a failure, not a style. Every page must be full from the top of the safe area to the bottom, with content, picture, colour and type. No unused region may be larger than a business card. A page with one small photograph must also carry the headline, reading, material notes, colour study or a second picture so it fills the page. White space is only the measured margin around content, never a design idea and never a hole in the page. Keep the last line at least 18 mm above the trim. Never pad a page count; instead make every page full.',
   '- This brochure is one of many. Do not repeat a stock arrangement; the photographs, their colours and the room decide the composition.',
   '- Tamil lines are set in Noto Sans Tamil, never forced into an English serif.',
   '',
@@ -551,7 +551,7 @@ export const QUALITY_SYSTEM = [
   '9 is excellent, distinctive and print ready.',
   '8 is strong professional work, safe to send to a client.',
   '7 and below is not ready: generic, crowded, weak hierarchy, template feel, timid photography, poor typography, or a layout that does not come from the pictures.',
-  'Judge: is the photograph the hero and printed whole; is the composition fresh for this picture set; is there one clear idea; is the type hierarchy confident and quiet; is the whitespace generous but is every page full of real content with no dead empty band; does the palette come from the photographs; does the design feel inspired by the light, materials and mood of these specific pictures; does it feel hand art directed rather than generated; does anything look like a template, a website or an AI image.',
+  'Judge: is the photograph the hero and printed whole; is the composition fresh for this picture set; is there one clear idea; is the type hierarchy confident and quiet; is every page completely full of real content with no unused region larger than a business card; does the palette come from the photographs; does the design feel inspired by the light, materials and mood of these specific pictures; does it feel hand art directed rather than generated; does anything look like a template, a website or an AI image.',
   'Reply with strict JSON only: {"score": 8, "fixes": ["one concrete instruction", "another"]}.',
   'The fixes must be concrete art direction that the designer can apply to the document, not general praise.',
 ].join(' ');
@@ -559,7 +559,7 @@ export const QUALITY_SYSTEM = [
 export const PAGE_QA_SYSTEM = [
   'You are the pre-press layout inspector of a premium print studio.',
   'You receive the complete HTML of a designed pamphlet or brochure. Inspect EVERY page one by one, as if it were already printed.',
-  'A page fails if any of these are true: a text block overlaps another text block, a palette strip, a caption, an image or a rule; text is clipped, cut off or hidden behind a block; a colour strip sits on top of copy; a large empty band is left unfinished; a block looks half placed; a page reads like an unfinished draft.',
+  'A page fails if any of these are true: a text block overlaps another text block, a palette strip, a caption, an image or a rule; text is clipped, cut off or hidden behind a block; a colour strip sits on top of copy; the content covers less than 80 percent of the page, or any empty band is taller than 40 mm; a block looks half placed; a page reads like an unfinished draft. Free space is not taste here, it is a failure.',
   'Do not judge taste, wording or colour. Only layout integrity and page completion.',
   'Reply with strict JSON only: {"pages":[{"page":1,"issues":["short concrete problem"]}]}. Include only pages that have issues. If every page is clean reply {"pages":[]}.',
 ].join(' ');
@@ -1686,7 +1686,7 @@ export function compileGenerativeBrochure({
   // geometry, so a ring always lands on the picture and never in the letterbox.
   // Every line has a white halo under the black mark so it reads on any
   // background: white joinery, dark walnut, marble or a photograph.
-  const PLATE = { left: 33, top: 72, width: 150, maxHeight: 122 };
+  const PLATE = { left: 33, top: 60, width: 150, maxHeight: 150 };
   const showsWholePicture = (pageHtml, number) => {
     const pattern = new RegExp(`<img[^>]*src="\\{\\{\\s*photo${number}\\s*\\}\\}"[^>]*>`, 'gi');
     for (const match of String(pageHtml).matchAll(pattern)) {
@@ -1708,7 +1708,7 @@ export function compileGenerativeBrochure({
     const displayWidth = Math.max(30, natural.width * scale);
     const displayHeight = Math.max(30, natural.height * scale);
     const photoLeft = PLATE.left + (PLATE.width - displayWidth) / 2;
-    const photoTop = PLATE.top + (PLATE.maxHeight - displayHeight) / 2;
+    const photoTop = PLATE.top;
     const photoRight = photoLeft + displayWidth;
     const photoBottom = photoTop + displayHeight;
     const placements = details.slice(0, 3).map((detail) => {
@@ -1797,12 +1797,12 @@ export function compileGenerativeBrochure({
     const chips = palette
       .map(
         (hex) =>
-          `<div style="width:33mm;"><div style="height:15mm;background:${hex};border:0.2mm solid #D9D0C1;"></div>` +
+          `<div style="width:33mm;"><div style="height:20mm;background:${hex};border:0.2mm solid #D9D0C1;"></div>` +
           `<div style="margin-top:1.6mm;font-size:5.6pt;line-height:1.3;letter-spacing:0.08em;color:#000;">${escapeHtml(colourName(hex))}<br><span style="color:#6E6E73;">${hex}</span></div></div>`,
       )
       .join('');
     const hasBottomLabel = placements.some((entry) => entry.side === 'bottom');
-    const paletteTop = Math.min(245, Math.max(photoBottom + (hasBottomLabel ? 13 : 7), 200));
+    const paletteTop = Math.min(244, photoBottom + (hasBottomLabel ? 16 : 10));
     const materialLine = details
       .map((detail) => String(detail.label ?? '').trim())
       .filter(Boolean)
@@ -1810,16 +1810,23 @@ export function compileGenerativeBrochure({
       .join(' · ');
     annotationPages.push(
       `<div style="position:absolute;inset:0;background:#F7F2E9;color:#000;font-family:var(--body);">` +
-        `<div style="position:absolute;left:33mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Plate ${String(index + 1).padStart(2, '0')} · whole picture, colours and material</div>` +
-        `<div style="position:absolute;left:33mm;top:25mm;width:150mm;font-family:var(--display);font-size:18pt;line-height:1.05;z-index:2;">The colour, named where it happens.</div>` +
+        `<div style="position:absolute;left:33mm;top:18mm;font-size:6.2pt;letter-spacing:0.22em;text-transform:uppercase;color:#8A7A66;">Plate ${String(index + 1).padStart(2, '0')} · photograph, colours and material</div>` +
+        `<div style="position:absolute;left:33mm;top:25mm;width:150mm;font-family:var(--display);font-size:18pt;line-height:1.05;z-index:2;">The colour, named where it happens.</div><div style="position:absolute;left:33mm;top:47mm;width:150mm;font-size:7pt;letter-spacing:0.08em;line-height:1.5;color:#5A5A5A;">The entire photograph, the palette read from it, and the exact material points. Nothing is cropped.</div>` +
         `<img src="${uri}" style="position:absolute;left:${photoLeft.toFixed(1)}mm;top:${photoTop.toFixed(1)}mm;width:${displayWidth.toFixed(1)}mm;height:${displayHeight.toFixed(1)}mm;object-fit:cover;">` +
         marks + leaders + labels +
         (chips === ''
           ? ''
           : `<div style="position:absolute;left:33mm;top:${paletteTop.toFixed(0)}mm;width:150mm;display:flex;gap:4mm;">${chips}</div>`) +
-        (materialLine === ''
-          ? ''
-          : `<div style="position:absolute;left:33mm;top:${(paletteTop + 26).toFixed(0)}mm;width:150mm;font-size:6.4pt;line-height:1.6;letter-spacing:0.08em;color:#4A4A4A;">${escapeHtml(materialLine)}</div>`) +
+        `<div style="position:absolute;left:33mm;top:${(paletteTop + 36).toFixed(0)}mm;width:150mm;display:flex;justify-content:space-between;gap:10mm;">` +
+        `<div style="width:82mm;font-size:6.4pt;line-height:1.7;letter-spacing:0.06em;color:#3C3C3C;">` +
+        `<div style="font-size:5.6pt;letter-spacing:0.2em;text-transform:uppercase;color:#8A7A66;margin-bottom:2mm;">Material points, named</div>` +
+        (details.slice(0, 3).map((detail, detailIndex) => `<div>${String(detailIndex + 1).padStart(2, '0')} · ${escapeHtml(String(detail.label ?? 'detail'))} — ${escapeHtml(String(detail.name ?? ''))} ${escapeHtml(String(detail.colour ?? ''))}</div>`).join('') || '<div>The whole picture, kept uncropped.</div>') +
+        `</div>` +
+        `<div style="width:50mm;font-size:6.4pt;line-height:1.7;letter-spacing:0.06em;color:#5A5A5A;">` +
+        `<div style="font-size:5.6pt;letter-spacing:0.2em;text-transform:uppercase;color:#8A7A66;margin-bottom:2mm;">Uncropped</div>` +
+        `No crop, no invention. Every colour here is read from the photograph itself.<div style="margin-top:3mm;height:0.2mm;background:#C9BFB0;"></div>` +
+        `</div>` +
+        `</div>` +
         `<div style="position:absolute;left:33mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
         `</div>`,
     );
