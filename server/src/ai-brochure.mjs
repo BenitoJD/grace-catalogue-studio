@@ -1824,17 +1824,22 @@ export function compileGenerativeBrochure({
         (chips === ''
           ? ''
           : `<div style="position:absolute;left:33mm;top:${paletteTop.toFixed(0)}mm;width:150mm;display:flex;gap:4mm;">${chips}</div>`) +
-        `<div style="position:absolute;left:33mm;top:${(paletteTop + 36).toFixed(0)}mm;width:150mm;display:flex;justify-content:space-between;gap:10mm;">` +
-        `<div style="width:82mm;font-size:6.4pt;line-height:1.7;letter-spacing:0.06em;color:#3C3C3C;">` +
-        `<div style="font-size:5.6pt;letter-spacing:0.2em;text-transform:uppercase;color:#8A7A66;margin-bottom:2mm;">Material points, named</div>` +
+        `<div style="position:absolute;left:21mm;right:21mm;top:${(paletteTop + 40).toFixed(0)}mm;bottom:17mm;background:#1E1D1A;"></div>` +
+        `<div style="position:absolute;left:33mm;top:${(paletteTop + 46).toFixed(0)}mm;width:100mm;font-family:var(--display);font-size:19pt;line-height:1.05;color:#F1EBDF;">Read from the photograph.</div>` +
+        `<div style="position:absolute;right:33mm;bottom:24mm;font-family:var(--display);font-size:54pt;line-height:0.9;color:#3A362F;">${String(index + 1).padStart(2, '0')}</div>` +
+        `<div style="position:absolute;left:33mm;top:${(paletteTop + 62).toFixed(0)}mm;width:150mm;display:flex;justify-content:space-between;gap:10mm;">` +
+        `<div style="width:82mm;font-size:6.6pt;line-height:1.9;letter-spacing:0.06em;color:#F1EBDF;">` +
+        `<div style="font-size:5.6pt;letter-spacing:0.2em;text-transform:uppercase;color:#B9A98F;margin-bottom:2mm;">Material points, named</div>` +
         (details.slice(0, 3).map((detail, detailIndex) => `<div>${String(detailIndex + 1).padStart(2, '0')} · ${escapeHtml(String(detail.label ?? 'detail'))} — ${escapeHtml(String(detail.name ?? ''))} ${escapeHtml(String(detail.colour ?? ''))}</div>`).join('') || '<div>The whole picture, kept uncropped.</div>') +
         `</div>` +
-        `<div style="width:50mm;font-size:6.4pt;line-height:1.7;letter-spacing:0.06em;color:#5A5A5A;">` +
-        `<div style="font-size:5.6pt;letter-spacing:0.2em;text-transform:uppercase;color:#8A7A66;margin-bottom:2mm;">Uncropped</div>` +
-        `No crop, no invention. Every colour here is read from the photograph itself.<div style="margin-top:3mm;height:0.2mm;background:#C9BFB0;"></div>` +
+        `<div style="width:50mm;font-size:6.4pt;line-height:1.7;letter-spacing:0.06em;color:#CFC6B6;">` +
+        `<div style="font-size:5.6pt;letter-spacing:0.2em;text-transform:uppercase;color:#B9A98F;margin-bottom:2mm;">Uncropped</div>` +
+        `No crop, no invention. Every colour here is read from the photograph itself.<div style="margin-top:3mm;height:0.2mm;background:#5A5449;"></div>` +
         `</div>` +
         `</div>` +
-        `<div style="position:absolute;left:33mm;bottom:10mm;font-size:6.2pt;letter-spacing:0.14em;color:#8A7A66;">JACOB DESIGN STUDIO · NAGERCOIL</div>` +
+        `<div style="position:absolute;left:${PLATE.left}mm;right:${PLATE.left}mm;bottom:17mm;height:0.25mm;background:#5A5449;"></div>` +
+        `<div style="position:absolute;left:${PLATE.left}mm;bottom:9mm;font-size:6.1pt;letter-spacing:0.2em;text-transform:uppercase;color:#CFC6B6;">JACOB DESIGN STUDIO · NAGERCOIL · INTERIORS IN COLOUR</div>` +
+        `<div style="position:absolute;right:${PLATE.left}mm;bottom:9mm;font-size:6.1pt;letter-spacing:0.2em;text-transform:uppercase;color:#CFC6B6;">PLATE ${String(index + 1).padStart(2, '0')}</div>` +
         `</div>`,
     );
   }
