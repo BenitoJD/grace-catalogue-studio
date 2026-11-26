@@ -136,7 +136,7 @@ export const DESIGNER_SYSTEM = [
   '1. Cover. One commanding photograph, the brand, the piece title, the customer and the room. Almost nothing else. The photograph does the work.',
   '2 to 7. Story, colour options and details. The written copy set like an editorial spread: the headline as the one large line, the body in calm columns, the closing line small and quiet, with one or two photographs. At least one page is the colour options page, laid out like a showroom paint card: for each photograph its colour strip, then four swatch chips, each with its NAME in caps, its hex value small, and one short line about the mood. Extra photographs earn extra pages, and every photograph must appear. The studio prints the material callouts itself, so design pages stay clean.',
   'Give one spread the premium brand treatment: a single photograph at full page, its colour name and code set quietly on paper, and almost nothing else on the page.',
-  'Last. A quiet closing page for the client file: the brand mark, the order number, the telephone and one line of thanks. No dimensions and no specification table.',
+  'Last. A composed back cover for the client file: one contact plate (it already carries the logo and name), the closing line set as a quiet large type moment, the Tamil studio line, one motif or hairline rule, the order number and date small. No second brand plate, no form, no large empty band. Compose it like a colophon, on a deep band or a cream field.',
   '',
   'HOW TO REPLY',
   '- Reply with the HTML document only: no prose, no markdown, no code fences, no explanation.',
@@ -157,12 +157,12 @@ export const DESIGNER_SYSTEM = [
   'Colour: every photograph has a palette strip {{photo1Palette}}, {{photo2Palette}} and so on, a ready made image of its colours. It also has single colours {{photo1Color1}} to {{photo1Color4}}, and their showroom names {{photo1Color1Name}} to {{photo1Color4Name}}, and so on for every photograph. Use the named colours as paint card chips, with the hex value small underneath.',
   'No loupe, ring, dot, leader line, arrow or colour caption is drawn by the designer. The studio adds the material callouts itself after the design. Keep every photograph clean.',
   'Assets: {{logo}} is the brand mark for light backgrounds and {{logoWhite}} is the same mark in white for dark backgrounds. {{brandPlateLight}} and {{brandPlateDark}} are ready made brand panels: the mark and the brand name on their own solid ground, light and dark. {{contactPlateLight}} and {{contactPlateDark}} add the phone, email and address. Because each plate carries its own background, it stays legible on any page. {{jaali}}, {{paisley}}, {{lotus}}, {{rangoli}} and {{arch}} are the house motifs.',
-  'The brand and the contact details must always read clearly. Put a brand plate on the cover and a brand plate plus a contact plate on the closing page. Use the light plate on cream pages and the dark plate on dark, colour or photographic pages. Never set the contact lines straight over a photograph.',
+  'The brand and the contact details must always read clearly. Put a brand plate on the cover and one contact plate on the closing page. The contact plate already carries the brand, so never add a second brand plate to the closing page. Use the light plate on cream pages and the dark plate on dark, colour or photographic pages. Never set the contact lines straight over a photograph.',
   '',
   'REQUIRED',
   '- Page 1, the cover: at least one photograph, {{title}}, {{customer}}, a brand plate {{brandPlateDark}} or {{brandPlateLight}}, and {{brandTamil}} or {{roomTamil}}.',
   '- The brand is always legible: {{logoWhite}} on a dark, colour or photographic field, {{logo}} on cream or a light field. Never set either mark straight on a busy photograph without a solid panel or scrim behind it, and never tint or recolour a mark.',
-  '- The closing page carries a brand plate and a contact plate {{contactPlateLight}} or {{contactPlateDark}}. Those panels keep the company name, phone, email and address readable whatever the page background is.',
+  '- The closing page carries one contact plate {{contactPlateLight}} or {{contactPlateDark}}, which already contains the company name. Do not add a separate brand plate or a second logo to the closing page.',
   '- {{headline}}, {{body}} and {{closing}} each exactly once, anywhere in the story pages.',
   '- Every photograph token from {{photo1}} to the last available must appear at least once.',
   '- Every palette strip token must appear at least once, on the colour pages. Next to each strip print its four colours as paint card chips, each using its colour token and its colour NAME token, with its hex value small. This is the colour options spread of the showroom book.',
@@ -187,12 +187,12 @@ export const DESIGNER_SYSTEM = [
   'The studio adds the material callout pages itself, with ring, dotted leader, arrow and colour code printed on paper. The designer never draws any of it.',
   'Frame photographs so a calm strip of paper remains at the outer edge of the page for the annotations. On a full bleed photograph, bring the leader line to the nearest margin and set the text there, never over the picture.',
   'Colour page: treat the palette like paint chips in an automotive book. Strips at full measure, chips aligned in a row on the grid, names in small caps, codes small and quiet, one line of mood copy. No card frames and no shadows.',
-  'The closing page is a quiet exhale: brand plate, contact plate, one line of thanks, a motif if it belongs. Nothing else.',
+  'The closing page is a composed back cover, not a form: one contact plate, one closing line, the Tamil line, one motif and a hairline grid. No second logo, no empty middle band.',
   '',
   'PAMPHLET OR BROCHURE, CHOSEN BY THE STUDIO',
   'Pamphlet is a small take home piece: one dominant whole picture per side, a short line of type, and generous but purposeful margins. Minimal copy does not mean an empty page; the photograph, headline, palette and one detail note fill the side.',
   'Brochure is a larger art directed book: an editorial cover, story spreads with real copy, one or more picture sides, colour plates and detail callouts, then a closing spread. It still has no fixed length; more pictures and more story earn more sides.',
-  'Never pad either format and never squeeze a picture to fit a page count. The cover is one picture and one title. Any closing side carries the brand and contact plates.',
+  'Never pad either format and never squeeze a picture to fit a page count. The cover is one picture and one title. The closing side carries one contact plate only.',
   '',
   'DESIGN RULES',
   '- Print design, not web design. No cards, rounded corners, drop shadows, buttons, icons, badges, glass, or gradients except a soft photograph scrim.',
@@ -1077,11 +1077,15 @@ export function parseDesignerReply(content, photoCount = 4, palettePhotos = [], 
       if (countToken(pages[0], token) > 0) issues.push(`{{${token}}} belongs in the story, not on the cover`);
     }
     const lastHtml = pages[last];
-    if (countToken(lastHtml, 'brandPlateDark') + countToken(lastHtml, 'brandPlateLight') === 0) {
-      issues.push('the closing page is missing a brand plate');
-    }
-    if (countToken(lastHtml, 'contactPlateDark') + countToken(lastHtml, 'contactPlateLight') === 0) {
+    const contactPlates =
+      countToken(lastHtml, 'contactPlateDark') + countToken(lastHtml, 'contactPlateLight');
+    const brandPlates =
+      countToken(lastHtml, 'brandPlateDark') + countToken(lastHtml, 'brandPlateLight');
+    if (contactPlates === 0) {
       issues.push('the closing page is missing a contact plate; company details must stay readable');
+    }
+    if (brandPlates > 0) {
+      issues.push('the closing page carries a second brand plate; use one contact plate, which already holds the brand');
     }
     for (const token of COPY_TOKENS) {
       if (countToken(lastHtml, token) > 0) issues.push(`{{${token}}} belongs in the story, not the closing page`);
