@@ -190,6 +190,9 @@ export default function ChatScreen() {
   const [cooking, setCooking] = useState(false);
   const [orderCreated, setOrderCreated] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [pendingMarks, setPendingMarks] = useState<
+    { photo: string; x: number; y: number; label: string; colourName: string; colourHex: string }[]
+  >([]);
   const [activeOrderNo, setActiveOrderNo] = useState('');
   const [createFailed, setCreateFailed] = useState(false);
   const [orderFiles, setOrderFiles] = useState<OrderAttachment[]>([]);
@@ -308,6 +311,25 @@ export default function ChatScreen() {
   }, []);
 
   useFocusEffect(refreshModelStatus);
+
+  useEffect(() => {
+    if (!activeOrderId || pendingMarks.length === 0) return;
+    let active = true;
+    api
+      .getOrder(activeOrderId)
+      .then((order) =>
+        api.updateAnnotations(activeOrderId, [...(order.annotations ?? []), ...pendingMarks])
+      )
+      .then(() => {
+        if (active) setPendingMarks([]);
+      })
+      .catch(() => {
+        // The mark stays queued and is retried on the next order change.
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeOrderId, pendingMarks]);
 
   useEffect(() => {
     anim.setValue(0);
@@ -968,6 +990,7 @@ export default function ChatScreen() {
                 onCopy={copyMessage}
                 activeOrderId={activeOrderId}
                 onMarksSaved={() => setInput("Design with my marked details.")}
+                onMarkQueued={(mark) => setPendingMarks((current) => [...current, mark])}
               />
             ))
           )}
@@ -1294,11 +1317,20 @@ function ReviewPhotoCard({
   index,
   orderId,
   onMarksSaved,
+  onMarkQueued,
 }: {
   photo: ReviewPhoto;
   index: number;
   orderId: string | null;
   onMarksSaved?: () => void;
+  onMarkQueued?: (mark: {
+    photo: string;
+    x: number;
+    y: number;
+    label: string;
+    colourName: string;
+    colourHex: string;
+  }) => void;
 }) {
   const [frame, setFrame] = useState({ width: 0, height: 0 });
   const [markOpen, setMarkOpen] = useState(false);
@@ -1358,10 +1390,6 @@ function ReviewPhotoCard({
   };
 
   const saveMark = async () => {
-    if (!orderId) {
-      setMarkNote('The order must exist before marks can be saved.');
-      return;
-    }
     if (markLabel.trim() === '' || markName.trim() === '') {
       setMarkNote('Enter the detail and the colour name.');
       return;
@@ -1372,6 +1400,21 @@ function ReviewPhotoCard({
       return;
     }
     const position = point ?? { x: 50, y: 50 };
+    if (!orderId) {
+      // The review happens before the order exists. Keep the mark in the chat
+      // and attach it as soon as the order is created.
+      onMarkQueued?.({
+        photo: `photo${index + 1}`,
+        x: Math.round(position.x * 10) / 10,
+        y: Math.round(position.y * 10) / 10,
+        label: markLabel.trim(),
+        colourName: markName.trim(),
+        colourHex: hex,
+      });
+      setMarkNote('Saved to this chat. It will be attached when the order is created.');
+      setMarking(false);
+      return;
+    }
     setMarking(true);
     try {
       const order = await api.getOrder(orderId);
@@ -1587,17 +1630,15 @@ function ReviewPhotoCard({
               />
             </View>
             {markNote ? <Text style={[text.caption, styles.markNote]}>{markNote}</Text> : null}
-            {!orderId ? (
-              <Text style={[text.caption, styles.markNote]}>
-                Marks can be saved once the order exists.
-              </Text>
-            ) : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Save marked detail"
-              disabled={marking || !orderId}
+              disabled={marking || markLabel.trim() === '' || markName.trim() === ''}
               onPress={() => void saveMark()}
-              style={[styles.markSave, (marking || !orderId) && styles.markSaveDisabled]}>
+              style={[
+                styles.markSave,
+                (marking || markLabel.trim() === '' || markName.trim() === '') && styles.markSaveDisabled,
+              ]}>
               <Text style={styles.markSaveLabel}>{marking ? 'Saving' : 'Save marked detail'}</Text>
             </Pressable>
           </View>
@@ -1614,12 +1655,21 @@ function BubbleView({
   onCopy,
   activeOrderId,
   onMarksSaved,
+  onMarkQueued,
 }: {
   bubble: Bubble;
   copied: boolean;
   onCopy: (bubble: Bubble) => void;
   activeOrderId: string | null;
   onMarksSaved: () => void;
+  onMarkQueued: (mark: {
+    photo: string;
+    x: number;
+    y: number;
+    label: string;
+    colourName: string;
+    colourHex: string;
+  }) => void;
 }) {
   if (bubble.kind === 'review') {
     return (
@@ -1637,6 +1687,7 @@ function BubbleView({
                 index={photoIndex}
                 orderId={activeOrderId}
                 onMarksSaved={onMarksSaved}
+                onMarkQueued={onMarkQueued}
               />
             ))}
             <Text style={[text.caption, styles.reviewHint]}>
